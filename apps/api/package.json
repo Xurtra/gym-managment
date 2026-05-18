@@ -1,0 +1,21 @@
+{
+  "name": "@gym-platform/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsx --conditions=development src/index.ts",
+    "migrate": "tsx --conditions=development src/db/migrate.ts",
+    "seed": "tsx --conditions=development src/db/seed.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -b --pretty",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@gym-platform/constants": "*",
+    "@gym-platform/validation": "*",
+    "pg": "^8.20.0"
+  }
+}

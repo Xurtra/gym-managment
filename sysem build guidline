@@ -1,0 +1,14 @@
+# System Build Guideline
+
+The spreadsheet is the source of truth for build tracking. Before starting a task, mark it as Taken + Ongoing. When the implementation and verification are done, move it to Completed and clear Ongoing.
+
+Backend work should move in this order:
+
+1. Define domain module boundaries.
+2. Add or update shared constants and validation contracts.
+3. Implement service logic behind repository boundaries.
+4. Expose thin API routes with validation, auth, tenant checks, and permission checks.
+5. Add focused tests for business rules.
+6. Update docs and the tracker.
+
+Current priority is backend correctness. Frontend workspaces are present, but screens should wait until the API contracts settle.

@@ -1,0 +1,60 @@
+# Testing
+
+The backend test suite has two layers.
+
+## Unit-Level Service Tests
+
+- Authentication service: registration, login, refresh-token rotation, password reset, email verification, two-factor setup, authenticator-code login, and recovery-code login.
+- Tenant service: unique gym slugs and tenant isolation.
+- Gym settings: profile, logo URL, brand colors, business info, operating hours, and onboarding progress updates.
+- Role service: default permissions, custom role creation/editing, role assignment, role listing, staff access listing/removal, staff audit logging, staff invite creation with role selection, and invite acceptance.
+- Staff schedule service: shift creation, active staff checks, location checks, staff-role validation, and overlap rejection.
+- Location service: create, detail lookup, update, archive, duplicate-name protection, and class room summaries.
+- Member service: create, update, archive, and duplicate email/barcode protection.
+- Member membership service: plan assignment and membership history listing.
+- Membership plan service: pricing intervals, update, archive, and duplicate-name protection.
+- Class schedule service: class type creation, session scheduling, public schedule filtering, invalid time rejection, and trainer validation.
+- Booking service: capacity checks, active membership eligibility, plan class limits, duplicate active spot rejection, waitlist join/leave, member eligibility, waitlist promotion, promotion notifications, cancellation cutoffs, late fees, and staff manual overrides.
+- Check-in service: QR/barcode lookup, member and membership denials, class booking validation, class-booking linkage, and staff eligibility overrides.
+- Dashboard check-in modules: front desk search, QR scanner, barcode input, success/denied result states, past-due warning state, history filtering, kiosk auto-reset, and CSV export.
+- Access control service: device registration, rule-based unlocks, denied reason logging, heartbeats, offline detection, and API-key rotation.
+- Dashboard access-control modules: device registration/list/rotation state, rule editor state, and event history filtering.
+- Shared UI package: primitive UI state models and error-boundary state.
+- Frontend routing/auth/shell modules: dashboard protected routes, permission-guarded dashboard navigation, grouped module navigation, shell layout, global gym search, dashboard home summary cards, reusable page headers, reusable data tables, filter drawers, confirmation modals, detail drawers, toast notification centers, date range pickers, CSV uploaders, image uploaders, responsive mobile navigation, account menu, member portal routes, public site routes, auth screens, 2FA setup/verification/recovery-code screens, session persistence, token refresh application, and forced logout.
+- Dashboard gym settings/onboarding modules: profile settings, logo upload state, brand colors, business info, timezone/locale, operating hours, feature flags, onboarding checklist, wizard steps, and progress indicator.
+- Dashboard location modules: list/detail state, address validation, map links, business hours, room management, access rules, location switchers, multi-location member access, and reporting filters.
+- Dashboard staff modules: staff list search/filter/table state, staff profile detail/action/audit state, create/edit staff member form state, staff active/inactive status flow, staff invite form state, staff invite email sending state, trainer public visibility setting, trainer specialties editor, trainer bio editor, trainer profile image upload, staff schedule availability model/editor, staff shift calendar view, staff shift conflict detection, staff task assignment/list/completion state, role selection, pending invite list, normalized invite submission, accept-invite form state, normalized acceptance submission, staff permission editing/removal state, custom role create/edit state, and trainer/front-desk restricted views.
+- Dashboard member modules: member list search/filter/table state, member profile detail sections, membership summaries, reusable member status badges, dedicated contact-information, emergency-contact, and notes sections, dedicated member search by name/email/phone/barcode, status/tag summaries, contact/tag labels, and permission-aware row actions.
+- API client: automatic refresh-token retry, token clearing when refresh fails, location detail/room routes, public schedule location filters, role listing, staff access/audit routes, staff role assignment/removal, and staff invite create/accept routes.
+- Postgres repository adapter: row mapping and transaction commit/rollback behavior.
+
+## Full Process Test
+
+`apps/api/src/modules/system/system-flow.test.ts` starts the API with a real HTTP server on an ephemeral port and tests the current backend process end to end:
+
+- Owner registration and gym creation.
+- Authenticated current-user lookup.
+- Email verification.
+- Gym-scoped location create, list, detail, update, room summary, and archive.
+- Refresh-token rotation and refresh-token reuse rejection.
+- Logout invalidation.
+- Tenant isolation against an outside user.
+- Custom role creation/editing, role assignment, staff access listing/removal, staff audit logging, role listing, staff invite creation by an owner, and invite acceptance by the invited staff user.
+- Member, member-membership, membership-plan, class-type, class-session, public schedule with location filtering, booking, staff manual booking, waitlist, check-in, and access-control endpoints.
+- Password reset with active refresh-token revocation.
+
+Run everything with:
+
+```bash
+npm test
+```
+
+## Postgres Integration
+
+The default suite skips the live Postgres flow. Run it with Docker:
+
+```bash
+npm run test:postgres
+```
+
+That command starts a disposable Postgres container, runs migrations, runs the gated Postgres API flow test, and tears the container down.

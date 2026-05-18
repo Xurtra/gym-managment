@@ -1,0 +1,25 @@
+{
+  "name": "@gym-platform/dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@gym-platform/api-client": "*",
+    "@gym-platform/constants": "*",
+    "@gym-platform/ui": "*",
+    "@gym-platform/validation": "*"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --pretty",
+    "test": "vitest run"
+  }
+}

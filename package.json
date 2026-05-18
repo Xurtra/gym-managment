@@ -1,0 +1,39 @@
+{
+  "name": "gym-management-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Modular gym management platform monorepo.",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "dev:api": "npm run dev -w @gym-platform/api",
+    "dev:worker": "npm run dev -w @gym-platform/worker",
+    "prepare": "node tools/setup-git-hooks.mjs",
+    "precommit": "npm run lint && npm run typecheck && npm test",
+    "start:api": "npm run start -w @gym-platform/api",
+    "start:worker": "npm run start -w @gym-platform/worker",
+    "test": "vitest run",
+    "test:postgres": "node tools/run-postgres-integration.mjs",
+    "typecheck": "tsc -b --pretty",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "tracker:summary": "node tools/tracker-summary.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.35.0",
+    "@types/node": "20.14.15",
+    "@types/pg": "^8.20.0",
+    "@typescript-eslint/eslint-plugin": "8.46.3",
+    "@typescript-eslint/parser": "8.46.3",
+    "eslint": "9.35.0",
+    "prettier": "3.6.2",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.46.3",
+    "vitest": "2.1.9"
+  }
+}

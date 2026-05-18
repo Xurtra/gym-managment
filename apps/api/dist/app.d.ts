@@ -1,0 +1,56 @@
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { Pool } from "pg";
+import type { ApiConfig } from "./config/env.js";
+import { InMemoryStore } from "./infrastructure/store/inMemoryStore.js";
+import type { Repositories } from "./infrastructure/store/repositories.js";
+import { AccessControlService } from "./modules/accessControl/accessControl.service.js";
+import { AuthService } from "./modules/auth/auth.service.js";
+import { BookingService } from "./modules/bookings/booking.service.js";
+import { CheckInService } from "./modules/checkIns/checkIn.service.js";
+import { ClassScheduleService } from "./modules/classes/classSchedule.service.js";
+import { MemberMembershipService } from "./modules/memberMemberships/memberMembership.service.js";
+import { LocationService } from "./modules/locations/location.service.js";
+import { MemberService } from "./modules/members/member.service.js";
+import { MembershipPlanService } from "./modules/membershipPlans/membershipPlan.service.js";
+import { RoleService } from "./modules/roles/role.service.js";
+import { StaffScheduleService } from "./modules/staffSchedule/staffSchedule.service.js";
+import { TenancyService } from "./modules/tenancy/tenancy.service.js";
+import { type Clock } from "./shared/time.js";
+export interface Services {
+    repositories: Repositories;
+    store?: InMemoryStore;
+    clock: Clock;
+    authService: AuthService;
+    roleService: RoleService;
+    staffScheduleService: StaffScheduleService;
+    tenancyService: TenancyService;
+    locationService: LocationService;
+    memberService: MemberService;
+    memberMembershipService: MemberMembershipService;
+    membershipPlanService: MembershipPlanService;
+    classScheduleService: ClassScheduleService;
+    bookingService: BookingService;
+    checkInService: CheckInService;
+    accessControlService: AccessControlService;
+}
+export declare function createServices(config: ApiConfig, clock?: Clock, repositories?: Repositories): Services;
+export declare function createPostgresServices(config: ApiConfig, clock?: Clock, pool?: Pool): {
+    close: () => Promise<void>;
+    repositories: Repositories;
+    store?: InMemoryStore;
+    clock: Clock;
+    authService: AuthService;
+    roleService: RoleService;
+    staffScheduleService: StaffScheduleService;
+    tenancyService: TenancyService;
+    locationService: LocationService;
+    memberService: MemberService;
+    memberMembershipService: MemberMembershipService;
+    membershipPlanService: MembershipPlanService;
+    classScheduleService: ClassScheduleService;
+    bookingService: BookingService;
+    checkInService: CheckInService;
+    accessControlService: AccessControlService;
+};
+export declare function createApp(config: ApiConfig, services?: Services): (req: IncomingMessage, res: ServerResponse) => Promise<void>;
+//# sourceMappingURL=app.d.ts.map

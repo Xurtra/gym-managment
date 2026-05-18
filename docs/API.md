@@ -1,0 +1,135 @@
+# API Documentation
+
+Base URL in local development: `http://localhost:4000`
+
+## Health
+
+- `GET /health` - confirms the API process is alive.
+
+## Authentication
+
+- `POST /auth/register` - creates a platform user; optionally creates an owner gym when `gymName` is supplied.
+- `POST /auth/login` - exchanges email and password for access and refresh tokens.
+- `POST /auth/refresh` - rotates a refresh token and returns a new access token and refresh token.
+- `POST /auth/logout` - revokes the supplied refresh token.
+- `POST /auth/forgot-password` - creates a password reset token for an existing user.
+- `POST /auth/reset-password` - validates a reset token, updates the password, and revokes active refresh tokens.
+- `POST /auth/verify-email` - validates an email verification token.
+- `POST /auth/resend-verification` - creates a new verification token for an unverified user.
+- `POST /auth/2fa/setup` - creates an authenticator-app secret for the authenticated user.
+- `POST /auth/2fa/verify` - verifies a six-digit authenticator code, enables 2FA, and returns recovery codes.
+- `POST /auth/2fa/recovery-codes` - regenerates recovery codes for an authenticated user with 2FA enabled.
+- `GET /auth/me` - returns the authenticated user, memberships, and active gym context.
+
+When 2FA is enabled, `POST /auth/login` returns `twoFactorRequired: true` after a correct email and password until the caller supplies either `twoFactorCode` or `recoveryCode`.
+
+Protected endpoints require:
+
+```http
+Authorization: Bearer <access-token>
+```
+
+## Gyms
+
+- `POST /gyms` - creates a gym for the authenticated user and assigns the owner role.
+- `GET /gyms/:gymId` - returns gym profile, brand, business, operating-hours, feature-flag, and onboarding settings.
+- `PATCH /gyms/:gymId` - updates gym settings including profile, logo URL, brand colors, business info, timezone, locale, operating hours, feature flags, and onboarding progress.
+
+Gym settings routes enforce tenant access and `gym:read` or `gym:update`.
+
+## Locations
+
+- `GET /gyms/:gymId/locations` - lists active locations for a gym.
+- `GET /gyms/:gymId/locations/:locationId` - returns an active location detail record.
+- `GET /gyms/:gymId/locations/:locationId/rooms` - returns class room names inferred from scheduled class sessions at that location, including session counts and the next scheduled session time.
+- `POST /gyms/:gymId/locations` - creates a gym location.
+- `PATCH /gyms/:gymId/locations/:locationId` - updates a location.
+- `DELETE /gyms/:gymId/locations/:locationId` - archives a location.
+
+Location routes enforce tenant access and role permissions.
+
+## Roles
+
+- `GET /gyms/:gymId/roles` - lists roles available in the gym for role-selection flows.
+- `POST /gyms/:gymId/roles` - creates a custom, non-system gym role with selected permissions.
+- `PATCH /gyms/:gymId/roles/:roleId` - edits a custom role name and permissions.
+- `POST /gyms/:gymId/roles/assign` - assigns an existing gym role to a gym user.
+
+Role listing requires `staff:read`. Custom role creation, custom role editing, and role assignment require `staff:role_assign`. Custom roles reject reserved default role names and `platform:admin`. System roles cannot be edited. Role assignment rejects owner/member role assignments, rejects self role changes, and writes a staff audit log when the role changes.
+
+## Staff Access
+
+- `GET /gyms/:gymId/staff` - lists staff access records with user, role, and membership status.
+- `GET /gyms/:gymId/staff/audit` - lists staff access audit entries for role changes and access removals.
+- `DELETE /gyms/:gymId/staff/:userId` - removes staff access by disabling the gym-user membership and writing an audit entry. Optional JSON body: `{ "reason": "..." }`.
+
+Staff access listing and audit reads require `staff:read`. Removing staff access requires `staff:remove`, rejects owner removal, rejects self-removal, and preserves the disabled membership row for history.
+
+## Staff Invites
+
+- `GET /gyms/:gymId/staff/invites` - lists staff invites for the gym.
+- `POST /gyms/:gymId/staff/invites` - creates a pending staff invite for an email and selected role, returning a one-time invite token.
+- `POST /staff/invites/accept` - accepts a pending invite token, creates or verifies the invited user, grants the selected gym role, marks the invite accepted, and returns a dashboard session.
+
+Staff invite listing requires `staff:read`; creating invites requires `staff:invite`. Invite creation rejects owner/member-role invites, duplicate pending invites, roles outside the gym, and users who already have gym access.
+
+## Members
+
+- `GET /gyms/:gymId/members` - lists active, non-archived members for a gym.
+- `POST /gyms/:gymId/members` - creates a member profile with optional contact, barcode, emergency-contact, notes, and tag fields.
+- `PATCH /gyms/:gymId/members/:memberId` - updates member profile fields and status.
+- `DELETE /gyms/:gymId/members/:memberId` - archives a member.
+- `GET /gyms/:gymId/members/:memberId/memberships` - lists membership assignments for a member.
+- `POST /gyms/:gymId/members/:memberId/memberships` - assigns an existing membership plan to an existing member.
+
+Member routes enforce tenant access and `member:read` or `member:write`.
+
+## Membership Plans
+
+- `GET /gyms/:gymId/membership-plans` - lists active, non-archived membership plans.
+- `POST /gyms/:gymId/membership-plans` - creates monthly, yearly, one-time, or package pricing plans.
+- `PATCH /gyms/:gymId/membership-plans/:planId` - updates pricing and plan metadata.
+- `DELETE /gyms/:gymId/membership-plans/:planId` - archives a plan.
+
+Plan routes enforce tenant access and `plan:read` or `plan:write`.
+
+## Classes
+
+- `GET /gyms/:gymId/class-types` - lists class templates for a gym.
+- `POST /gyms/:gymId/class-types` - creates a class type with default duration, capacity, waitlist capacity, and public visibility.
+- `POST /gyms/:gymId/class-sessions` - creates a scheduled class session for a class type and location, with optional cancellation cutoff and late fee settings.
+- `GET /public/gyms/:gymSlug/schedule?from=<iso>&to=<iso>&locationId=<id>` - returns public scheduled class sessions in the requested date range, optionally filtered to one active location.
+
+Class management routes enforce tenant access and `class:read` or `class:write`. Public schedule access does not require authentication.
+
+## Bookings & Waitlists
+
+- `GET /gyms/:gymId/class-sessions/:sessionId/bookings` - lists bookings and waitlist spots for a class session.
+- `POST /gyms/:gymId/class-sessions/:sessionId/bookings` - creates a class booking for a member when class capacity is available.
+- `POST /gyms/:gymId/class-sessions/:sessionId/bookings/manual` - creates a staff manual booking; staff can provide override flags and an override reason.
+- `DELETE /gyms/:gymId/class-bookings/:bookingId` - cancels a booked or waitlisted spot; booked cancellations promote the next waitlisted member when possible.
+- `POST /gyms/:gymId/class-sessions/:sessionId/waitlist` - joins the waitlist when booking capacity is full and waitlist capacity is available.
+- `DELETE /gyms/:gymId/class-bookings/:bookingId/waitlist` - removes a waitlisted member from the waitlist.
+
+Booking routes enforce tenant access and `booking:read` or `booking:write`. Eligibility requires an active or trial member profile plus an active or trialing membership assignment. Plans with `classAccessLimit` cap active upcoming booked classes; plans without a limit are treated as unlimited for class bookings. Cancellations inside a session cutoff are marked late and receive the configured late cancellation fee. Waitlist promotions create pending notification events.
+
+## Check-Ins
+
+- `GET /gyms/:gymId/members/:memberId/check-in-code` - returns a member QR payload plus barcode data when a barcode is stored.
+- `GET /gyms/:gymId/members/:memberId/check-ins` - lists check-ins recorded for a member.
+- `POST /gyms/:gymId/check-ins` - records a staff, barcode, or QR-code check-in for a gym location, with optional class-session validation.
+
+Check-in routes enforce tenant access and `member:read` or `member:write`. A member must be active or trialing with an active or trialing membership assignment. Frozen, expired, cancelled, and past-due members are denied. Class check-ins also require an active booked class spot unless staff submits an eligibility override reason.
+
+## Access Control
+
+- `GET /gyms/:gymId/access/devices` - lists access devices and marks stale devices offline.
+- `POST /gyms/:gymId/access/devices` - registers a door or kiosk device and returns its one-time API key.
+- `POST /gyms/:gymId/access/devices/:deviceId/rotate-key` - rotates a device API key and returns the new one-time key.
+- `GET /gyms/:gymId/access/rules` - lists access rules.
+- `POST /gyms/:gymId/access/rules` - creates a location rule by membership plan or all active members.
+- `GET /gyms/:gymId/access/events` - lists unlock and denied access events.
+- `POST /access/device-events` - device endpoint that authorizes a member credential and logs the decision.
+- `POST /access/device-heartbeats` - device endpoint that records heartbeat time and restores active status.
+
+Staff access routes enforce tenant access and `access:read` or `access:write`. Device event and heartbeat routes authenticate with the device API key in the request body.
