@@ -150,16 +150,19 @@ export class CheckInService {
     const memberships = (await this.repositories.memberMemberships.listMemberMembershipsForMember(memberId)).filter(
       (membership) => membership.gymId === gymId
     );
-    if (memberships.some((membership) => deniedMembershipStatuses.has(membership.status))) {
-      return "membership_not_active";
-    }
     const active = memberships.some(
       (membership) =>
         activeMembershipStatuses.has(membership.status) &&
         membership.startsAt <= now &&
         (!membership.endsAt || membership.endsAt >= now)
     );
-    return active ? undefined : "active_membership_required";
+    if (active) {
+      return undefined;
+    }
+    if (memberships.some((membership) => deniedMembershipStatuses.has(membership.status))) {
+      return "membership_not_active";
+    }
+    return "active_membership_required";
   }
 
   private async getClassBookingDenial(gymId: string, memberId: string, classSessionId: string) {

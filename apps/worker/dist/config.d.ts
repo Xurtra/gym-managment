@@ -1,5 +1,6 @@
+import { type RuntimeEnv } from "@gym-platform/constants";
 export interface WorkerConfig {
-    nodeEnv: "development" | "test" | "production";
+    nodeEnv: RuntimeEnv;
     workerName: string;
     pollIntervalMs: number;
     redisUrl?: string;

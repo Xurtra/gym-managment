@@ -44,6 +44,42 @@ describe("BookingService", () => {
     expect(notifications[0]?.relatedBookingId).toBe(waitlisted.id);
   });
 
+  it("skips an ineligible first waitlisted member and promotes the next eligible member", async () => {
+    const services = createServices(testConfig, fixedClock);
+    const { gymId, session, members } = await createBookingFixture(services, {
+      capacity: 1,
+      waitlistCapacity: 2
+    });
+
+    const booked = await services.bookingService.createBooking(gymId, session.id, {
+      memberId: members[0].id
+    });
+    const firstWaitlisted = await services.bookingService.joinWaitlist(gymId, session.id, {
+      memberId: members[1].id
+    });
+    const secondWaitlisted = await services.bookingService.joinWaitlist(gymId, session.id, {
+      memberId: members[2].id
+    });
+
+    await services.memberService.update(gymId, members[1].id, {
+      status: MemberStatus.Frozen
+    });
+
+    const cancelled = await services.bookingService.cancelBooking(gymId, booked.id);
+    const listed = await services.bookingService.listForSession(gymId, session.id);
+
+    expect(firstWaitlisted.status).toBe(BookingStatus.Waitlisted);
+    expect(secondWaitlisted.status).toBe(BookingStatus.Waitlisted);
+    expect(cancelled.promotedBooking?.id).toBe(secondWaitlisted.id);
+    expect(cancelled.promotedBooking?.status).toBe(BookingStatus.Booked);
+    expect(
+      listed.find((booking) => booking.id === firstWaitlisted.id)?.status
+    ).toBe(BookingStatus.Waitlisted);
+    expect(
+      listed.find((booking) => booking.id === secondWaitlisted.id)?.status
+    ).toBe(BookingStatus.Booked);
+  });
+
   it("rejects duplicate active spots, full waitlists, and ineligible members", async () => {
     const services = createServices(testConfig, fixedClock);
     const { gymId, session, members } = await createBookingFixture(services, {

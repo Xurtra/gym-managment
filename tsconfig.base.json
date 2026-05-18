@@ -4,6 +4,13 @@
     "lib": ["ES2022"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "baseUrl": ".",
+    "paths": {
+      "@gym-platform/constants": ["packages/constants/src/index.ts"],
+      "@gym-platform/ui": ["packages/ui/src/index.ts"],
+      "@gym-platform/validation": ["packages/validation/src/index.ts"],
+      "@gym-platform/api-client": ["packages/api-client/src/index.ts"]
+    },
     "strict": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,

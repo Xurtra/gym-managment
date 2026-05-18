@@ -1,5 +1,7 @@
+import { loadEnvironmentFiles, type RuntimeEnv } from "@gym-platform/constants";
+
 export interface WorkerConfig {
-  nodeEnv: "development" | "test" | "production";
+  nodeEnv: RuntimeEnv;
   workerName: string;
   pollIntervalMs: number;
   redisUrl?: string;
@@ -7,10 +9,7 @@ export interface WorkerConfig {
 }
 
 export function loadWorkerConfig(): WorkerConfig {
-  const nodeEnv = (process.env.NODE_ENV ?? "development") as WorkerConfig["nodeEnv"];
-  if (!["development", "test", "production"].includes(nodeEnv)) {
-    throw new Error("NODE_ENV must be development, test, or production.");
-  }
+  const nodeEnv = loadEnvironmentFiles();
   const config: WorkerConfig = {
     nodeEnv,
     workerName: process.env.WORKER_NAME ?? "gym-platform-worker",

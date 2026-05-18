@@ -51,6 +51,25 @@ describe("CheckInService", () => {
         expect(expiredMembershipCheckIn.status).toBe(CheckInStatus.Denied);
         expect(expiredMembershipCheckIn.deniedReason).toBe("membership_not_active");
     });
+    it("allows check-in when a member has an active membership alongside expired history", async () => {
+        const services = createServices(testConfig, fixedClock);
+        const { gymId, locationId, staffUserId, planId } = await createCheckInFixture(services);
+        const returningMember = await createMember(services, gymId, "Returning", "MEM-RETURNING", MemberStatus.Active);
+        await services.memberMembershipService.assignPlan(gymId, returningMember.id, {
+            planId,
+            status: MembershipStatus.Expired
+        });
+        await services.memberMembershipService.assignPlan(gymId, returningMember.id, {
+            planId,
+            status: MembershipStatus.Active
+        });
+        const checkIn = await services.checkInService.checkIn(gymId, staffUserId, {
+            memberId: returningMember.id,
+            locationId
+        });
+        expect(checkIn.status).toBe(CheckInStatus.Allowed);
+        expect(checkIn.deniedReason).toBeUndefined();
+    });
     it("rejects check-ins for locations outside the active gym location set", async () => {
         const services = createServices(testConfig, fixedClock);
         const { gymId, staffUserId, members } = await createCheckInFixture(services);

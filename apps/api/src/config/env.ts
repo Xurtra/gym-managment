@@ -1,8 +1,7 @@
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { loadEnvironmentFiles, type RuntimeEnv } from "@gym-platform/constants";
 
 export interface ApiConfig {
-  nodeEnv: "development" | "test" | "production";
+  nodeEnv: RuntimeEnv;
   persistenceDriver: "memory" | "postgres";
   host: string;
   port: number;
@@ -13,29 +12,6 @@ export interface ApiConfig {
   emailVerificationTokenTtlHours: number;
   databaseUrl?: string;
   redisUrl?: string;
-}
-
-function loadDotEnv(cwd = process.cwd()) {
-  const path = resolve(cwd, ".env");
-  if (!existsSync(path)) {
-    return;
-  }
-  const content = readFileSync(path, "utf8");
-  for (const line of content.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) {
-      continue;
-    }
-    const separator = trimmed.indexOf("=");
-    if (separator === -1) {
-      continue;
-    }
-    const key = trimmed.slice(0, separator).trim();
-    const value = trimmed.slice(separator + 1).trim().replace(/^['"]|['"]$/g, "");
-    if (!(key in process.env)) {
-      process.env[key] = value;
-    }
-  }
 }
 
 function numberFromEnv(name: string, fallback: number) {
@@ -51,11 +27,7 @@ function numberFromEnv(name: string, fallback: number) {
 }
 
 export function loadConfig(): ApiConfig {
-  loadDotEnv();
-  const nodeEnv = (process.env.NODE_ENV ?? "development") as ApiConfig["nodeEnv"];
-  if (!["development", "test", "production"].includes(nodeEnv)) {
-    throw new Error("NODE_ENV must be development, test, or production.");
-  }
+  const nodeEnv = loadEnvironmentFiles();
   const accessTokenSecret = process.env.ACCESS_TOKEN_SECRET ?? "local-dev-secret-change-me";
   if (nodeEnv === "production" && accessTokenSecret === "local-dev-secret-change-me") {
     throw new Error("ACCESS_TOKEN_SECRET must be set in production.");

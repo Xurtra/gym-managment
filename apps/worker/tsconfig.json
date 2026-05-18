@@ -6,5 +6,6 @@
     "outDir": "dist",
     "types": ["node", "vitest/globals"]
   },
+  "references": [{ "path": "../../packages/constants" }],
   "include": ["src/**/*.ts"]
 }

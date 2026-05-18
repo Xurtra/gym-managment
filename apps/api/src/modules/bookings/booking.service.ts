@@ -255,11 +255,14 @@ export class BookingService {
     if (bookedCount(bookings) >= session.capacity) {
       return undefined;
     }
-    const next = activeWaitlisted(bookings)[0];
-    if (!next) {
-      return undefined;
+    let next: ClassBooking | undefined;
+    for (const candidate of activeWaitlisted(bookings)) {
+      if (await this.canPromoteWaitlistedBooking(repositories, session.gymId, candidate.memberId)) {
+        next = candidate;
+        break;
+      }
     }
-    if (!(await this.canPromoteWaitlistedBooking(repositories, session.gymId, next.memberId))) {
+    if (!next) {
       return undefined;
     }
     const now = this.clock.now();

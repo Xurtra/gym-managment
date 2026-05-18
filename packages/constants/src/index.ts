@@ -286,3 +286,5 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
     Permission.BookingWrite
   ]
 };
+
+export * from "./env.js";

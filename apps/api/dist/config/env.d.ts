@@ -1,5 +1,6 @@
+import { type RuntimeEnv } from "@gym-platform/constants";
 export interface ApiConfig {
-    nodeEnv: "development" | "test" | "production";
+    nodeEnv: RuntimeEnv;
     persistenceDriver: "memory" | "postgres";
     host: string;
     port: number;

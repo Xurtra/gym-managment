@@ -121,13 +121,16 @@ export class CheckInService {
     async getMembershipDenial(memberId, gymId) {
         const now = this.clock.now();
         const memberships = (await this.repositories.memberMemberships.listMemberMembershipsForMember(memberId)).filter((membership) => membership.gymId === gymId);
-        if (memberships.some((membership) => deniedMembershipStatuses.has(membership.status))) {
-            return "membership_not_active";
-        }
         const active = memberships.some((membership) => activeMembershipStatuses.has(membership.status) &&
             membership.startsAt <= now &&
             (!membership.endsAt || membership.endsAt >= now));
-        return active ? undefined : "active_membership_required";
+        if (active) {
+            return undefined;
+        }
+        if (memberships.some((membership) => deniedMembershipStatuses.has(membership.status))) {
+            return "membership_not_active";
+        }
+        return "active_membership_required";
     }
     async getClassBookingDenial(gymId, memberId, classSessionId) {
         const session = await this.repositories.classes.getClassSession(classSessionId);

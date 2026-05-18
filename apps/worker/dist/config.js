@@ -1,8 +1,6 @@
+import { loadEnvironmentFiles } from "@gym-platform/constants";
 export function loadWorkerConfig() {
-    const nodeEnv = (process.env.NODE_ENV ?? "development");
-    if (!["development", "test", "production"].includes(nodeEnv)) {
-        throw new Error("NODE_ENV must be development, test, or production.");
-    }
+    const nodeEnv = loadEnvironmentFiles();
     const config = {
         nodeEnv,
         workerName: process.env.WORKER_NAME ?? "gym-platform-worker",
