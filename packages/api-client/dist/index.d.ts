@@ -83,7 +83,9 @@ export declare class GymApiClient {
     leaveClassWaitlist(gymId: string, bookingId: string): Promise<unknown>;
     memberCheckInCode(gymId: string, memberId: string): Promise<unknown>;
     listMemberCheckIns(gymId: string, memberId: string): Promise<unknown>;
+    listCheckIns(gymId: string): Promise<unknown>;
     createCheckIn(gymId: string, input: CheckInCreateInput): Promise<unknown>;
+    deleteCheckIn(gymId: string, checkInId: string): Promise<unknown>;
     listAccessDevices(gymId: string): Promise<unknown>;
     createAccessDevice(gymId: string, input: AccessDeviceCreateInput): Promise<unknown>;
     rotateAccessDeviceKey(gymId: string, deviceId: string): Promise<unknown>;

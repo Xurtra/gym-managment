@@ -480,6 +480,13 @@ function createRoutes() {
             checkIns: await context.services.checkInService.listForMember(gymId, requiredParam(context, "memberId"))
         };
     });
+    add("GET", "/gyms/:gymId/check-ins", async (context) => {
+        const auth = requireAuth(context);
+        const gymId = requiredParam(context, "gymId");
+        await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+        await context.services.roleService.requirePermission(gymId, auth.sub, Permission.MemberRead);
+        return { checkIns: await context.services.checkInService.listForGym(gymId) };
+    });
     add("POST", "/gyms/:gymId/check-ins", async (context) => {
         const auth = requireAuth(context);
         const gymId = requiredParam(context, "gymId");
@@ -487,6 +494,13 @@ function createRoutes() {
         await context.services.roleService.requirePermission(gymId, auth.sub, Permission.MemberWrite);
         const input = parseWith(checkInCreateSchema, context.body);
         return context.services.checkInService.checkIn(gymId, auth.sub, input);
+    });
+    add("DELETE", "/gyms/:gymId/check-ins/:checkInId", async (context) => {
+        const auth = requireAuth(context);
+        const gymId = requiredParam(context, "gymId");
+        await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+        await context.services.roleService.requirePermission(gymId, auth.sub, Permission.MemberWrite);
+        return context.services.checkInService.deleteCheckIn(gymId, requiredParam(context, "checkInId"));
     });
     add("GET", "/gyms/:gymId/access/devices", async (context) => {
         const auth = requireAuth(context);

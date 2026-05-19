@@ -13,6 +13,7 @@ export interface MemberView {
     email?: string;
     phone?: string;
     barcode?: string;
+    profileImageUrl?: string;
     emergencyContact?: EmergencyContactView;
     notes?: string;
     tagNames: string[];

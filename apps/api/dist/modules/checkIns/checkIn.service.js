@@ -29,6 +29,16 @@ export class CheckInService {
         const member = await this.getScopedMember(gymId, memberId);
         return this.repositories.checkIns.listCheckInsForMember(member.id);
     }
+    async listForGym(gymId) {
+        return this.repositories.checkIns.listCheckInsForGym(gymId);
+    }
+    async deleteCheckIn(gymId, checkInId) {
+        const removed = await this.repositories.checkIns.deleteCheckIn(checkInId, gymId);
+        if (!removed) {
+            throw notFound("Check-in was not found.");
+        }
+        return { deleted: true };
+    }
     async checkIn(gymId, staffUserId, input) {
         const member = await this.resolveMember(gymId, input);
         const location = await this.repositories.locations.getLocation(input.locationId);

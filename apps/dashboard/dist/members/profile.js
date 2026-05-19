@@ -64,6 +64,7 @@ function buildSections(member, statusBadge, contactSection, emergencyContactSect
             details: [
                 { key: "status", label: "Status", value: statusBadge.label },
                 { key: "barcode", label: "Barcode", value: member.barcode ?? "Not provided" },
+                { key: "profile_image", label: "Profile image", value: member.profileImageUrl ?? "Not provided" },
                 { key: "created", label: "Created", value: member.createdAt },
                 { key: "updated", label: "Last updated", value: member.updatedAt }
             ]

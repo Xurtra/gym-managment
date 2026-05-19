@@ -155,6 +155,7 @@ export const memberCreateSchema = z.object({
     email: emailSchema.optional(),
     phone: trimmed.max(40).optional(),
     barcode: trimmed.max(80).optional(),
+    profileImageUrl: trimmed.url().or(z.literal("")).optional(),
     status: z.nativeEnum(MemberStatus).default(MemberStatus.Active),
     emergencyContact: z
         .object({

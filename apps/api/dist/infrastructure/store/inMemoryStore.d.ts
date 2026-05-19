@@ -102,6 +102,7 @@ export declare class InMemoryStore implements Repositories {
     createCheckIn(checkIn: CheckIn): Promise<CheckIn>;
     listCheckInsForMember(memberId: string): Promise<CheckIn[]>;
     listCheckInsForGym(gymId: string): Promise<CheckIn[]>;
+    deleteCheckIn(checkInId: string, gymId: string): Promise<boolean>;
     createAccessDevice(device: AccessDevice): Promise<AccessDevice>;
     getAccessDevice(deviceId: string): Promise<AccessDevice | undefined>;
     findAccessDeviceByApiKeyHash(apiKeyHash: string): Promise<AccessDevice | undefined>;

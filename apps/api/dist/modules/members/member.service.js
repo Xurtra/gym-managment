@@ -83,6 +83,9 @@ function applyOptionalMemberFields(member, input) {
     if (input.barcode !== undefined) {
         member.barcode = input.barcode;
     }
+    if (input.profileImageUrl !== undefined) {
+        member.profileImageUrl = input.profileImageUrl;
+    }
     if (input.emergencyContact !== undefined) {
         member.emergencyContact = normalizeEmergencyContact(input.emergencyContact);
     }

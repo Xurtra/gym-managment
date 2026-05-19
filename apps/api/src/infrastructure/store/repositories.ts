@@ -133,6 +133,7 @@ export interface CheckInRepository {
   createCheckIn(checkIn: CheckIn): RepositoryResult<CheckIn>;
   listCheckInsForMember(memberId: string): RepositoryResult<CheckIn[]>;
   listCheckInsForGym(gymId: string): RepositoryResult<CheckIn[]>;
+  deleteCheckIn(checkInId: string, gymId: string): RepositoryResult<boolean>;
 }
 
 export interface AccessControlRepository {

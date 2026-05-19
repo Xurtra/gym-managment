@@ -159,6 +159,7 @@ interface MemberRow extends QueryResultRow {
   email: string | null;
   phone: string | null;
   barcode: string | null;
+  profile_image_url: string | null;
   status: Member["status"];
   emergency_contact: unknown;
   notes: string | null;
@@ -457,7 +458,8 @@ export class PostgresRepositories implements Repositories {
   readonly checkIns = {
     createCheckIn: (checkIn: CheckIn) => this.createCheckIn(checkIn),
     listCheckInsForMember: (memberId: string) => this.listCheckInsForMember(memberId),
-    listCheckInsForGym: (gymId: string) => this.listCheckInsForGym(gymId)
+    listCheckInsForGym: (gymId: string) => this.listCheckInsForGym(gymId),
+    deleteCheckIn: (checkInId: string, gymId: string) => this.deleteCheckIn(checkInId, gymId)
   };
 
   readonly accessControl = {
@@ -994,9 +996,9 @@ export class PostgresRepositories implements Repositories {
   async createMember(member: Member) {
     const result = await this.executor.query<MemberRow>(
       `INSERT INTO members (
-        id, gym_id, first_name, last_name, email, phone, barcode, status,
+        id, gym_id, first_name, last_name, email, phone, barcode, profile_image_url, status,
         emergency_contact, notes, tag_names, archived_at, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, $12, $13, $14)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12::jsonb, $13, $14, $15)
       RETURNING *`,
       [
         member.id,
@@ -1006,6 +1008,7 @@ export class PostgresRepositories implements Repositories {
         member.email ?? null,
         member.phone ?? null,
         member.barcode ?? null,
+        member.profileImageUrl ?? null,
         member.status,
         member.emergencyContact ? JSON.stringify(member.emergencyContact) : null,
         member.notes ?? null,
@@ -1041,12 +1044,13 @@ export class PostgresRepositories implements Repositories {
           email = $4,
           phone = $5,
           barcode = $6,
-          status = $7,
-          emergency_contact = $8::jsonb,
-          notes = $9,
-          tag_names = $10::jsonb,
-          archived_at = $11,
-          updated_at = $12
+          profile_image_url = $7,
+          status = $8,
+          emergency_contact = $9::jsonb,
+          notes = $10,
+          tag_names = $11::jsonb,
+          archived_at = $12,
+          updated_at = $13
       WHERE id = $1
       RETURNING *`,
       [
@@ -1056,6 +1060,7 @@ export class PostgresRepositories implements Repositories {
         member.email ?? null,
         member.phone ?? null,
         member.barcode ?? null,
+        member.profileImageUrl ?? null,
         member.status,
         member.emergencyContact ? JSON.stringify(member.emergencyContact) : null,
         member.notes ?? null,
@@ -1494,6 +1499,14 @@ export class PostgresRepositories implements Repositories {
     return result.rows.map(mapCheckIn);
   }
 
+  async deleteCheckIn(checkInId: string, gymId: string) {
+    const result = await this.executor.query(
+      "DELETE FROM check_ins WHERE id = $1 AND gym_id = $2",
+      [checkInId, gymId]
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
   async createAccessDevice(device: AccessDevice) {
     const result = await this.executor.query<AccessDeviceRow>(
       `INSERT INTO access_devices (
@@ -1910,6 +1923,9 @@ function mapMember(row: MemberRow): Member {
   }
   if (row.barcode) {
     member.barcode = row.barcode;
+  }
+  if (row.profile_image_url !== null) {
+    member.profileImageUrl = row.profile_image_url;
   }
   if (isRecord(row.emergency_contact)) {
     member.emergencyContact = emergencyContact(row.emergency_contact);

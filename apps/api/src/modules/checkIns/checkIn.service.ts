@@ -49,6 +49,18 @@ export class CheckInService {
     return this.repositories.checkIns.listCheckInsForMember(member.id);
   }
 
+  async listForGym(gymId: string) {
+    return this.repositories.checkIns.listCheckInsForGym(gymId);
+  }
+
+  async deleteCheckIn(gymId: string, checkInId: string) {
+    const removed = await this.repositories.checkIns.deleteCheckIn(checkInId, gymId);
+    if (!removed) {
+      throw notFound("Check-in was not found.");
+    }
+    return { deleted: true };
+  }
+
   async checkIn(gymId: string, staffUserId: string, input: CheckInCreateInput) {
     const member = await this.resolveMember(gymId, input);
     const location = await this.repositories.locations.getLocation(input.locationId);

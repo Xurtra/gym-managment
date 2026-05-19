@@ -12,6 +12,10 @@ export declare class CheckInService {
     private readonly clock;
     constructor(repositories: Repositories, clock: Clock);
     listForMember(gymId: string, memberId: string): Promise<CheckIn[]>;
+    listForGym(gymId: string): Promise<CheckIn[]>;
+    deleteCheckIn(gymId: string, checkInId: string): Promise<{
+        deleted: boolean;
+    }>;
     checkIn(gymId: string, staffUserId: string, input: CheckInCreateInput): Promise<CheckIn>;
     checkInCode(gymId: string, memberId: string): Promise<CheckInCode>;
     private resolveMember;

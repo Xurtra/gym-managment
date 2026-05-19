@@ -111,7 +111,8 @@ export class InMemoryStore {
     checkIns = {
         createCheckIn: (checkIn) => this.createCheckIn(checkIn),
         listCheckInsForMember: (memberId) => this.listCheckInsForMember(memberId),
-        listCheckInsForGym: (gymId) => this.listCheckInsForGym(gymId)
+        listCheckInsForGym: (gymId) => this.listCheckInsForGym(gymId),
+        deleteCheckIn: (checkInId, gymId) => this.deleteCheckIn(checkInId, gymId)
     };
     accessControl = {
         createAccessDevice: (device) => this.createAccessDevice(device),
@@ -372,6 +373,14 @@ export class InMemoryStore {
     }
     async listCheckInsForGym(gymId) {
         return [...this.checkInRecords.values()].filter((checkIn) => checkIn.gymId === gymId);
+    }
+    async deleteCheckIn(checkInId, gymId) {
+        const existing = this.checkInRecords.get(checkInId);
+        if (!existing || existing.gymId !== gymId) {
+            return false;
+        }
+        this.checkInRecords.delete(checkInId);
+        return true;
     }
     async createAccessDevice(device) {
         this.accessDeviceRecords.set(device.id, device);

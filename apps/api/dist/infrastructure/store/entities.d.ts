@@ -140,6 +140,7 @@ export interface Member {
     email?: string;
     phone?: string;
     barcode?: string;
+    profileImageUrl?: string;
     status: MemberStatus;
     emergencyContact?: EmergencyContact;
     notes?: string;

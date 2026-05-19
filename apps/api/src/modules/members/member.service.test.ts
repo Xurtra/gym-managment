@@ -14,6 +14,7 @@ describe("MemberService", () => {
       email: "jamie@example.com",
       phone: "555-0101",
       barcode: "MEM-100",
+      profileImageUrl: "https://example.com/jamie.jpg",
       status: MemberStatus.Active,
       emergencyContact: {
         name: "Avery Rivera",
@@ -31,8 +32,10 @@ describe("MemberService", () => {
     const archived = await services.memberService.archive(gymId, created.id);
 
     expect(created.gymId).toBe(gymId);
+    expect(created.profileImageUrl).toBe("https://example.com/jamie.jpg");
     expect(created.emergencyContact?.relationship).toBe("Spouse");
     expect(updated.status).toBe(MemberStatus.Frozen);
+    expect(updated.profileImageUrl).toBe("https://example.com/jamie.jpg");
     expect(updated.tagNames).toContain("pt-interest");
     expect(archived.status).toBe(MemberStatus.Archived);
     expect(await services.memberService.list(gymId)).toHaveLength(0);

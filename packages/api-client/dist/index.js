@@ -172,8 +172,14 @@ export class GymApiClient {
     listMemberCheckIns(gymId, memberId) {
         return this.request("GET", `/gyms/${gymId}/members/${memberId}/check-ins`);
     }
+    listCheckIns(gymId) {
+        return this.request("GET", `/gyms/${gymId}/check-ins`);
+    }
     createCheckIn(gymId, input) {
         return this.request("POST", `/gyms/${gymId}/check-ins`, input);
+    }
+    deleteCheckIn(gymId, checkInId) {
+        return this.request("DELETE", `/gyms/${gymId}/check-ins/${checkInId}`);
     }
     listAccessDevices(gymId) {
         return this.request("GET", `/gyms/${gymId}/access/devices`);

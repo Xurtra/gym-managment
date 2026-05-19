@@ -800,6 +800,7 @@ export declare const memberCreateSchema: z.ZodObject<{
     email: z.ZodOptional<z.ZodEffects<z.ZodString, string, string>>;
     phone: z.ZodOptional<z.ZodString>;
     barcode: z.ZodOptional<z.ZodString>;
+    profileImageUrl: z.ZodOptional<z.ZodUnion<[z.ZodString, z.ZodLiteral<"">]>>;
     status: z.ZodDefault<z.ZodNativeEnum<{
         readonly Lead: "lead";
         readonly Trial: "trial";
@@ -834,6 +835,7 @@ export declare const memberCreateSchema: z.ZodObject<{
     phone?: string | undefined;
     notes?: string | undefined;
     barcode?: string | undefined;
+    profileImageUrl?: string | undefined;
     emergencyContact?: {
         phone: string;
         name: string;
@@ -847,6 +849,7 @@ export declare const memberCreateSchema: z.ZodObject<{
     phone?: string | undefined;
     notes?: string | undefined;
     barcode?: string | undefined;
+    profileImageUrl?: string | undefined;
     emergencyContact?: {
         phone: string;
         name: string;
@@ -860,6 +863,7 @@ export declare const memberUpdateSchema: z.ZodEffects<z.ZodObject<{
     email: z.ZodOptional<z.ZodOptional<z.ZodEffects<z.ZodString, string, string>>>;
     phone: z.ZodOptional<z.ZodOptional<z.ZodString>>;
     barcode: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    profileImageUrl: z.ZodOptional<z.ZodOptional<z.ZodUnion<[z.ZodString, z.ZodLiteral<"">]>>>;
     status: z.ZodOptional<z.ZodDefault<z.ZodNativeEnum<{
         readonly Lead: "lead";
         readonly Trial: "trial";
@@ -893,6 +897,7 @@ export declare const memberUpdateSchema: z.ZodEffects<z.ZodObject<{
     phone?: string | undefined;
     notes?: string | undefined;
     barcode?: string | undefined;
+    profileImageUrl?: string | undefined;
     emergencyContact?: {
         phone: string;
         name: string;
@@ -907,6 +912,7 @@ export declare const memberUpdateSchema: z.ZodEffects<z.ZodObject<{
     phone?: string | undefined;
     notes?: string | undefined;
     barcode?: string | undefined;
+    profileImageUrl?: string | undefined;
     emergencyContact?: {
         phone: string;
         name: string;
@@ -921,6 +927,7 @@ export declare const memberUpdateSchema: z.ZodEffects<z.ZodObject<{
     phone?: string | undefined;
     notes?: string | undefined;
     barcode?: string | undefined;
+    profileImageUrl?: string | undefined;
     emergencyContact?: {
         phone: string;
         name: string;
@@ -935,6 +942,7 @@ export declare const memberUpdateSchema: z.ZodEffects<z.ZodObject<{
     phone?: string | undefined;
     notes?: string | undefined;
     barcode?: string | undefined;
+    profileImageUrl?: string | undefined;
     emergencyContact?: {
         phone: string;
         name: string;
