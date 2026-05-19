@@ -15,6 +15,7 @@ export declare function buildRegistrationScreen(values?: {
     email?: string;
     firstName?: string;
     lastName?: string;
+    gymName?: string;
 }): AuthScreenModel;
 export declare function buildForgotPasswordScreen(values?: {
     email?: string;

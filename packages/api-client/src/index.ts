@@ -48,12 +48,15 @@ export interface ApiTokenStore {
 }
 
 export class ApiError extends Error {
+  public readonly issues: { path: string; message: string }[] | undefined;
   constructor(
     message: string,
     public readonly status: number,
-    public readonly code: string
+    public readonly code: string,
+    issues?: { path: string; message: string }[]
   ) {
     super(message);
+    this.issues = issues;
   }
 }
 
@@ -106,6 +109,10 @@ export class GymApiClient {
 
   me() {
     return this.request("GET", "/auth/me");
+  }
+
+  listGyms() {
+    return this.request("GET", "/gyms");
   }
 
   createGym(input: GymCreateInput) {
@@ -355,7 +362,8 @@ export class GymApiClient {
       throw new ApiError(
         error?.message ?? "Request failed.",
         response.status,
-        error?.code ?? "request_failed"
+        error?.code ?? "request_failed",
+        error?.issues
       );
     }
     return data;
@@ -401,7 +409,7 @@ export class GymApiClient {
   }
 }
 
-function isErrorResponse(value: unknown): value is { error: { message?: string; code?: string } } {
+function isErrorResponse(value: unknown): value is { error: { message?: string; code?: string; issues?: { path: string; message: string }[] } } {
   return typeof value === "object" && value !== null && "error" in value;
 }
 

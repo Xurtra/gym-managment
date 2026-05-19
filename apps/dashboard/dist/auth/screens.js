@@ -10,6 +10,7 @@ export function buildRegistrationScreen(values = {}) {
         authInput("firstName", "First name", values.firstName ?? ""),
         authInput("lastName", "Last name", values.lastName ?? ""),
         authInput("email", "Email", values.email ?? "", "email"),
+        authInput("gymName", "Gym name", values.gymName ?? ""),
         authInput("password", "Password", "", "password")
     ]);
 }

@@ -8,7 +8,7 @@ export interface MigrationRunnerOptions {
 }
 
 export async function runMigrations(pool: Pool, options: MigrationRunnerOptions = {}) {
-  const migrationsDir = options.migrationsDir ?? resolve(process.cwd(), "apps/api/src/db/migrations");
+  const migrationsDir = options.migrationsDir ?? resolve(import.meta.dirname, "migrations");
   const logger = options.logger ?? console;
   const files = readdirSync(migrationsDir)
     .filter((file) => file.endsWith(".sql"))

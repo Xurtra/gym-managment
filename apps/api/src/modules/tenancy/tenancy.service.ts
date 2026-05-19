@@ -86,6 +86,10 @@ export class TenancyService {
     return gym;
   }
 
+  async listSettingsGyms() {
+    return this.repositories.gyms.listGyms();
+  }
+
   async updateGym(gymId: string, input: GymUpdateInput) {
     const gym = await this.getGym(gymId);
     const updated = {

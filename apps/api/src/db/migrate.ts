@@ -7,7 +7,10 @@ if (!config.databaseUrl) {
   throw new Error("DATABASE_URL is required to run migrations.");
 }
 
-const pool = new Pool({ connectionString: config.databaseUrl });
+const pool = new Pool({
+  connectionString: config.databaseUrl,
+  ssl: { rejectUnauthorized: false }
+});
 try {
   await runMigrations(pool);
   console.log("Migrations applied.");

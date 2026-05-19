@@ -23,6 +23,7 @@ export declare class PostgresRepositories implements Repositories {
         createGym: (gym: Gym) => Promise<Gym>;
         getGym: (gymId: string) => Promise<Gym | undefined>;
         findGymBySlug: (slug: string) => Promise<Gym | undefined>;
+        listGyms: () => Promise<Gym[]>;
         updateGym: (gym: Gym) => Promise<Gym>;
     };
     readonly roles: {
@@ -133,6 +134,7 @@ export declare class PostgresRepositories implements Repositories {
     createGym(gym: Gym): Promise<Gym>;
     getGym(gymId: string): Promise<Gym | undefined>;
     findGymBySlug(slug: string): Promise<Gym | undefined>;
+    listGyms(): Promise<Gym[]>;
     updateGym(gym: Gym): Promise<Gym>;
     createRole(role: Role): Promise<Role>;
     createRoles(roles: Role[]): Promise<Role[]>;

@@ -18,7 +18,14 @@ export interface ApiTokenStore {
 export declare class ApiError extends Error {
     readonly status: number;
     readonly code: string;
-    constructor(message: string, status: number, code: string);
+    readonly issues: {
+        path: string;
+        message: string;
+    }[] | undefined;
+    constructor(message: string, status: number, code: string, issues?: {
+        path: string;
+        message: string;
+    }[]);
 }
 export declare class GymApiClient {
     private readonly options;
@@ -35,6 +42,7 @@ export declare class GymApiClient {
     regenerateTwoFactorRecoveryCodes(): Promise<unknown>;
     acceptStaffInvite(input: StaffInviteAcceptInput): Promise<unknown>;
     me(): Promise<unknown>;
+    listGyms(): Promise<unknown>;
     createGym(input: GymCreateInput): Promise<unknown>;
     getGym(gymId: string): Promise<unknown>;
     updateGym(gymId: string, input: GymUpdateInput): Promise<unknown>;

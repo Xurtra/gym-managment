@@ -1,14 +1,33 @@
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 
 export type RuntimeEnv = "development" | "test" | "staging" | "production";
 
 export function loadEnvironmentFiles(cwd = process.cwd()) {
   const nodeEnv = runtimeEnvFrom(process.env.NODE_ENV);
+  // Walk up directories to find the monorepo root .env
+  const rootEnv = findRootEnv(cwd);
+  if (rootEnv) {
+    loadDotEnvFile(rootEnv);
+  }
   for (const path of envFilePaths(cwd, nodeEnv)) {
     loadDotEnvFile(path);
   }
   return nodeEnv;
+}
+
+function findRootEnv(startDir: string): string | undefined {
+  let current = resolve(startDir);
+  for (let i = 0; i < 5; i++) {
+    const candidate = resolve(current, ".env");
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return undefined;
 }
 
 function envFilePaths(cwd: string, nodeEnv: RuntimeEnv) {

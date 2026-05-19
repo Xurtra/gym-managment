@@ -1,6 +1,10 @@
 import { z } from "zod";
 export declare const emailSchema: z.ZodEffects<z.ZodString, string, string>;
 export declare const passwordSchema: z.ZodString;
+export declare function formatZodIssues(issues: {
+    path: (string | number)[];
+    message: string;
+}[]): string;
 export declare const registerSchema: z.ZodObject<{
     email: z.ZodEffects<z.ZodString, string, string>;
     password: z.ZodString;

@@ -78,7 +78,8 @@ export class InMemoryStore implements Repositories {
     createGym: (gym) => this.createGym(gym),
     getGym: (gymId) => this.getGym(gymId),
     findGymBySlug: (slug) => this.findGymBySlug(slug),
-    updateGym: (gym) => this.updateGym(gym)
+    updateGym: (gym) => this.updateGym(gym),
+    listGyms: () => this.listGyms(),
   };
 
   readonly roles: RoleRepository = {
@@ -237,7 +238,9 @@ export class InMemoryStore implements Repositories {
     this.gymRecords.set(gym.id, gym);
     return gym;
   }
-
+  async listGyms() {
+    return Array.from(this.gymRecords.values());
+  }
   async createRole(role: Role) {
     this.roleRecords.set(role.id, role);
     return role;

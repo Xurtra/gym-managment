@@ -48,6 +48,7 @@ export declare class InMemoryStore implements Repositories {
     getGym(gymId: string): Promise<Gym | undefined>;
     findGymBySlug(slug: string): Promise<Gym | undefined>;
     updateGym(gym: Gym): Promise<Gym>;
+    listGyms(): Promise<Gym[]>;
     createRole(role: Role): Promise<Role>;
     createRoles(roles: Role[]): Promise<Role[]>;
     getRole(roleId: string): Promise<Role | undefined>;

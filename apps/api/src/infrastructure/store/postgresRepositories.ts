@@ -357,6 +357,7 @@ export class PostgresRepositories implements Repositories {
     createGym: (gym: Gym) => this.createGym(gym),
     getGym: (gymId: string) => this.getGym(gymId),
     findGymBySlug: (slug: string) => this.findGymBySlug(slug),
+    listGyms: () => this.listGyms(),
     updateGym: (gym: Gym) => this.updateGym(gym)
   };
 
@@ -613,6 +614,11 @@ export class PostgresRepositories implements Repositories {
   async findGymBySlug(slug: string) {
     const result = await this.executor.query<GymRow>("SELECT * FROM gyms WHERE slug = $1", [slug]);
     return result.rows[0] ? mapGym(result.rows[0]) : undefined;
+  }
+
+  async listGyms() {
+    const result = await this.executor.query<GymRow>("SELECT * FROM gyms");
+    return result.rows.map(mapGym);
   }
 
   async updateGym(gym: Gym) {

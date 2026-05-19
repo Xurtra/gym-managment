@@ -1,11 +1,15 @@
 import { GymApiClient, ApiError, type ApiTokenStore } from "@gym-platform/api-client";
 import { BillingInterval, MemberStatus } from "@gym-platform/constants";
-import { buildMemberListPage } from "@gym-platform/dashboard";
+import {
+  buildMemberListPage,
+  type CheckInRecord,
+} from "@gym-platform/dashboard";
 import {
   buildPublicPlansPage,
   buildPublicSchedulePage,
   buildPublicSignupPage
 } from "@gym-platform/website-renderer";
+import { CheckInMethod } from "@gym-platform/constants";
 import "./style.css";
 
 const API_BASE_URL = "http://127.0.0.1:4000";
@@ -158,6 +162,7 @@ interface AppState {
   session: SessionTokens | null;
   me: MeResponse | null;
   gym: GymRecord | null;
+  platformGyms: GymRecord[];
   members: MemberRecord[];
   plans: PlanRecord[];
   publicSlug: string;
@@ -167,6 +172,13 @@ interface AppState {
   selectedPlanId: string;
   banner?: { tone: BannerTone; text: string };
   publicSuccess?: string;
+  // Dashboard sub-views
+  dashboardView: "home" | "members" | "member_profile" | "check_in" | "check_in_history" | "member_search";
+  selectedMemberId?: string;
+  memberSearchQuery: string;
+  checkInBarcode: string;
+  checkInResult?: CheckInRecord;
+  checkInHistory: CheckInRecord[];
 }
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -183,13 +195,18 @@ const state: AppState = {
   session: loadSession(),
   me: null,
   gym: null,
+  platformGyms: [],
   members: [],
   plans: [],
   publicSlug: loadPublicSlug(),
   publicGym: null,
   publicPlans: [],
   publicSchedule: [],
-  selectedPlanId: ""
+  selectedPlanId: "",
+  dashboardView: "home",
+  memberSearchQuery: "",
+  checkInBarcode: "",
+  checkInHistory: [],
 };
 
 const tokenStore: ApiTokenStore = {
@@ -223,6 +240,19 @@ window.addEventListener("hashchange", () => {
 void initialize();
 
 async function initialize() {
+  const gymSlugMatch = new URLSearchParams(window.location.search).get("gymSlug");
+  if (gymSlugMatch) {
+    state.publicSlug = gymSlugMatch;
+    localStorage.setItem(PUBLIC_SLUG_STORAGE_KEY, gymSlugMatch);
+  }
+  // Always load platform gyms for the home page
+  try {
+    const gymsData = await client.listGyms() as { gyms: GymRecord[] };
+    state.platformGyms = gymsData.gyms || [];
+  } catch (err) {
+    console.error("Failed to load platform gyms", err);
+  }
+
   render();
   await checkApiHealth();
   if (state.session) {
@@ -267,6 +297,11 @@ async function refreshDashboard() {
         localStorage.setItem(PUBLIC_SLUG_STORAGE_KEY, state.publicSlug);
       }
     } else {
+      const isPlatformAdmin = state.me?.memberships?.some(m => m.role?.permissions?.includes("platform:admin"));
+      if (isPlatformAdmin) {
+        const gymsData = await client.listGyms() as { gyms: GymRecord[] };
+        state.platformGyms = gymsData.gyms || [];
+      }
       state.members = [];
       state.plans = [];
     }
@@ -358,86 +393,46 @@ function render() {
         featureFlags: state.publicGym.featureFlags
       })
     : undefined;
-  const memberPage =
-    state.gym && state.me
-      ? buildMemberListPage({
-          members: state.members,
-          permissions: currentPermissions()
-        })
-      : undefined;
-
   app.innerHTML = `
-    <div class="shell">
-      <header class="top">
-        <div>
-          <p class="eyebrow">Gym Platform</p>
-          <h1>${state.gym?.name ?? state.publicGym?.name ?? "Workspace"}</h1>
-          <p class="lede">${state.me ? state.me.user.email : "Owner access"}</p>
-        </div>
-        <div class="status-stack">
-          <div class="status-card">
-            <span>System</span>
-            <strong>${state.apiHealthy === null ? "Checking" : state.apiHealthy ? "Online" : "Offline"}</strong>
-            <small>${state.apiHealthy ? "Services available" : "Service unavailable"}</small>
-          </div>
-          <div class="status-card">
-            <span>Account</span>
-            <strong>${state.me ? `${state.me.user.firstName} ${state.me.user.lastName}` : "Signed out"}</strong>
-            <small>${currentMembership()?.role?.name ?? "No role selected"}</small>
-          </div>
-        </div>
-      </header>
+    <div class="shell" style="background:#09090b; color:#e5e5e5; min-height:100vh;">
 
-      <nav class="tabs">
-        <a class="tab${state.view === "dashboard" ? " active" : ""}" href="#/dashboard">Dashboard</a>
-        <a class="tab${state.view === "public" ? " active" : ""}" href="#/public">Public Site</a>
-      </nav>
-
-      ${state.banner ? `<div class="banner ${state.banner.tone}">${state.banner.text}</div>` : ""}
-
-      <main class="layout">
-        <section class="panel primary">
+      <main class="layout" style="padding: 2rem; max-width: 1200px; margin: 0 auto;">
+        <section class="panel primary" style="width:100%;">
           ${state.view === "dashboard"
-            ? renderDashboard(memberPage)
+            ? renderDashboard()
             : renderPublic(publicPlanPage, publicSignupPage, publicSchedulePage)}
         </section>
-        <aside class="panel side">
-          ${renderSidePanel()}
-        </aside>
       </main>
     </div>
   `;
-
   bindEvents();
 }
 
-function renderDashboard(
-  memberPage:
-    | ReturnType<typeof buildMemberListPage>
-    | undefined
-) {
+function renderDashboard() {
   if (state.dashboardLoading) {
     return `<div class="empty-state"><h2>Loading dashboard</h2><p>Refreshing workspace data.</p></div>`;
   }
 
+  const gymSlugMatch = new URLSearchParams(window.location.search).get("gymSlug");
+
+  if (!gymSlugMatch) {
+    return renderPlatformDashboard();
+  }
+
   if (!state.session || !state.me) {
+    const gymNameTitle = state.publicGym ? state.publicGym.name : gymSlugMatch;
+    const logoHtml = state.publicGym?.logoUrl
+      ? `<img src="${state.publicGym.logoUrl}" alt="${state.publicGym.name} logo" style="max-height: 48px; margin-bottom: 0.5rem; display: block;" />`
+      : '';
+
     return `
       <div class="section-head">
-        <div>
-          <p class="eyebrow">Authentication</p>
-          <h2>Register or log in</h2>
+        <div>${logoHtml}
+          <p class="eyebrow">Gym Authentication</p>
+          <h2>Log in to ${gymNameTitle}</h2>
         </div>
       </div>
       <div class="two-up">
-        <form id="register-form" class="form-card">
-          <h3>Create owner account</h3>
-          ${renderInput("firstName", "First name")}
-          ${renderInput("lastName", "Last name")}
-          ${renderInput("email", "Email", "email")}
-          ${renderInput("password", "Password", "password")}
-          ${renderInput("gymName", "Gym name")}
-          <button type="submit">Register and create gym</button>
-        </form>
         <form id="login-form" class="form-card">
           <h3>Log in</h3>
           ${renderInput("email", "Email", "email")}
@@ -450,12 +445,10 @@ function renderDashboard(
 
   if (!state.gym) {
     return `
-      <div class="section-head">
-        <div>
-          <p class="eyebrow">Gym setup</p>
-          <h2>Create your first gym</h2>
-        </div>
-      </div>
+      <div class="section-head"><div>
+        <p class="eyebrow">Gym setup</p>
+        <h2>Create your first gym</h2>
+      </div></div>
       <form id="create-gym-form" class="form-card">
         ${renderInput("name", "Gym name")}
         <button type="submit">Create gym</button>
@@ -463,21 +456,54 @@ function renderDashboard(
     `;
   }
 
+  // Navigation tabs
+  const tabs = `
+    <nav style="display:flex;gap:8px;margin-bottom:1.5rem;flex-wrap:wrap;">
+      <button class="tab-btn ${state.dashboardView === 'home' ? 'active' : ''}" data-dashboard-view="home">Dashboard</button>
+      <button class="tab-btn ${state.dashboardView === 'members' ? 'active' : ''}" data-dashboard-view="members">Members</button>
+      <button class="tab-btn ${state.dashboardView === 'member_search' ? 'active' : ''}" data-dashboard-view="member_search">Search</button>
+      <button class="tab-btn ${state.dashboardView === 'check_in' ? 'active' : ''}" data-dashboard-view="check_in">Check-In</button>
+      <button class="tab-btn ${state.dashboardView === 'check_in_history' ? 'active' : ''}" data-dashboard-view="check_in_history">History</button>
+    </nav>
+  `;
+
+  let content = '';
+  switch (state.dashboardView) {
+    case 'members':
+      content = renderMembersView();
+      break;
+    case 'member_profile':
+      content = renderMemberProfileView();
+      break;
+    case 'member_search':
+      content = renderMemberSearchView();
+      break;
+    case 'check_in':
+      content = renderCheckInView();
+      break;
+    case 'check_in_history':
+      content = renderCheckInHistoryView();
+      break;
+    default:
+      content = renderDashboardHome();
+  }
+
   return `
-    <div class="section-head">
+    <div class="section-head" style="display:flex;justify-content:space-between;align-items:center;">
       <div>
-        <p class="eyebrow">Dashboard</p>
-        <h2>${state.gym.name}</h2>
+        <p class="eyebrow">${state.gym.name}</p>
+        <h2 style="font-size:1.5rem;">${state.gym.slug}</h2>
       </div>
       <button id="logout-button" class="ghost-button" type="button">Log out</button>
     </div>
+    ${tabs}
+    ${content}
+  `;
+}
 
+function renderDashboardHome() {
+  return `
     <div class="stat-grid">
-      <article class="mini-card">
-        <span>Gym slug</span>
-        <strong>${state.gym.slug}</strong>
-        <small>Public site handle</small>
-      </article>
       <article class="mini-card">
         <span>Members</span>
         <strong>${state.members.length}</strong>
@@ -488,8 +514,12 @@ function renderDashboard(
         <strong>${state.plans.length}</strong>
         <small>Membership offers</small>
       </article>
+      <article class="mini-card">
+        <span>Gym slug</span>
+        <strong>${state.gym?.slug ?? ''}</strong>
+        <small>Public site handle</small>
+      </article>
     </div>
-
     <div class="two-up">
       <form id="create-plan-form" class="form-card">
         <h3>Create public plan</h3>
@@ -497,16 +527,13 @@ function renderDashboard(
         ${renderInput("description", "Description")}
         ${renderInput("price", "Monthly price", "number", "49")}
         ${renderInput("signupFee", "Signup fee", "number", "0")}
-        ${renderSelect(
-          "billingInterval",
-          "Billing interval",
-          Object.values(BillingInterval).map((value) => ({ value, label: value.replace("_", " ") })),
+        ${renderSelect("billingInterval", "Billing interval",
+          Object.values(BillingInterval).map(v => ({ value: v, label: v.replace("_", " ") })),
           BillingInterval.Monthly
         )}
         ${renderInput("trialDays", "Trial days", "number", "0")}
         <button type="submit">Create plan</button>
       </form>
-
       <form id="create-member-form" class="form-card">
         <h3>Create member</h3>
         ${renderInput("firstName", "First name")}
@@ -516,21 +543,186 @@ function renderDashboard(
         <button type="submit">Create member</button>
       </form>
     </div>
+    <section class="data-card" style="margin-top:1rem;">
+      <div class="card-head"><h3>Members</h3></div>
+      ${renderMembersTable(
+        buildMemberListPage({ members: state.members, permissions: currentPermissions() })
+      )}
+    </section>
+  `;
+}
+
+function renderMembersView() {
+  return `
+    <section class="data-card">
+      <div class="card-head" style="display:flex;justify-content:space-between;align-items:center;">
+        <h3>All Members</h3>
+        <span>${state.members.length} total</span>
+      </div>
+      ${renderMembersTable(
+        buildMemberListPage({ members: state.members, permissions: currentPermissions() })
+      )}
+    </section>
+  `;
+}
+
+function renderMemberProfileView() {
+  const member = state.members.find(m => m.id === state.selectedMemberId);
+  if (!member) {
+    return `<div class="empty-state"><h3>Member not found</h3><p>The selected member could not be found.</p></div>`;
+  }
+  return `
+    <div style="margin-bottom:1rem;">
+      <button class="tab-btn active" data-dashboard-view="members">← Back to Members</button>
+    </div>
+    <div class="data-card">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Member Profile</p>
+          <h2>${member.firstName} ${member.lastName}</h2>
+        </div>
+      </div>
+      <div style="display:grid;gap:1rem;">
+        <div class="mini-card">
+          <strong>Contact</strong>
+          <p style="margin:0.5rem 0;color:var(--muted);">${member.email || 'No email'} · ${member.phone || 'No phone'}</p>
+        </div>
+        <div class="mini-card">
+          <strong>Status</strong>
+          <p style="margin:0.5rem 0;color:var(--muted);">${member.status}</p>
+        </div>
+        ${member.barcode ? `<div class="mini-card"><strong>Barcode</strong><p style="margin:0.5rem 0;color:var(--muted);">${member.barcode}</p></div>` : ''}
+        ${member.tagNames.length > 0 ? `<div class="mini-card"><strong>Tags</strong><p style="margin:0.5rem 0;color:var(--muted);">${member.tagNames.join(', ')}</p></div>` : ''}
+        ${member.notes ? `<div class="mini-card"><strong>Notes</strong><p style="margin:0.5rem 0;color:var(--muted);">${member.notes}</p></div>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function renderMemberSearchView() {
+  const query = state.memberSearchQuery.toLowerCase();
+  const filtered = state.members.filter(m => {
+    if (!query) return true;
+    return (m.firstName + ' ' + m.lastName).toLowerCase().includes(query) ||
+      (m.email || '').toLowerCase().includes(query) ||
+      (m.phone || '').includes(query) ||
+      (m.barcode || '').includes(query);
+  });
+  return `
+    <section class="data-card">
+      <div class="card-head" style="margin-bottom:1rem;">
+        <h3>Member Search</h3>
+        <span>${filtered.length} results</span>
+      </div>
+      <form id="member-search-form" style="display:flex;gap:8px;margin-bottom:1rem;">
+        <input name="query" type="text" placeholder="Search by name, email, phone, or barcode..." value="${escapeAttribute(state.memberSearchQuery)}"
+          style="flex:1;border-radius:8px;border:1px solid var(--line);padding:12px 14px;background:#18181b;color:var(--ink);" />
+        <button type="submit">Search</button>
+      </form>
+      ${filtered.length === 0
+        ? `<p class="muted">No members match your search.</p>`
+        : `<div style="display:grid;gap:8px;">
+          ${filtered.map(m => `
+            <div class="mini-card" style="cursor:pointer;" data-member-id="${m.id}" data-action="view-member">
+              <strong>${m.firstName} ${m.lastName}</strong>
+              <small>${m.email || m.phone || 'No contact'} · ${m.status}</small>
+              ${m.barcode ? `<small style="display:block;">Barcode: ${m.barcode}</small>` : ''}
+            </div>
+          `).join('')}
+        </div>`
+      }
+    </section>
+  `;
+}
+
+function renderCheckInView() {
+  return `
+    <section class="data-card">
+      <div class="card-head" style="margin-bottom:1rem;">
+        <h3>Check-In Kiosk</h3>
+        <span>Scan barcode to check in a member</span>
+      </div>
+      <form id="check-in-form" style="display:flex;gap:8px;margin-bottom:1rem;">
+        <input name="barcode" type="text" placeholder="Enter member barcode..." value="${escapeAttribute(state.checkInBarcode)}"
+          style="flex:1;border-radius:8px;border:1px solid var(--line);padding:12px 14px;background:#18181b;color:var(--ink);" autofocus />
+        <button type="submit">Check In</button>
+      </form>
+      ${state.checkInResult ? `
+        <div class="banner ${state.checkInResult.status === 'allowed' ? 'success' : 'error'}">
+          <strong>${state.checkInResult.memberName}</strong> — ${state.checkInResult.status === 'allowed' ? '✓ Allowed' : '✗ Denied'}
+          ${state.checkInResult.deniedReason ? `<p style="margin:0.5rem 0 0;">${state.checkInResult.deniedReason}</p>` : ''}
+        </div>
+      ` : ''}
+    </section>
+  `;
+}
+
+function renderCheckInHistoryView() {
+  return `
+    <section class="data-card">
+      <div class="card-head" style="margin-bottom:1rem;">
+        <h3>Check-In History</h3>
+        <span>${state.checkInHistory.length} records</span>
+      </div>
+      ${state.checkInHistory.length === 0
+        ? `<p class="muted">No check-in records yet.</p>`
+        : `<div class="table-wrap"><table>
+          <thead><tr><th>Time</th><th>Member</th><th>Status</th><th>Method</th><th>Location</th></tr></thead>
+          <tbody>${state.checkInHistory.map(c => `
+            <tr>
+              <td>${new Date(c.checkedInAt).toLocaleString()}</td>
+              <td>${c.memberName}</td>
+              <td>${c.status}</td>
+              <td>${c.method}</td>
+              <td>${c.locationName || '-'}</td>
+            </tr>
+          `).join('')}</tbody>
+        </table></div>`
+      }
+    </section>
+  `;
+}
+
+
+
+function renderPlatformDashboard() {
+  return `
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Platform Dashboard</p>
+        <h2>Workspace Admin</h2>
+      </div>
+      <button id="logout-button" class="ghost-button" type="button">Log out</button>
+    </div>
 
     <div class="list-grid">
       <section class="data-card">
         <div class="card-head">
-          <h3>Membership plans</h3>
-          <span>${state.plans.length} total</span>
+          <h3>All Gyms</h3>
+          <span>${state.platformGyms.length} total</span>
         </div>
-        ${renderPlansTable(state.plans)}
+        <div class="gym-cards" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; padding: 1rem;">
+          ${state.platformGyms.map(gym => `
+            <a href="?gymSlug=${gym.slug}#/dashboard" class="form-card" style="text-decoration:none; color:inherit;">
+              <h4>${gym.name}</h4>
+              <small>${gym.slug}</small>
+            </a>
+          `).join('')}
+        </div>
       </section>
+      
       <section class="data-card">
         <div class="card-head">
-          <h3>Members</h3>
-          <span>${memberPage?.summaryLabel ?? "No members yet"}</span>
+          <h3>Create New Gym & Owner</h3>
         </div>
-        ${memberPage ? renderMembersTable(memberPage) : `<p class="muted">No members available.</p>`}
+        <form id="platform-create-gym-form" class="form-card" style="margin: 1rem;">
+          ${renderInput("firstName", "Owner First Name")}
+          ${renderInput("lastName", "Owner Last Name")}
+          ${renderInput("email", "Owner Email", "email")}
+          ${renderInput("password", "Owner Password", "password")}
+          ${renderInput("gymName", "Gym Name")}
+          <button type="submit">Add Gym</button>
+        </form>
       </section>
     </div>
   `;
@@ -601,33 +793,89 @@ function renderPublic(
   `;
 }
 
-function renderSidePanel() {
-  const membership = currentMembership();
-  const publicPlanCount = state.publicPlans.length || state.plans.filter((plan) => plan.isPublic).length;
-  return `
-    <div class="side-stack">
-      <section class="mini-card">
-        <span>Account</span>
-        <strong>${state.me ? `${state.me.user.firstName} ${state.me.user.lastName}` : "Not signed in"}</strong>
-        <small>${membership?.role?.name ?? "No active role loaded"}</small>
-      </section>
-
-      <section class="mini-card">
-        <span>Public site</span>
-        <strong>${state.publicSlug || state.gym?.slug || "Not published"}</strong>
-        <small>${publicPlanCount} public plan${publicPlanCount === 1 ? "" : "s"}</small>
-      </section>
-
-      <section class="mini-card">
-        <span>Roster</span>
-        <strong>${state.members.length}</strong>
-        <small>${state.members.filter((member) => member.status === MemberStatus.Active).length} active members</small>
-      </section>
-    </div>
-  `;
-}
-
 function bindEvents() {
+  // Dashboard tab navigation
+  app.querySelectorAll<HTMLButtonElement>("[data-dashboard-view]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const view = btn.dataset.dashboardView as AppState["dashboardView"];
+      if (view) {
+        state.dashboardView = view;
+        state.selectedMemberId = undefined;
+        state.checkInResult = undefined;
+        render();
+      }
+    });
+  });
+
+  // Member search results click
+  app.querySelectorAll<HTMLDivElement>("[data-action='view-member']").forEach((el) => {
+    el.addEventListener("click", () => {
+      state.selectedMemberId = el.dataset.memberId;
+      state.dashboardView = "member_profile";
+      render();
+    });
+  });
+
+  // Check-in form
+  bindForm("check-in-form", async (form) => {
+    if (!state.gym) return;
+    const data = formData(form);
+    const barcode = data.barcode.trim();
+    if (!barcode) return;
+    try {
+      const result = await client.createCheckIn(state.gym.id, {
+        barcode,
+        locationId: "",
+        method: CheckInMethod.Barcode
+      }) as CheckInRecord;
+      state.checkInResult = result;
+      state.checkInBarcode = "";
+      render();
+    } catch (error) {
+      setBanner("error", describeError(error));
+      render();
+    }
+  });
+
+  // Member search form
+  bindForm("member-search-form", async (form) => {
+    const data = formData(form);
+    state.memberSearchQuery = data.query || "";
+    render();
+  });
+
+  bindForm("platform-create-gym-form", async (form) => {
+    const data = formData(form);
+    console.log("[platform-create-gym-form] submitting", {
+      email: data.email,
+      password: data.password,
+      passwordLength: data.password.length,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      gymName: data.gymName,
+    });
+    try {
+      const response = await client.register({
+        email: data.email,
+        password: data.password,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        gymName: data.gymName,
+        timezone: "America/New_York",
+        locale: "en-US"
+      });
+      console.log("[platform-create-gym-form] success", response);
+      setBanner("success", "Gym and owner created successfully.");
+      const gymsData = await client.listGyms() as { gyms: GymRecord[] };
+      state.platformGyms = gymsData.gyms || [];
+      await refreshDashboard();
+    } catch (error) {
+      console.error("[platform-create-gym-form] error", error);
+      setBanner("error", describeError(error));
+      render();
+    }
+  });
+
   bindForm("register-form", async (form) => {
     const data = formData(form);
     const response = (await client.register({
@@ -855,40 +1103,6 @@ function renderMembersTable(memberPage: ReturnType<typeof buildMemberListPage>) 
   `;
 }
 
-function renderPlansTable(plans: PlanRecord[]) {
-  if (plans.length === 0) {
-    return `<p class="muted">No plans created yet.</p>`;
-  }
-  return `
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Interval</th>
-            <th>Price</th>
-            <th>Public</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${plans
-            .map(
-              (plan) => `
-                <tr>
-                  <td>${plan.name}</td>
-                  <td>${plan.billingInterval}</td>
-                  <td>${formatMoney(plan.priceCents)}</td>
-                  <td>${plan.isPublic ? "Yes" : "No"}</td>
-                </tr>
-              `
-            )
-            .join("")}
-        </tbody>
-      </table>
-    </div>
-  `;
-}
-
 function renderPublicPlans(publicPlanPage: ReturnType<typeof buildPublicPlansPage> | undefined) {
   if (!publicPlanPage) {
     return `<p class="muted">No public plan data loaded.</p>`;
@@ -989,6 +1203,10 @@ function loadPublicSlug() {
 
 function describeError(error: unknown) {
   if (error instanceof ApiError) {
+    if (error.issues && error.issues.length > 0) {
+      const detail = error.issues.map(i => `${i.path}: ${i.message}`).join("; ");
+      return `Validation failed - ${detail}`;
+    }
     return `${error.message} (${error.status})`;
   }
   if (error instanceof Error) {
@@ -1004,10 +1222,6 @@ function dollarsToCents(value: string) {
 function safeInteger(value: string, fallback: number) {
   const parsed = Number.parseInt(value || "", 10);
   return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function formatMoney(cents: number) {
-  return `$${(cents / 100).toFixed(2)}`;
 }
 
 function escapeAttribute(value: string) {

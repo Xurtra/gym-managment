@@ -31,7 +31,8 @@ export class InMemoryStore {
         createGym: (gym) => this.createGym(gym),
         getGym: (gymId) => this.getGym(gymId),
         findGymBySlug: (slug) => this.findGymBySlug(slug),
-        updateGym: (gym) => this.updateGym(gym)
+        updateGym: (gym) => this.updateGym(gym),
+        listGyms: () => this.listGyms(),
     };
     roles = {
         createRole: (role) => this.createRole(role),
@@ -163,6 +164,9 @@ export class InMemoryStore {
     async updateGym(gym) {
         this.gymRecords.set(gym.id, gym);
         return gym;
+    }
+    async listGyms() {
+        return Array.from(this.gymRecords.values());
     }
     async createRole(role) {
         this.roleRecords.set(role.id, role);

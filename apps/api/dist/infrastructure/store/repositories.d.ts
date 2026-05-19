@@ -11,6 +11,7 @@ export interface GymRepository {
     getGym(gymId: string): RepositoryResult<Gym | undefined>;
     findGymBySlug(slug: string): RepositoryResult<Gym | undefined>;
     updateGym(gym: Gym): RepositoryResult<Gym>;
+    listGyms(): RepositoryResult<Gym[]>;
 }
 export interface RoleRepository {
     createRole(role: Role): RepositoryResult<Role>;

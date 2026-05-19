@@ -29,6 +29,7 @@ export declare class TenancyService {
         membership: import("../../infrastructure/store/entities.js").GymUser;
     }>;
     getGym(gymId: string): Promise<Gym>;
+    listSettingsGyms(): Promise<Gym[]>;
     updateGym(gymId: string, input: GymUpdateInput): Promise<Gym>;
     private uniqueSlug;
 }

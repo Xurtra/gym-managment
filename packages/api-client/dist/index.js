@@ -1,10 +1,12 @@
 export class ApiError extends Error {
     status;
     code;
-    constructor(message, status, code) {
+    issues;
+    constructor(message, status, code, issues) {
         super(message);
         this.status = status;
         this.code = code;
+        this.issues = issues;
     }
 }
 export class GymApiClient {
@@ -46,6 +48,9 @@ export class GymApiClient {
     }
     me() {
         return this.request("GET", "/auth/me");
+    }
+    listGyms() {
+        return this.request("GET", "/gyms");
     }
     createGym(input) {
         return this.request("POST", "/gyms", input);
@@ -229,7 +234,7 @@ export class GymApiClient {
                 this.options.onSessionExpired?.();
             }
             const error = isErrorResponse(data) ? data.error : undefined;
-            throw new ApiError(error?.message ?? "Request failed.", response.status, error?.code ?? "request_failed");
+            throw new ApiError(error?.message ?? "Request failed.", response.status, error?.code ?? "request_failed", error?.issues);
         }
         return data;
     }

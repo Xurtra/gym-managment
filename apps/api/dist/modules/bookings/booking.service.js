@@ -288,6 +288,13 @@ export class BookingService {
     }
     async canPromoteWaitlistedBooking(repositories, gymId, memberId) {
         try {
+            const member = await repositories.members.getMember(memberId);
+            if (!member || member.gymId !== gymId || member.status === MemberStatus.Archived) {
+                return false;
+            }
+            if (!bookableMemberStatuses.has(member.status)) {
+                return false;
+            }
             const eligibility = await this.getActiveMembershipEligibility(repositories, gymId, memberId);
             await this.ensurePlanLimitAvailable(repositories, memberId, eligibility);
             return true;

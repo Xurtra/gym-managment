@@ -11,6 +11,7 @@ export class PostgresRepositories {
         createGym: (gym) => this.createGym(gym),
         getGym: (gymId) => this.getGym(gymId),
         findGymBySlug: (slug) => this.findGymBySlug(slug),
+        listGyms: () => this.listGyms(),
         updateGym: (gym) => this.updateGym(gym)
     };
     roles = {
@@ -227,6 +228,10 @@ export class PostgresRepositories {
     async findGymBySlug(slug) {
         const result = await this.executor.query("SELECT * FROM gyms WHERE slug = $1", [slug]);
         return result.rows[0] ? mapGym(result.rows[0]) : undefined;
+    }
+    async listGyms() {
+        const result = await this.executor.query("SELECT * FROM gyms");
+        return result.rows.map(mapGym);
     }
     async updateGym(gym) {
         const result = await this.executor.query(`UPDATE gyms

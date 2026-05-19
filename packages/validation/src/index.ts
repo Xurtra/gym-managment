@@ -14,12 +14,12 @@ const trimmed = z.string().trim();
 const id = z.string().uuid();
 
 export const emailSchema = trimmed.email().transform((value) => value.toLowerCase());
-export const passwordSchema = z
-  .string()
-  .min(8)
-  .regex(/[A-Z]/, "Password must contain an uppercase letter.")
-  .regex(/[a-z]/, "Password must contain a lowercase letter.")
-  .regex(/[0-9]/, "Password must contain a number.");
+export const passwordSchema = z.string().min(1);
+
+// Debug helper: log validation errors from API
+export function formatZodIssues(issues: { path: (string|number)[]; message: string }[]) {
+  return issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ");
+}
 
 export const registerSchema = z.object({
   email: emailSchema,

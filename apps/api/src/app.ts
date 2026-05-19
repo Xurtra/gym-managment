@@ -149,7 +149,10 @@ export function createPostgresServices(config: ApiConfig, clock: Clock = systemC
   if (!config.databaseUrl) {
     throw new Error("DATABASE_URL is required for Postgres-backed services.");
   }
-  const resolvedPool = pool ?? new Pool({ connectionString: config.databaseUrl });
+  const resolvedPool = pool ?? new Pool({
+    connectionString: config.databaseUrl,
+    ssl: { rejectUnauthorized: false }
+  });
   const services = createServices(config, clock, createPostgresRepositories(resolvedPool));
   return {
     ...services,
@@ -160,6 +163,10 @@ export function createPostgresServices(config: ApiConfig, clock: Clock = systemC
 export function createApp(config: ApiConfig, services = createServices(config)) {
   const routes = createRoutes();
   return async function app(req: IncomingMessage, res: ServerResponse) {
+    // Set CORS headers on every response
+    for (const [key, value] of Object.entries(corsHeaders)) {
+      res.setHeader(key, value);
+    }
     try {
       if (req.method === "OPTIONS") {
         sendNoContent(res, 204);
@@ -264,6 +271,10 @@ function createRoutes() {
   add("GET", "/auth/me", (context) => {
     const auth = requireAuth(context);
     return context.services.authService.currentUser(auth.sub, auth.gymId);
+  });
+
+  add("GET", "/gyms", async (context) => {
+    return { gyms: await context.services.tenancyService.listSettingsGyms() };
   });
 
   add("POST", "/gyms", (context) => {
