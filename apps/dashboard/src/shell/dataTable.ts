@@ -38,9 +38,14 @@ export interface DataTableColumnState<T extends Record<string, DataTableCellValu
 export interface DashboardDataTable<T extends Record<string, DataTableCellValue>> {
   kind: "dashboard_data_table";
   columns: Array<DataTableColumnState<T>>;
+  columnCount: number;
   rows: T[];
+  rowCount: number;
   allRows: T[];
+  totalRowCount: number;
   sort?: DataTableSort;
+  sortedColumnKey?: string;
+  summaryLabel: string;
   pagination: DataTablePagination;
   table: TableModel<T>;
 }
@@ -76,9 +81,17 @@ export function buildDashboardDataTable<T extends Record<string, DataTableCellVa
       ...(sort?.key === column.key ? { direction: sort.direction } : {}),
       nextDirection: sort?.key === column.key && sort.direction === "asc" ? "desc" : "asc"
     })),
+    columnCount: inputModel.columns.length,
     rows,
+    rowCount: rows.length,
     allRows: sortedRows,
+    totalRowCount: sortedRows.length,
     ...(sort ? { sort } : {}),
+    ...(sort ? { sortedColumnKey: sort.key } : {}),
+    summaryLabel:
+      sortedRows.length === 0
+        ? "No table rows"
+        : `${rows.length} of ${sortedRows.length} row${sortedRows.length === 1 ? "" : "s"} shown`,
     pagination,
     table: table({
       columns: inputModel.columns.map((column) => ({ key: column.key, label: column.label })),

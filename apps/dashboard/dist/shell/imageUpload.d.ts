@@ -18,6 +18,9 @@ export interface DashboardImageUpload {
     file?: ImageUploadFileInput;
     previewUrl?: string;
     errors: string[];
+    errorCount: number;
+    hasPreview: boolean;
+    summaryLabel: string;
     altTextField: InputModel;
     empty?: EmptyStateModel;
     chooseAction: ButtonModel;

@@ -1,17 +1,28 @@
 import { button } from "@gym-platform/ui";
 export function buildPageHeader(inputModel) {
+    const breadcrumbs = buildBreadcrumbs(inputModel.breadcrumbs ?? []);
+    const secondaryActions = (inputModel.secondaryActions ?? []).map((action) => buildHeaderAction(action, "secondary"));
+    const tabs = (inputModel.tabs ?? []).map((tab) => ({
+        key: tab.key,
+        label: tab.label,
+        href: tab.href,
+        active: tab.key === inputModel.activeTabKey,
+        disabled: tab.disabled ?? false
+    }));
+    const activeTab = tabs.find((tab) => tab.active);
     const header = {
         kind: "page_header",
         title: inputModel.title.trim(),
-        breadcrumbs: buildBreadcrumbs(inputModel.breadcrumbs ?? []),
-        secondaryActions: (inputModel.secondaryActions ?? []).map((action) => buildHeaderAction(action, "secondary")),
-        tabs: (inputModel.tabs ?? []).map((tab) => ({
-            key: tab.key,
-            label: tab.label,
-            href: tab.href,
-            active: tab.key === inputModel.activeTabKey,
-            disabled: tab.disabled ?? false
-        }))
+        breadcrumbs,
+        breadcrumbCount: breadcrumbs.length,
+        secondaryActions,
+        actionCount: secondaryActions.length + (inputModel.primaryAction ? 1 : 0),
+        tabs,
+        tabCount: tabs.length,
+        ...(activeTab ? { activeTabKey: activeTab.key } : {}),
+        summaryLabel: tabs.length > 0
+            ? `${tabs.length} page tab${tabs.length === 1 ? "" : "s"}`
+            : `${secondaryActions.length + (inputModel.primaryAction ? 1 : 0)} header action${secondaryActions.length + (inputModel.primaryAction ? 1 : 0) === 1 ? "" : "s"}`
     };
     const eyebrow = inputModel.eyebrow?.trim();
     if (eyebrow) {

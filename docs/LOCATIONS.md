@@ -28,7 +28,7 @@ Framework-neutral dashboard state lives under `apps/dashboard/src/locations`:
 - `hours.ts` builds a location-specific business hours editor and invalid-range state.
 - `rooms.ts` builds room-management state from class-session room names.
 - `access.ts` builds location-scoped access-rule views and member multi-location access summaries.
-- `switchers.ts` builds dashboard and public schedule location switchers.
+- `switchers.ts` builds dashboard and public schedule location switchers, including selected dashboard/public context and empty-state handling when no active locations exist.
 - `reporting.ts` builds location-based reporting filters.
 
 ## Tests

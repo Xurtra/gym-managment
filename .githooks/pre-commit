@@ -1,3 +1,19 @@
-#!/bin/sh
+#!/usr/bin/env node
 
-npm run precommit
+import { spawnSync } from "node:child_process";
+
+const result =
+  process.platform === "win32"
+    ? spawnSync("cmd.exe", ["/d", "/s", "/c", "npm run precommit"], {
+        stdio: "inherit"
+      })
+    : spawnSync("npm", ["run", "precommit"], {
+        stdio: "inherit"
+      });
+
+if (result.error) {
+  console.error("Failed to run precommit hook:", result.error.message);
+  process.exit(1);
+}
+
+process.exit(result.status ?? 1);

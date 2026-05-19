@@ -26,11 +26,12 @@ export function buildLoginScreen(values: { email?: string } = {}): AuthScreenMod
   ]);
 }
 
-export function buildRegistrationScreen(values: { email?: string; firstName?: string; lastName?: string } = {}): AuthScreenModel {
+export function buildRegistrationScreen(values: { email?: string; firstName?: string; lastName?: string; gymName?: string } = {}): AuthScreenModel {
   return authScreen("register", "Create Account", [
     authInput("firstName", "First name", values.firstName ?? ""),
     authInput("lastName", "Last name", values.lastName ?? ""),
     authInput("email", "Email", values.email ?? "", "email"),
+    authInput("gymName", "Gym name", values.gymName ?? ""),
     authInput("password", "Password", "", "password")
   ]);
 }

@@ -1,4 +1,4 @@
-import type { ButtonModel, InputModel, TableModel } from "@gym-platform/ui";
+import type { ButtonModel, EmptyStateModel, InputModel, TableModel } from "@gym-platform/ui";
 import type { StaffInviteAcceptanceSubmission, StaffInviteSubmission, StaffInviteView, StaffRoleOption } from "./types.js";
 export interface StaffInviteFlowScreen {
     screen: "staff_invite_flow";
@@ -7,7 +7,14 @@ export interface StaffInviteFlowScreen {
     roleOptions: Array<StaffRoleOption & {
         selected: boolean;
     }>;
+    roleOptionCount: number;
+    pendingInviteCount: number;
+    expiredInviteCount: number;
+    summaryLabel: string;
+    selectedRoleId?: string;
+    selectedRoleName?: string;
     pendingInvites: StaffInviteView[];
+    empty?: EmptyStateModel;
     canSubmit: boolean;
     action: ButtonModel;
     table: TableModel<StaffInviteView>;
@@ -15,7 +22,14 @@ export interface StaffInviteFlowScreen {
 export interface StaffInviteAcceptScreen {
     screen: "staff_invite_accept";
     token: string;
+    firstNameField: InputModel;
+    lastNameField: InputModel;
+    passwordField: InputModel;
     fields: InputModel[];
+    completedFieldCount: number;
+    summaryLabel: string;
+    passwordValid: boolean;
+    errorMessage?: string;
     canSubmit: boolean;
     action: ButtonModel;
 }

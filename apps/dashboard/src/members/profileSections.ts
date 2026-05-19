@@ -21,6 +21,9 @@ export interface MemberContactInformationSection extends MemberProfileSection {
   hasPhone: boolean;
   complete: boolean;
   primaryContactMethod: "email" | "phone" | "none";
+  fieldCount: number;
+  completeFieldCount: number;
+  summaryLabel: string;
 }
 
 export interface MemberEmergencyContactSection extends MemberProfileSection {
@@ -31,6 +34,9 @@ export interface MemberEmergencyContactSection extends MemberProfileSection {
   contactName: string;
   contactPhone: string;
   relationship: string;
+  fieldCount: number;
+  completeFieldCount: number;
+  summaryLabel: string;
 }
 
 export interface MemberNotesSection extends MemberProfileSection {
@@ -40,6 +46,7 @@ export interface MemberNotesSection extends MemberProfileSection {
   hasNotes: boolean;
   characterCount: number;
   preview: string;
+  summaryLabel: string;
 }
 
 export function buildMemberContactInformationSection(
@@ -49,6 +56,7 @@ export function buildMemberContactInformationSection(
   const phone = normalizedValue(member.phone);
   const hasEmail = Boolean(email);
   const hasPhone = Boolean(phone);
+  const completeFieldCount = [hasEmail, hasPhone].filter(Boolean).length;
 
   return {
     key: "contact",
@@ -59,6 +67,9 @@ export function buildMemberContactInformationSection(
     hasPhone,
     complete: hasEmail && hasPhone,
     primaryContactMethod: hasEmail ? "email" : hasPhone ? "phone" : "none",
+    fieldCount: 2,
+    completeFieldCount,
+    summaryLabel: `${completeFieldCount} of 2 contact fields provided`,
     details: [
       { key: "email", label: "Email", value: email || "Not provided" },
       { key: "phone", label: "Phone", value: phone || "Not provided" }
@@ -73,6 +84,7 @@ export function buildMemberEmergencyContactSection(
   const contactPhone = normalizedValue(member.emergencyContact?.phone);
   const relationship = normalizedValue(member.emergencyContact?.relationship);
   const hasEmergencyContact = Boolean(contactName || contactPhone || relationship);
+  const completeFieldCount = [contactName, contactPhone, relationship].filter(Boolean).length;
 
   return {
     key: "emergency_contact",
@@ -82,6 +94,9 @@ export function buildMemberEmergencyContactSection(
     contactName: contactName || "Not provided",
     contactPhone: contactPhone || "Not provided",
     relationship: relationship || "Not provided",
+    fieldCount: 3,
+    completeFieldCount,
+    summaryLabel: `${completeFieldCount} of 3 emergency contact fields provided`,
     details: hasEmergencyContact
       ? [
           { key: "name", label: "Name", value: contactName || "Not provided" },
@@ -103,6 +118,9 @@ export function buildMemberNotesSection(member: MemberView): MemberNotesSection 
     hasNotes,
     characterCount: noteText.length,
     preview: noteText ? noteText.slice(0, 120) : "No notes",
+    summaryLabel: hasNotes
+      ? `${noteText.length} note characters`
+      : "No member notes",
     details: [{ key: "notes", label: "Notes", value: noteText || "No notes" }]
   };
 }

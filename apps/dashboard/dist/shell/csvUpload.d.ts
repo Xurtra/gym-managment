@@ -20,7 +20,11 @@ export interface DashboardCsvUpload {
     maxSizeBytes: number;
     file?: UploadFileInput;
     errors: string[];
+    errorCount: number;
     preview?: CsvUploadPreview;
+    previewRowCount: number;
+    columnCount: number;
+    summaryLabel: string;
     empty?: EmptyStateModel;
     chooseAction: ButtonModel;
     uploadAction: ButtonModel;

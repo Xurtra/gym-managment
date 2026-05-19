@@ -14,6 +14,10 @@ export interface MemberDirectorySearchScreen {
     results: MemberDirectorySearchResult[];
     selectedMember?: MemberDirectorySearchResult;
     searchableFields: MemberSearchField[];
+    resultCount: number;
+    searchableFieldCount: number;
+    selectedMemberId?: string;
+    summaryLabel: string;
     emptyState: boolean;
 }
 export declare function buildMemberDirectorySearchScreen(members: MemberView[], query: string, selectedMemberId?: string): MemberDirectorySearchScreen;

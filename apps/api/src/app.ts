@@ -1,4 +1,4 @@
-import { Permission } from "@gym-platform/constants";
+import { FeatureFlag, GymStatus, MemberStatus, MembershipStatus, Permission, PlanStatus } from "@gym-platform/constants";
 import {
   accessDeviceCreateSchema,
   accessDeviceEventSchema,
@@ -22,6 +22,7 @@ import {
   membershipPlanCreateSchema,
   membershipPlanUpdateSchema,
   logoutSchema,
+  publicSignupSchema,
   refreshTokenSchema,
   registerSchema,
   resendVerificationSchema,
@@ -41,7 +42,7 @@ import { Pool } from "pg";
 import { ZodError, type ZodSchema } from "zod";
 import type { z } from "zod";
 import type { ApiConfig } from "./config/env.js";
-import { AppError, badRequest, notFound, unauthorized } from "./http/errors.js";
+import { AppError, badRequest, forbidden, notFound, unauthorized } from "./http/errors.js";
 import { verifyAccessToken, type AccessTokenPayload } from "./infrastructure/security/tokens.js";
 import { InMemoryStore } from "./infrastructure/store/inMemoryStore.js";
 import { createPostgresRepositories } from "./infrastructure/store/postgresRepositories.js";
@@ -60,7 +61,7 @@ import { StaffScheduleService } from "./modules/staffSchedule/staffSchedule.serv
 import { TenancyService } from "./modules/tenancy/tenancy.service.js";
 import { systemClock, type Clock } from "./shared/time.js";
 
-type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
+type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE" | "OPTIONS";
 
 interface Route {
   method: HttpMethod;
@@ -160,6 +161,10 @@ export function createApp(config: ApiConfig, services = createServices(config)) 
   const routes = createRoutes();
   return async function app(req: IncomingMessage, res: ServerResponse) {
     try {
+      if (req.method === "OPTIONS") {
+        sendNoContent(res, 204);
+        return;
+      }
       const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
       const method = req.method as HttpMethod;
       const match = matchRoute(routes, method, url.pathname);
@@ -761,7 +766,8 @@ function createRoutes() {
     return context.services.accessControlService.heartbeat(input);
   });
 
-  add("GET", "/public/gyms/:gymSlug/schedule", (context) => {
+  add("GET", "/public/gyms/:gymSlug/schedule", async (context) => {
+    const gym = await getActiveGymBySlug(context, requiredParam(context, "gymSlug"));
     const from = context.query.get("from") ? new Date(context.query.get("from") ?? "") : new Date();
     const to = context.query.get("to")
       ? new Date(context.query.get("to") ?? "")
@@ -771,14 +777,102 @@ function createRoutes() {
     }
     const locationId = context.query.get("locationId") ?? undefined;
     return context.services.classScheduleService.publicSchedule(
-      requiredParam(context, "gymSlug"),
+      gym.slug,
       from,
       to,
       locationId ? { locationId } : {}
     );
   });
 
+  add("GET", "/public/gyms/:gymSlug", async (context) => {
+    const gym = await getActiveGymBySlug(context, requiredParam(context, "gymSlug"));
+    return {
+      gym: {
+        id: gym.id,
+        name: gym.name,
+        slug: gym.slug,
+        timezone: gym.timezone,
+        locale: gym.locale,
+        featureFlags: gym.featureFlags,
+        ...(gym.logoUrl ? { logoUrl: gym.logoUrl } : {}),
+        ...(gym.brandColors ? { brandColors: gym.brandColors } : {}),
+        ...(gym.businessInfo ? { businessInfo: gym.businessInfo } : {})
+      }
+    };
+  });
+
+  add("GET", "/public/gyms/:gymSlug/plans", async (context) => {
+    const gym = await getActiveGymBySlug(context, requiredParam(context, "gymSlug"));
+    const plans = (await context.services.membershipPlanService.list(gym.id)).filter(
+      (plan) => plan.isPublic && plan.status !== PlanStatus.Archived
+    );
+    return {
+      gym: {
+        id: gym.id,
+        name: gym.name,
+        slug: gym.slug,
+        featureFlags: gym.featureFlags
+      },
+      plans
+    };
+  });
+
+  add("POST", "/public/gyms/:gymSlug/signup", async (context) => {
+    const gym = await getActiveGymBySlug(context, requiredParam(context, "gymSlug"));
+    if (!gym.featureFlags.includes(FeatureFlag.OnlineSignup)) {
+      throw forbidden("Online signup is not enabled for this gym.");
+    }
+    const input = parseWith(publicSignupSchema, context.body);
+    const plan = await context.services.repositories.membershipPlans.getMembershipPlan(input.planId);
+    if (!plan || plan.gymId !== gym.id || plan.status === PlanStatus.Archived || !plan.isPublic) {
+      throw notFound("Membership plan was not found.");
+    }
+    const memberStatus = plan.trialDays > 0 ? MemberStatus.Trial : MemberStatus.Active;
+    const membershipStatus =
+      plan.trialDays > 0 ? MembershipStatus.Trialing : MembershipStatus.Active;
+    const member = await context.services.memberService.create(gym.id, {
+      firstName: input.firstName,
+      lastName: input.lastName,
+      email: input.email,
+      ...(input.phone ? { phone: input.phone } : {}),
+      status: memberStatus,
+      tagNames: ["online-signup"]
+    });
+    const membership = await context.services.memberMembershipService.assignPlan(gym.id, member.id, {
+      planId: plan.id,
+      status: membershipStatus
+    });
+    return {
+      gym: {
+        id: gym.id,
+        name: gym.name,
+        slug: gym.slug
+      },
+      plan: {
+        id: plan.id,
+        name: plan.name,
+        billingInterval: plan.billingInterval,
+        priceCents: plan.priceCents,
+        signupFeeCents: plan.signupFeeCents,
+        trialDays: plan.trialDays
+      },
+      member,
+      membership,
+      summary: {
+        totalDueTodayCents: plan.priceCents + plan.signupFeeCents
+      }
+    };
+  });
+
   return routes;
+}
+
+async function getActiveGymBySlug(context: RequestContext, gymSlug: string) {
+  const gym = await context.services.repositories.gyms.findGymBySlug(gymSlug);
+  if (!gym || gym.status !== GymStatus.Active) {
+    throw notFound("Gym was not found.");
+  }
+  return gym;
 }
 
 function requireAuth(context: RequestContext) {
@@ -883,10 +977,19 @@ function compilePath(path: string) {
 function sendJson(res: ServerResponse, status: number, data: unknown) {
   const body = JSON.stringify(data);
   res.writeHead(status, {
+    ...corsHeaders,
     "Content-Type": "application/json",
     "Content-Length": Buffer.byteLength(body)
   });
   res.end(body);
+}
+
+function sendNoContent(res: ServerResponse, status: number) {
+  res.writeHead(status, {
+    ...corsHeaders,
+    "Content-Length": "0"
+  });
+  res.end();
 }
 
 function sendError(res: ServerResponse, error: unknown) {
@@ -914,3 +1017,9 @@ function sendError(res: ServerResponse, error: unknown) {
     }
   });
 }
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type",
+  "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS"
+} as const;

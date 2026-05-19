@@ -30,9 +30,14 @@ export interface DataTableColumnState<T extends Record<string, DataTableCellValu
 export interface DashboardDataTable<T extends Record<string, DataTableCellValue>> {
     kind: "dashboard_data_table";
     columns: Array<DataTableColumnState<T>>;
+    columnCount: number;
     rows: T[];
+    rowCount: number;
     allRows: T[];
+    totalRowCount: number;
     sort?: DataTableSort;
+    sortedColumnKey?: string;
+    summaryLabel: string;
     pagination: DataTablePagination;
     table: TableModel<T>;
 }

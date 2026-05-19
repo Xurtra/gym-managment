@@ -6,6 +6,23 @@ export const onboardingSteps = [
     { id: "payment-connection", title: "Payment Connection" },
     { id: "website-template", title: "Website Template" }
 ];
+const defaultWebsiteTemplates = [
+    {
+        id: "strength-studio",
+        name: "Strength Studio",
+        description: "Bold landing page for strength training, small-group classes, and coach-led programs."
+    },
+    {
+        id: "wellness-flow",
+        name: "Wellness Flow",
+        description: "Clean template for yoga, recovery, and holistic wellness memberships."
+    },
+    {
+        id: "community-hub",
+        name: "Community Hub",
+        description: "Balanced homepage for multi-program gyms that emphasize events, trainers, and member stories."
+    }
+];
 export function buildOnboardingChecklist(completedStepIds, currentStepId) {
     const current = currentStepId ?? nextOnboardingStep(completedStepIds);
     return onboardingSteps.map((step) => ({
@@ -14,8 +31,11 @@ export function buildOnboardingChecklist(completedStepIds, currentStepId) {
         current: step.id === current
     }));
 }
-export function buildOnboardingWizardStep(stepId) {
+export function buildOnboardingWizardStep(stepId, input = {}) {
     const step = onboardingSteps.find((candidate) => candidate.id === stepId) ?? onboardingSteps[0];
+    if (step.id === "website-template") {
+        return buildWebsiteTemplateSelectionStep(input.selectedTemplateId, input.templateOptions);
+    }
     return {
         screen: "onboarding_wizard_step",
         stepId: step.id,
@@ -23,14 +43,38 @@ export function buildOnboardingWizardStep(stepId) {
         submit: button({ label: "Continue" })
     };
 }
+export function buildWebsiteTemplateSelectionStep(selectedTemplateId, templateOptions = defaultWebsiteTemplates) {
+    const options = templateOptions.map((template) => ({
+        ...template,
+        selected: template.id === selectedTemplateId
+    }));
+    const selectedTemplate = options.find((template) => template.selected);
+    return {
+        screen: "onboarding_wizard_step",
+        stepId: "website-template",
+        title: "Website Template",
+        description: "Choose a starting website design for your gym.",
+        templateOptions: options,
+        canSubmit: Boolean(selectedTemplate),
+        ...(selectedTemplate ? { selectedTemplateId: selectedTemplate.id } : {}),
+        submit: button({ label: "Continue", disabled: !selectedTemplate })
+    };
+}
 export function buildOnboardingProgressIndicator(completedStepIds) {
     const completedCount = onboardingSteps.filter((step) => completedStepIds.includes(step.id)).length;
+    const totalCount = onboardingSteps.length;
+    const remainingCount = totalCount - completedCount;
+    const complete = remainingCount === 0;
+    const nextStepId = nextOnboardingStep(completedStepIds);
     return {
         screen: "onboarding_progress",
         completedCount,
-        totalCount: onboardingSteps.length,
-        percentComplete: Math.round((completedCount / onboardingSteps.length) * 100),
-        nextStepId: nextOnboardingStep(completedStepIds)
+        totalCount,
+        remainingCount,
+        percentComplete: Math.round((completedCount / totalCount) * 100),
+        complete,
+        statusLabel: `${completedCount} of ${totalCount} steps completed`,
+        ...(nextStepId ? { nextStepId } : {})
     };
 }
 function nextOnboardingStep(completedStepIds) {

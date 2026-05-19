@@ -19,6 +19,7 @@ import type {
   MemberUpdateInput,
   MembershipPlanCreateInput,
   MembershipPlanUpdateInput,
+  PublicSignupInput,
   RegisterInput,
   ResetPasswordInput,
   RoleAssignmentInput,
@@ -60,7 +61,7 @@ export class GymApiClient {
   private readonly fetchImpl: typeof fetch;
 
   constructor(private readonly options: ApiClientOptions) {
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
   }
 
   register(input: RegisterInput) {
@@ -320,6 +321,18 @@ export class GymApiClient {
     }
     const query = params.size > 0 ? `?${params.toString()}` : "";
     return this.request("GET", `/public/gyms/${gymSlug}/schedule${query}`);
+  }
+
+  publicGym(gymSlug: string) {
+    return this.request("GET", `/public/gyms/${gymSlug}`);
+  }
+
+  publicPlans(gymSlug: string) {
+    return this.request("GET", `/public/gyms/${gymSlug}/plans`);
+  }
+
+  publicSignup(gymSlug: string, input: PublicSignupInput) {
+    return this.request("POST", `/public/gyms/${gymSlug}/signup`, input);
   }
 
   private async request(

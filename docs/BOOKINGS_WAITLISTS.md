@@ -32,6 +32,10 @@ This slice adds class booking and waitlist backend logic behind the existing cla
 - `POST /gyms/:gymId/class-sessions/:sessionId/waitlist`
 - `DELETE /gyms/:gymId/class-bookings/:bookingId/waitlist`
 
+## Dashboard Alignment
+
+Booking eligibility stays aligned with the membership-plan dashboard models in `apps/dashboard/src/membershipPlans`, where plan pricing, class-access limits, archive state, and create/edit validation use the same plan records that determine whether a member can book directly or needs a staff override. It also aligns with the Stripe Payments dashboard models in `apps/dashboard/src/payments`, where front-desk payment collection and payment-history review can be used as the operational follow-up path when a member's standing or overdue status affects booking eligibility. The check-in dashboard models in `apps/dashboard/src/checkIns` use that same booking and membership context when validating class attendance, so front-desk check-ins stay consistent with the active booked-spot and eligibility rules defined by the booking flow.
+
 ## Not Yet Covered
 
 Reminder triggers, confirmation email/SMS delivery, and attendance/check-in links are still future rows.

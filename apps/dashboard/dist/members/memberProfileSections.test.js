@@ -30,10 +30,15 @@ describe("member profile sections", () => {
         expect(complete.hasPhone).toBe(true);
         expect(complete.complete).toBe(true);
         expect(complete.primaryContactMethod).toBe("email");
+        expect(complete.fieldCount).toBe(2);
+        expect(complete.completeFieldCount).toBe(2);
+        expect(complete.summaryLabel).toBe("2 of 2 contact fields provided");
         expect(missing.email).toBe("Not provided");
         expect(missing.phone).toBe("Not provided");
         expect(missing.complete).toBe(false);
         expect(missing.primaryContactMethod).toBe("none");
+        expect(missing.completeFieldCount).toBe(0);
+        expect(missing.summaryLabel).toBe("0 of 2 contact fields provided");
     });
     it("builds emergency contact section with missing-state handling", () => {
         const complete = buildMemberEmergencyContactSection(completeMember);
@@ -46,8 +51,13 @@ describe("member profile sections", () => {
         expect(complete.complete).toBe(true);
         expect(complete.contactName).toBe("Avery Rivera");
         expect(complete.relationship).toBe("Spouse");
+        expect(complete.fieldCount).toBe(3);
+        expect(complete.completeFieldCount).toBe(3);
+        expect(complete.summaryLabel).toBe("3 of 3 emergency contact fields provided");
         expect(missing.hasEmergencyContact).toBe(false);
         expect(missing.complete).toBe(false);
+        expect(missing.completeFieldCount).toBe(0);
+        expect(missing.summaryLabel).toBe("0 of 3 emergency contact fields provided");
         expect(missing.details).toEqual([
             { key: "emergency_contact", label: "Contact", value: "Not provided" }
         ]);
@@ -69,9 +79,11 @@ describe("member profile sections", () => {
         expect(complete.noteText).toBe("Prefers morning classes and shoulder-friendly programming.");
         expect(complete.characterCount).toBe(58);
         expect(complete.preview).toBe("Prefers morning classes and shoulder-friendly programming.");
+        expect(complete.summaryLabel).toBe("58 note characters");
         expect(missing.hasNotes).toBe(false);
         expect(missing.noteText).toBe("No notes");
         expect(missing.characterCount).toBe(0);
+        expect(missing.summaryLabel).toBe("No member notes");
     });
 });
 //# sourceMappingURL=memberProfileSections.test.js.map

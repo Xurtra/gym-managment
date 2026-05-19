@@ -1,6 +1,6 @@
 import { FeatureFlag } from "@gym-platform/constants";
 import { describe, expect, it } from "vitest";
-import { buildBrandColorSettings, buildBusinessInformationForm, buildFeatureFlagSettings, buildGymLogoUploadFlow, buildGymProfileSettingsPage, buildOnboardingChecklist, buildOnboardingProgressIndicator, buildOnboardingWizardStep, buildOperatingHoursEditor, buildTimezoneLocaleSettings } from "./index.js";
+import { buildBrandColorSettings, buildBusinessInformationForm, buildFeatureFlagSettings, buildGymLogoUploadFlow, buildGymProfileSettingsPage, buildOnboardingChecklist, buildOnboardingProgressIndicator, buildOnboardingWizardStep, buildWebsiteTemplateSelectionStep, buildOperatingHoursEditor, buildTimezoneLocaleSettings } from "./index.js";
 const gym = {
     id: "gym-1",
     name: "Demo Strength Club",
@@ -42,8 +42,38 @@ describe("gym settings and onboarding dashboard models", () => {
         expect(checklist[1]?.current).toBe(true);
         expect(wizard.title).toBe("Location Details");
         expect(progress.completedCount).toBe(2);
+        expect(progress.remainingCount).toBe(3);
         expect(progress.percentComplete).toBe(40);
+        expect(progress.complete).toBe(false);
+        expect(progress.statusLabel).toBe("2 of 5 steps completed");
         expect(progress.nextStepId).toBe("membership-plans");
+    });
+    it("marks onboarding progress complete when all steps are done", () => {
+        const progress = buildOnboardingProgressIndicator([
+            "gym-details",
+            "location-details",
+            "membership-plans",
+            "payment-connection",
+            "website-template"
+        ]);
+        expect(progress.completedCount).toBe(5);
+        expect(progress.remainingCount).toBe(0);
+        expect(progress.percentComplete).toBe(100);
+        expect(progress.complete).toBe(true);
+        expect(progress.nextStepId).toBeUndefined();
+    });
+    it("builds the website template onboarding step with selection state", () => {
+        const wizard = buildWebsiteTemplateSelectionStep("wellness-flow");
+        const routedWizard = buildOnboardingWizardStep("website-template", {
+            selectedTemplateId: "wellness-flow"
+        });
+        expect(wizard.stepId).toBe("website-template");
+        expect(wizard.templateOptions).toHaveLength(3);
+        expect(wizard.templateOptions?.find((template) => template.id === "wellness-flow")?.selected).toBe(true);
+        expect(wizard.selectedTemplateId).toBe("wellness-flow");
+        expect(wizard.canSubmit).toBe(true);
+        expect(wizard.submit.disabled).toBe(false);
+        expect(routedWizard.templateOptions?.find((template) => template.id === "wellness-flow")?.selected).toBe(true);
     });
 });
 //# sourceMappingURL=gymSettings.test.js.map

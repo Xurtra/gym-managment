@@ -1,10 +1,14 @@
-import type { ButtonModel, InputModel, ModalModel, TableModel } from "@gym-platform/ui";
+import type { ButtonModel, EmptyStateModel, InputModel, ModalModel, TableModel } from "@gym-platform/ui";
 import type { StaffAccessRemovalSubmission, StaffAuditEntryView, StaffMemberView, StaffPermissionChangeSubmission, StaffRoleOption } from "./types.js";
 export interface StaffPermissionRow extends StaffMemberView {
     fullName: string;
+    selected: boolean;
     locked: boolean;
+    lockedReason?: string;
     canEdit: boolean;
     canRemove: boolean;
+    roleLabel: string;
+    statusLabel: string;
     roleOptions: Array<StaffRoleOption & {
         selected: boolean;
         disabled: boolean;
@@ -16,13 +20,20 @@ export interface StaffPermissionsScreen {
     canRemoveStaff: boolean;
     roleOptions: StaffRoleOption[];
     rows: StaffPermissionRow[];
+    totalStaffCount: number;
+    editableStaffCount: number;
+    removableStaffCount: number;
+    auditEntryCount: number;
+    summaryLabel: string;
     selectedUserId?: string;
+    selectedStaffName?: string;
     selectedRoleId?: string;
     canSubmitRoleChange: boolean;
     reasonField: InputModel;
     saveAction: ButtonModel;
     removeAction: ButtonModel;
     removalModal: ModalModel;
+    empty?: EmptyStateModel;
     table: TableModel<StaffPermissionRow>;
     auditTrail: StaffAuditEntryView[];
 }

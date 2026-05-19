@@ -37,6 +37,9 @@ describe("dashboard shell", () => {
       "classes",
       "operations"
     ]);
+    expect(groups.map((group) => group.itemCount)).toEqual([2, 2, 1, 1]);
+    expect(groups.find((group) => group.key === "people")?.active).toBe(true);
+    expect(groups.find((group) => group.key === "workspace")?.active).toBe(false);
     expect(groups.find((group) => group.key === "people")?.items.map((item) => item.href)).toEqual([
       "/members",
       "/check-ins"
@@ -72,11 +75,15 @@ describe("dashboard shell", () => {
 
     expect(shell.screen).toBe("dashboard_shell");
     expect(shell.sidebar.collapsed).toBe(true);
+    expect(shell.sidebar.groupCount).toBe(2);
+    expect(shell.sidebar.itemCount).toBe(2);
+    expect(shell.sidebar.activeGroupKey).toBe("people");
     expect(shell.sidebar.groups.flatMap((group) => group.items).map((item) => item.href)).toEqual([
       "/",
       "/members"
     ]);
     expect(shell.topBar.title).toBe("Members");
+    expect(shell.topBar.searchResultCount).toBe(1);
     expect(shell.topBar.globalSearch.results[0]?.title).toBe("Jamie Rivera");
     expect(shell.topBar.accountMenu.userName).toBe("Demo Owner");
     expect(shell.topBar.accountMenu.items.find((item) => item.key === "settings")?.disabled).toBe(
@@ -125,6 +132,11 @@ describe("dashboard shell", () => {
 
     expect(header.kind).toBe("page_header");
     expect(header.description).toBe("Manage active members");
+    expect(header.breadcrumbCount).toBe(2);
+    expect(header.actionCount).toBe(2);
+    expect(header.tabCount).toBe(2);
+    expect(header.activeTabKey).toBe("active");
+    expect(header.summaryLabel).toBe("2 page tabs");
     expect(header.breadcrumbs[1]?.current).toBe(true);
     expect(header.primaryAction?.button.icon).toBe("plus");
     expect(header.secondaryActions[0]?.button.intent).toBe("secondary");
@@ -166,10 +178,15 @@ describe("dashboard shell", () => {
       "checkInsToday",
       "classesToday"
     ]);
+    expect(home.cardCount).toBe(3);
+    expect(home.visibleMetricKeys).toEqual(["activeMembers", "checkInsToday", "classesToday"]);
+    expect(home.summaryLabel).toBe("3 dashboard metrics visible");
     expect(home.cards[0]?.value).toBe("128");
     expect(home.cards[0]?.trend).toBe("up");
     expect(home.cards[1]?.trend).toBe("down");
     expect(home.cards.some((summaryCard) => summaryCard.key === "pendingTasks")).toBe(false);
+    expect(home.enabledPrimaryActionCount).toBe(1);
+    expect(home.disabledPrimaryActionCount).toBe(1);
     expect(home.primaryActions.find((action) => action.label === "Add member")?.disabled).toBe(
       false
     );
@@ -181,6 +198,22 @@ describe("dashboard shell", () => {
       "checkInsToday",
       "classesToday"
     ]);
+  });
+
+  it("builds empty dashboard homepage state when no metrics are visible", () => {
+    const home = buildDashboardHomePage({
+      metrics: { pendingTasks: 3 },
+      permissions: []
+    });
+
+    expect(home.cards).toEqual([]);
+    expect(home.cardCount).toBe(0);
+    expect(home.visibleMetricKeys).toEqual([]);
+    expect(home.summaryLabel).toBe("No visible dashboard metrics");
+    expect(home.enabledPrimaryActionCount).toBe(0);
+    expect(home.disabledPrimaryActionCount).toBe(2);
+    expect(home.empty?.title).toBe("No dashboard metrics available");
+    expect(home.primaryActions.every((action) => action.disabled)).toBe(true);
   });
 
   it("builds account menu settings and logout actions", () => {
@@ -225,7 +258,14 @@ describe("dashboard shell", () => {
 
     expect(search.open).toBe(true);
     expect(search.queryField.value).toBe("front");
+    expect(search.queryField.name).toBe("globalSearch");
+    expect(search.queryField.label).toBe("Search");
+    expect(search.summaryLabel).toBe("1 result");
+    expect(search.routeResultCount).toBe(0);
+    expect(search.entityResultCount).toBe(1);
     expect(search.results.map((result) => result.id)).toEqual(["staff-1"]);
+    expect(search.results[0]?.typeLabel).toBe("Staff");
+    expect(search.selectedResultIndex).toBe(0);
     expect(search.selectedResult?.id).toBe("staff-1");
     expect(search.empty).toBe(false);
   });
@@ -238,6 +278,10 @@ describe("dashboard shell", () => {
     });
 
     expect(search.results).toHaveLength(0);
+    expect(search.summaryLabel).toBe('No results for "zzzz"');
+    expect(search.routeResultCount).toBe(0);
+    expect(search.entityResultCount).toBe(0);
+    expect(search.selectedResultIndex).toBeUndefined();
     expect(search.empty).toBe(true);
   });
 
@@ -257,8 +301,13 @@ describe("dashboard shell", () => {
 
     expect(mobileNavigation.open).toBe(true);
     expect(mobileNavigation.activePath).toBe("/check-ins");
+    expect(mobileNavigation.groupCount).toBe(2);
+    expect(mobileNavigation.activeGroupKey).toBe("people");
+    expect(mobileNavigation.summaryLabel).toBe("4 mobile navigation items");
     expect(mobileNavigation.toggleAction.icon).toBe("menu");
+    expect(mobileNavigation.toggleAction.label).toBe("Menu");
     expect(mobileNavigation.closeAction.icon).toBe("x");
+    expect(mobileNavigation.closeAction.label).toBe("Close");
     expect(mobileNavigation.groups.map((group) => group.key)).toEqual(["workspace", "people"]);
     expect(
       mobileNavigation.groups
@@ -286,6 +335,11 @@ describe("dashboard shell", () => {
     });
 
     expect(dataTable.kind).toBe("dashboard_data_table");
+    expect(dataTable.columnCount).toBe(3);
+    expect(dataTable.rowCount).toBe(2);
+    expect(dataTable.totalRowCount).toBe(3);
+    expect(dataTable.sortedColumnKey).toBe("checkIns");
+    expect(dataTable.summaryLabel).toBe("2 of 3 rows shown");
     expect(dataTable.columns.find((column) => column.key === "checkIns")?.sorted).toBe(true);
     expect(dataTable.columns.find((column) => column.key === "checkIns")?.nextDirection).toBe(
       "asc"
@@ -322,6 +376,11 @@ describe("dashboard shell", () => {
     });
 
     expect(dataTable.sort).toBeUndefined();
+    expect(dataTable.columnCount).toBe(2);
+    expect(dataTable.rowCount).toBe(1);
+    expect(dataTable.totalRowCount).toBe(2);
+    expect(dataTable.sortedColumnKey).toBeUndefined();
+    expect(dataTable.summaryLabel).toBe("1 of 2 rows shown");
     expect(dataTable.rows.map((row) => row.name)).toEqual(["Newer"]);
     expect(dataTable.pagination.page).toBe(2);
     expect(dataTable.pagination.canNext).toBe(false);
@@ -352,7 +411,10 @@ describe("dashboard shell", () => {
     expect(drawer.kind).toBe("dashboard_filter_drawer");
     expect(drawer.title).toBe("Member filters");
     expect(drawer.open).toBe(true);
+    expect(drawer.fieldCount).toBe(4);
     expect(drawer.activeFilterCount).toBe(2);
+    expect(drawer.errorCount).toBe(1);
+    expect(drawer.summaryLabel).toBe("2 active filters");
     expect(drawer.fields.find((field) => field.key === "query")?.input?.value).toBe("jam");
     expect(drawer.fields.find((field) => field.key === "status")?.active).toBe(true);
     expect(drawer.fields.find((field) => field.key === "pastDue")?.active).toBe(false);
@@ -369,16 +431,27 @@ describe("dashboard shell", () => {
       confirmLabel: "Remove access",
       destructive: true
     });
+    const disabled = buildDashboardConfirmationModal({
+      title: "Archive location",
+      body: "This location cannot accept new bookings.",
+      confirmDisabled: true
+    });
 
     expect(confirmation.kind).toBe("dashboard_confirmation_modal");
     expect(confirmation.open).toBe(true);
     expect(confirmation.destructive).toBe(true);
+    expect(confirmation.actionCount).toBe(2);
+    expect(confirmation.confirmDisabled).toBe(false);
+    expect(confirmation.summaryLabel).toBe("Confirmation ready");
     expect(confirmation.confirmAction.intent).toBe("danger");
     expect(confirmation.cancelAction.intent).toBe("secondary");
     expect(confirmation.modal.actions.map((action) => action.label)).toEqual([
       "Cancel",
       "Remove access"
     ]);
+    expect(disabled.confirmDisabled).toBe(true);
+    expect(disabled.summaryLabel).toBe("Confirmation disabled");
+    expect(disabled.confirmAction.disabled).toBe(true);
   });
 
   it("builds reusable detail drawer sections, actions, and empty state", () => {
@@ -407,6 +480,10 @@ describe("dashboard shell", () => {
 
     expect(drawer.kind).toBe("dashboard_detail_drawer");
     expect(drawer.subtitle).toBe("Active member");
+    expect(drawer.sectionCount).toBe(1);
+    expect(drawer.itemCount).toBe(4);
+    expect(drawer.actionCount).toBe(1);
+    expect(drawer.summaryLabel).toBe("4 detail items");
     expect(drawer.sections[0]?.items.map((item) => item.value)).toEqual([
       "jamie@example.com",
       "No",
@@ -417,6 +494,9 @@ describe("dashboard shell", () => {
     expect(drawer.actions[0]?.href).toBe("/members/member-1/edit");
     expect(drawer.actions[0]?.button.icon).toBe("pencil");
     expect(drawer.closeAction.icon).toBe("x");
+    expect(empty.sectionCount).toBe(0);
+    expect(empty.itemCount).toBe(0);
+    expect(empty.summaryLabel).toBe("No detail items");
     expect(empty.empty?.title).toBe("No details");
   });
 
@@ -461,7 +541,10 @@ describe("dashboard shell", () => {
     expect(center.placement).toBe("bottom-right");
     expect(center.toasts.map((toast) => toast.id)).toEqual(["failed", "queued", "saved"]);
     expect(center.visibleToasts.map((toast) => toast.id)).toEqual(["failed", "queued"]);
+    expect(center.totalCount).toBe(3);
+    expect(center.visibleCount).toBe(2);
     expect(center.queuedCount).toBe(1);
+    expect(center.summaryLabel).toBe("2 of 3 notifications visible");
     expect(center.toasts.find((toast) => toast.id === "failed")?.icon).toBe("circle-alert");
     expect(center.toasts.find((toast) => toast.id === "failed")?.autoDismissMs).toBeUndefined();
     expect(center.toasts.find((toast) => toast.id === "failed")?.action?.href).toBe(
@@ -473,6 +556,9 @@ describe("dashboard shell", () => {
     expect(center.toasts.find((toast) => toast.id === "saved")?.autoDismissMs).toBe(1000);
     expect(center.dismissAllAction.disabled).toBe(false);
     expect(empty.visibleToasts).toEqual([]);
+    expect(empty.totalCount).toBe(0);
+    expect(empty.visibleCount).toBe(0);
+    expect(empty.summaryLabel).toBe("No notifications");
     expect(empty.dismissAllAction.disabled).toBe(true);
   });
 
@@ -496,12 +582,20 @@ describe("dashboard shell", () => {
 
     expect(picker.kind).toBe("dashboard_date_range_picker");
     expect(picker.valid).toBe(true);
+    expect(picker.errorCount).toBe(0);
     expect(picker.fromField.value).toBe("2026-05-01");
     expect(picker.toField.value).toBe("2026-05-17");
+    expect(picker.presetCount).toBe(2);
+    expect(picker.activePresetKey).toBe("month");
+    expect(picker.summaryLabel).toBe("Date range selected");
     expect(picker.presets.find((preset) => preset.key === "month")?.active).toBe(true);
     expect(picker.applyAction.disabled).toBe(false);
     expect(picker.clearAction.disabled).toBe(false);
     expect(invalid.valid).toBe(false);
+    expect(invalid.errorCount).toBe(1);
+    expect(invalid.presetCount).toBe(0);
+    expect(invalid.activePresetKey).toBeUndefined();
+    expect(invalid.summaryLabel).toBe("1 date range error");
     expect(invalid.applyAction.disabled).toBe(true);
     expect(invalid.errors).toContain("From date must be before to date.");
   });
@@ -535,14 +629,23 @@ describe("dashboard shell", () => {
     expect(upload.kind).toBe("dashboard_csv_upload");
     expect(upload.status).toBe("ready");
     expect(upload.accept).toBe(".csv,text/csv");
+    expect(upload.errorCount).toBe(0);
+    expect(upload.previewRowCount).toBe(2);
+    expect(upload.columnCount).toBe(3);
+    expect(upload.summaryLabel).toBe("2 preview rows ready");
     expect(upload.preview?.rowCount).toBe(2);
     expect(upload.preview?.missingRequiredColumns).toEqual([]);
     expect(upload.uploadAction.disabled).toBe(false);
     expect(upload.templateAction?.icon).toBe("download");
     expect(invalid.status).toBe("error");
+    expect(invalid.errorCount).toBe(3);
+    expect(invalid.previewRowCount).toBe(0);
+    expect(invalid.columnCount).toBe(1);
+    expect(invalid.summaryLabel).toBe("3 CSV validation errors");
     expect(invalid.uploadAction.disabled).toBe(true);
     expect(invalid.errors).toContain("File must be a CSV.");
     expect(invalid.errors).toContain("Missing required columns: firstName.");
+    expect(empty.summaryLabel).toBe("No CSV selected");
     expect(empty.empty?.title).toBe("No CSV selected");
     expect(empty.removeAction.disabled).toBe(true);
   });
@@ -582,12 +685,19 @@ describe("dashboard shell", () => {
     expect(upload.kind).toBe("dashboard_image_upload");
     expect(upload.status).toBe("ready");
     expect(upload.previewUrl).toBe("https://example.com/logo.png");
+    expect(upload.errorCount).toBe(0);
+    expect(upload.hasPreview).toBe(true);
+    expect(upload.summaryLabel).toBe("Image preview ready");
     expect(upload.altTextField.value).toBe("Demo Strength Club logo");
     expect(upload.uploadAction.disabled).toBe(false);
     expect(invalid.status).toBe("error");
+    expect(invalid.errorCount).toBe(5);
+    expect(invalid.hasPreview).toBe(false);
+    expect(invalid.summaryLabel).toBe("5 image validation errors");
     expect(invalid.errors).toContain("File must be a PNG, JPG, or WebP image.");
     expect(invalid.errors).toContain("Image width is below the minimum.");
     expect(invalid.errors).toContain("Image aspect ratio does not match the required ratio.");
+    expect(empty.summaryLabel).toBe("No image selected");
     expect(empty.empty?.title).toBe("No image selected");
     expect(empty.removeAction.disabled).toBe(true);
   });

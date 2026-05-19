@@ -1,17 +1,27 @@
-import type { TableModel } from "@gym-platform/ui";
+import type { EmptyStateModel, TableModel } from "@gym-platform/ui";
 import type { LocationAccessRuleView, LocationView, MemberLocationAccessMembershipView } from "./types.js";
 export interface LocationAccessRulesScreen {
     screen: "location_access_rules";
     locationId: string;
-    rules: LocationAccessRuleView[];
+    rules: LocationAccessRuleRow[];
     allowAllRuleCount: number;
     planRuleCount: number;
-    table: TableModel<LocationAccessRuleView>;
+    totalRuleCount: number;
+    summaryLabel: string;
+    empty?: EmptyStateModel;
+    table: TableModel<LocationAccessRuleRow>;
+}
+export interface LocationAccessRuleRow extends LocationAccessRuleView {
+    planLabel: string;
+    scopeLabel: string;
 }
 export interface MemberLocationAccessRow {
     locationId: string;
     locationName: string;
     allowed: boolean;
+    accessLabel: string;
+    matchedRuleCount: number;
+    reasonLabel: string;
     ruleNames: string[];
 }
 export interface MultiLocationMemberAccessSetting {
@@ -19,6 +29,11 @@ export interface MultiLocationMemberAccessSetting {
     multiLocation: boolean;
     locations: MemberLocationAccessRow[];
     allowedLocationIds: string[];
+    allowedCount: number;
+    deniedCount: number;
+    summaryLabel: string;
+    empty?: EmptyStateModel;
+    table: TableModel<MemberLocationAccessRow>;
 }
 export declare function buildLocationAccessRulesScreen(input: {
     locationId: string;

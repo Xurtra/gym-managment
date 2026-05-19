@@ -25,6 +25,7 @@ export interface StaffShiftCalendarView {
     weekEndsAt: string;
     timezone: string;
     days: StaffShiftCalendarDay[];
+    dayCount: number;
     visibleShifts: StaffShiftCalendarItem[];
     totalShiftCount: number;
     totalShiftMinutes: number;
@@ -41,6 +42,9 @@ export interface StaffShiftCalendarView {
         label: string;
         selected: boolean;
     }>;
+    staffOptionCount: number;
+    locationOptionCount: number;
+    summaryLabel: string;
     previousWeekAction: ButtonModel;
     nextWeekAction: ButtonModel;
     createShiftAction: ButtonModel;

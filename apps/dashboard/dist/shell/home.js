@@ -1,5 +1,5 @@
 import { Permission } from "@gym-platform/constants";
-import { button, card } from "@gym-platform/ui";
+import { button, card, emptyState } from "@gym-platform/ui";
 export function buildDashboardHomePage(inputModel) {
     const permissions = inputModel.permissions ?? [];
     const cards = summaryMetrics
@@ -13,20 +13,37 @@ export function buildDashboardHomePage(inputModel) {
             delta
         });
     });
+    const primaryActions = [
+        button({
+            label: "Add member",
+            disabled: !permissions.includes(Permission.MemberWrite)
+        }),
+        button({
+            label: "Create class",
+            intent: "secondary",
+            disabled: !permissions.includes(Permission.ClassWrite)
+        })
+    ];
+    const enabledPrimaryActionCount = primaryActions.filter((action) => !action.disabled).length;
+    const disabledPrimaryActionCount = primaryActions.length - enabledPrimaryActionCount;
+    const empty = cards.length === 0
+        ? emptyState({
+            title: "No dashboard metrics available",
+            body: "Grant dashboard permissions to show operational summary cards."
+        })
+        : undefined;
     return {
         screen: "dashboard_home",
         cards,
-        primaryActions: [
-            button({
-                label: "Add member",
-                disabled: !permissions.includes(Permission.MemberWrite)
-            }),
-            button({
-                label: "Create class",
-                intent: "secondary",
-                disabled: !permissions.includes(Permission.ClassWrite)
-            })
-        ]
+        cardCount: cards.length,
+        visibleMetricKeys: cards.map((card) => card.key),
+        summaryLabel: cards.length === 0
+            ? "No visible dashboard metrics"
+            : `${cards.length} dashboard metric${cards.length === 1 ? "" : "s"} visible`,
+        enabledPrimaryActionCount,
+        disabledPrimaryActionCount,
+        ...(empty ? { empty } : {}),
+        primaryActions
     };
 }
 function buildSummaryCard(metric) {

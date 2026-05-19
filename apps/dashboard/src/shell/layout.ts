@@ -94,18 +94,25 @@ export function buildDashboardShellLayout(inputModel: {
     mobileNavigationInput.open = inputModel.mobileNavigationOpen;
   }
   const mobileNavigation = buildMobileDashboardNavigation(mobileNavigationInput);
+  const groups = buildGroupedDashboardNavigation(route.path, permissionContext);
+  const globalSearch = buildGlobalGymSearch(searchInput);
+  const activeGroup = groups.find((group) => group.active);
 
   return {
     screen: "dashboard_shell",
     routePath: route.path,
     sidebar: {
       collapsed: inputModel.sidebarCollapsed ?? false,
-      groups: buildGroupedDashboardNavigation(route.path, permissionContext)
+      groupCount: groups.length,
+      itemCount: groups.reduce((total, group) => total + group.itemCount, 0),
+      ...(activeGroup ? { activeGroupKey: activeGroup.key } : {}),
+      groups
     },
     topBar: {
       title: route.title,
       ...(inputModel.gymName ? { gymName: inputModel.gymName } : {}),
-      globalSearch: buildGlobalGymSearch(searchInput),
+      searchResultCount: globalSearch.resultCount,
+      globalSearch,
       accountMenu: buildAccountMenu(accountInput)
     },
     content,

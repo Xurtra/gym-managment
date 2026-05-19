@@ -1,5 +1,6 @@
 import { input } from "@gym-platform/ui";
 const countryPattern = /^[A-Z]{2}$/;
+const requiredAddressFields = ["line1", "city", "region", "postalCode", "country"];
 export function buildAddressValidationFields(address) {
     const normalized = normalizeAddress(address);
     const errors = {};
@@ -18,66 +19,84 @@ export function buildAddressValidationFields(address) {
     if (!countryPattern.test(normalized.country)) {
         errors.country = "Use a two-letter country code.";
     }
+    const fieldLookup = {
+        line1: input({
+            name: "line1",
+            label: "Street address",
+            value: normalized.line1,
+            type: "text",
+            required: true,
+            ...(errors.line1 ? { error: errors.line1 } : {})
+        }),
+        line2: input({
+            name: "line2",
+            label: "Suite",
+            value: normalized.line2,
+            type: "text",
+            required: false
+        }),
+        city: input({
+            name: "city",
+            label: "City",
+            value: normalized.city,
+            type: "text",
+            required: true,
+            ...(errors.city ? { error: errors.city } : {})
+        }),
+        region: input({
+            name: "region",
+            label: "Region",
+            value: normalized.region,
+            type: "text",
+            required: true,
+            ...(errors.region ? { error: errors.region } : {})
+        }),
+        postalCode: input({
+            name: "postalCode",
+            label: "Postal code",
+            value: normalized.postalCode,
+            type: "text",
+            required: true,
+            ...(errors.postalCode ? { error: errors.postalCode } : {})
+        }),
+        country: input({
+            name: "country",
+            label: "Country",
+            value: normalized.country,
+            type: "text",
+            required: true,
+            ...(errors.country ? { error: errors.country } : {})
+        })
+    };
+    const missingRequiredFields = requiredAddressFields.filter((field) => !normalized[field]);
+    const errorCount = Object.keys(errors).length;
     return {
         fields: [
-            input({
-                name: "line1",
-                label: "Street address",
-                value: normalized.line1,
-                type: "text",
-                required: true,
-                ...(errors.line1 ? { error: errors.line1 } : {})
-            }),
-            input({
-                name: "line2",
-                label: "Suite",
-                value: normalized.line2,
-                type: "text",
-                required: false
-            }),
-            input({
-                name: "city",
-                label: "City",
-                value: normalized.city,
-                type: "text",
-                required: true,
-                ...(errors.city ? { error: errors.city } : {})
-            }),
-            input({
-                name: "region",
-                label: "Region",
-                value: normalized.region,
-                type: "text",
-                required: true,
-                ...(errors.region ? { error: errors.region } : {})
-            }),
-            input({
-                name: "postalCode",
-                label: "Postal code",
-                value: normalized.postalCode,
-                type: "text",
-                required: true,
-                ...(errors.postalCode ? { error: errors.postalCode } : {})
-            }),
-            input({
-                name: "country",
-                label: "Country",
-                value: normalized.country,
-                type: "text",
-                required: true,
-                ...(errors.country ? { error: errors.country } : {})
-            })
+            fieldLookup.line1,
+            fieldLookup.line2,
+            fieldLookup.city,
+            fieldLookup.region,
+            fieldLookup.postalCode,
+            fieldLookup.country
         ],
+        fieldLookup,
+        normalizedAddress: normalized,
         errors,
-        canSubmit: Object.keys(errors).length === 0
+        missingRequiredFields,
+        errorCount,
+        canSubmit: errorCount === 0
     };
 }
 export function buildLocationMapLink(address, label = "Open in maps") {
     const displayAddress = formatAddress(address);
+    const query = encodeURIComponent(displayAddress);
     return {
         label,
+        shortLabel: "Maps",
         address: displayAddress,
-        href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(displayAddress)}`
+        query,
+        href: `https://www.google.com/maps/search/?api=1&query=${query}`,
+        external: true
     };
 }
 export function formatAddress(address) {

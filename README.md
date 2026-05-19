@@ -5,9 +5,9 @@ This repository is now scaffolded as a TypeScript monorepo for a modular gym man
 ## Workspace Layout
 
 - `apps/api` - backend API service and domain modules.
-- `apps/dashboard` - staff dashboard route, auth, gym settings, locations, members, check-in, and access-control screen logic.
+- `apps/dashboard` - staff dashboard route, auth, gym settings, locations, members, leads, membership plans, contracts and waivers, Stripe payments, check-in, and access-control screen logic.
 - `apps/member-portal` - member-facing route and layout logic.
-- `apps/website-renderer` - public website route and layout logic.
+- `apps/website-renderer` - public website route, Website Builder, signup, and checkout logic.
 - `packages/ui` - shared UI state models for primitives and common states.
 - `packages/constants` - shared roles, permissions, statuses, feature flags, and token constants.
 - `packages/validation` - shared request validation schemas.
@@ -43,7 +43,14 @@ Implemented backend modules:
 - Shared UI primitives, frontend route tables, protected route logic, dashboard shell layout, grouped dashboard navigation, global gym search, dashboard home summary cards, reusable page headers, reusable data tables, filter drawers, confirmation modals, detail drawers, toast notification centers, date range pickers, CSV uploaders, image uploaders, responsive mobile navigation, account menu state, auth and 2FA screen models, session persistence, automatic token refresh, and forced logout handling.
 - Dashboard gym settings and onboarding screen logic.
 - Dashboard staff list, staff profile, create/edit staff member forms, staff active/inactive status flow, staff invite/email sending, trainer public visibility/specialties/bio/profile image, staff availability/scheduling/shift calendar/conflict detection, staff task assignment/list/completion views, invite acceptance, custom role creation/editing, staff permission editing, staff access removal, and trainer/front-desk restricted-view logic.
-- Dashboard member list and profile page logic with reusable status badges, dedicated contact, emergency-contact, and notes sections, status/tag filters, detail sections, membership rows, permission-aware actions, and dedicated member search by name, email, phone, and barcode.
+- Dashboard member list and profile page logic with reusable status badges and badge legend state, dedicated contact, emergency-contact, and notes sections with field or summary metadata, status/tag filters, summary and count metadata, detail sections, membership rows and summaries, permission-aware actions, and dedicated member search by name, email, phone, and barcode with result and selection metadata.
+- Dashboard lead list, lead profile, lead directory search, and lead conversion logic with lead-only filters, tag summaries, selected-lead metadata, conversion target-status options, blocked-reason handling, and normalized conversion submission.
+- Dashboard membership plan list, detail, create/edit, and archive logic with billing-interval filters, pricing and visibility metadata, sectioned detail state, validation and change tracking, blocked-reason handling, confirmation state, and normalized submissions.
+- Dashboard contracts-and-waivers list, detail, create/edit, and archive logic with search and type filters, version and signature metadata, sectioned detail state, validation and change tracking, blocked-reason handling, confirmation state, and normalized submissions.
+- Dashboard Stripe payment connection, collection, history, and detail/refund logic with onboarding and capability summaries, point-of-sale gating, transaction filters and totals, grouped detail state, blocked-reason handling, and normalized collection or refund submissions.
+- Dashboard booking list, booking detail, booking cancel, staff manual booking, waitlist entry, and leave-waitlist logic with search and status filters, waitlist-position and late-fee metadata, override handling, confirmation state, blocked-reason handling, and normalized submissions.
+- Dashboard personal-training session list, detail, create/edit, and cancel logic with feature-flag gating, trainer/status filters, sectioned detail state, time validation, locked-state handling, confirmation state, and normalized submissions.
+- Public website home, schedule, and plans logic with Website Builder feature gating, homepage content/theme state, schedule location filtering, public plan summaries, empty-state handling, and CTA state, plus signup and checkout logic with online-signup feature gating, public-plan selection, form validation, pricing or signup-fee summaries, checkout totals, and normalized public signup submissions.
 - Location create, detail, update, list, archive, room-summary, public schedule filtering, and dashboard location screen logic scoped by gym ID.
 - Member create, update, list, archive, duplicate email, and duplicate barcode logic.
 - Membership plan create, update, list, archive, and pricing interval logic.

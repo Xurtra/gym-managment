@@ -42,6 +42,25 @@ export declare const loginSchema: z.ZodObject<{
     twoFactorCode?: string | undefined;
     recoveryCode?: string | undefined;
 }>;
+export declare const publicSignupSchema: z.ZodObject<{
+    planId: z.ZodString;
+    firstName: z.ZodString;
+    lastName: z.ZodString;
+    email: z.ZodEffects<z.ZodString, string, string>;
+    phone: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    email: string;
+    firstName: string;
+    lastName: string;
+    planId: string;
+    phone?: string | undefined;
+}, {
+    email: string;
+    firstName: string;
+    lastName: string;
+    planId: string;
+    phone?: string | undefined;
+}>;
 export declare const refreshTokenSchema: z.ZodObject<{
     refreshToken: z.ZodString;
 }, "strip", z.ZodTypeAny, {
@@ -196,8 +215,8 @@ export declare const gymBusinessInfoSchema: z.ZodObject<{
     }>>;
 }, "strip", z.ZodTypeAny, {
     email?: string | undefined;
-    legalName?: string | undefined;
     phone?: string | undefined;
+    legalName?: string | undefined;
     website?: string | undefined;
     taxId?: string | undefined;
     address?: {
@@ -210,8 +229,8 @@ export declare const gymBusinessInfoSchema: z.ZodObject<{
     } | undefined;
 }, {
     email?: string | undefined;
-    legalName?: string | undefined;
     phone?: string | undefined;
+    legalName?: string | undefined;
     website?: string | undefined;
     taxId?: string | undefined;
     address?: {
@@ -271,8 +290,8 @@ export declare const gymUpdateSchema: z.ZodEffects<z.ZodObject<{
         }>>;
     }, "strip", z.ZodTypeAny, {
         email?: string | undefined;
-        legalName?: string | undefined;
         phone?: string | undefined;
+        legalName?: string | undefined;
         website?: string | undefined;
         taxId?: string | undefined;
         address?: {
@@ -285,8 +304,8 @@ export declare const gymUpdateSchema: z.ZodEffects<z.ZodObject<{
         } | undefined;
     }, {
         email?: string | undefined;
-        legalName?: string | undefined;
         phone?: string | undefined;
+        legalName?: string | undefined;
         website?: string | undefined;
         taxId?: string | undefined;
         address?: {
@@ -331,8 +350,8 @@ export declare const gymUpdateSchema: z.ZodEffects<z.ZodObject<{
     } | undefined;
     businessInfo?: {
         email?: string | undefined;
-        legalName?: string | undefined;
         phone?: string | undefined;
+        legalName?: string | undefined;
         website?: string | undefined;
         taxId?: string | undefined;
         address?: {
@@ -362,8 +381,8 @@ export declare const gymUpdateSchema: z.ZodEffects<z.ZodObject<{
     } | undefined;
     businessInfo?: {
         email?: string | undefined;
-        legalName?: string | undefined;
         phone?: string | undefined;
+        legalName?: string | undefined;
         website?: string | undefined;
         taxId?: string | undefined;
         address?: {
@@ -393,8 +412,8 @@ export declare const gymUpdateSchema: z.ZodEffects<z.ZodObject<{
     } | undefined;
     businessInfo?: {
         email?: string | undefined;
-        legalName?: string | undefined;
         phone?: string | undefined;
+        legalName?: string | undefined;
         website?: string | undefined;
         taxId?: string | undefined;
         address?: {
@@ -424,8 +443,8 @@ export declare const gymUpdateSchema: z.ZodEffects<z.ZodObject<{
     } | undefined;
     businessInfo?: {
         email?: string | undefined;
-        legalName?: string | undefined;
         phone?: string | undefined;
+        legalName?: string | undefined;
         website?: string | undefined;
         taxId?: string | undefined;
         address?: {
@@ -550,8 +569,8 @@ export declare const locationUpdateSchema: z.ZodEffects<z.ZodObject<{
     }>, "many">>>>;
 }, "strip", z.ZodTypeAny, {
     timezone?: string | undefined;
-    name?: string | undefined;
     phone?: string | undefined;
+    name?: string | undefined;
     address?: {
         line1: string;
         city: string;
@@ -566,8 +585,8 @@ export declare const locationUpdateSchema: z.ZodEffects<z.ZodObject<{
     }[]>> | undefined;
 }, {
     timezone?: string | undefined;
-    name?: string | undefined;
     phone?: string | undefined;
+    name?: string | undefined;
     address?: {
         line1: string;
         city: string;
@@ -582,8 +601,8 @@ export declare const locationUpdateSchema: z.ZodEffects<z.ZodObject<{
     }[]>> | undefined;
 }>, {
     timezone?: string | undefined;
-    name?: string | undefined;
     phone?: string | undefined;
+    name?: string | undefined;
     address?: {
         line1: string;
         city: string;
@@ -598,8 +617,8 @@ export declare const locationUpdateSchema: z.ZodEffects<z.ZodObject<{
     }[]>> | undefined;
 }, {
     timezone?: string | undefined;
-    name?: string | undefined;
     phone?: string | undefined;
+    name?: string | undefined;
     address?: {
         line1: string;
         city: string;
@@ -792,12 +811,12 @@ export declare const memberCreateSchema: z.ZodObject<{
         phone: z.ZodString;
         relationship: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
-        name: string;
         phone: string;
+        name: string;
         relationship?: string | undefined;
     }, {
-        name: string;
         phone: string;
+        name: string;
         relationship?: string | undefined;
     }>>;
     notes: z.ZodOptional<z.ZodString>;
@@ -812,8 +831,8 @@ export declare const memberCreateSchema: z.ZodObject<{
     notes?: string | undefined;
     barcode?: string | undefined;
     emergencyContact?: {
-        name: string;
         phone: string;
+        name: string;
         relationship?: string | undefined;
     } | undefined;
 }, {
@@ -825,8 +844,8 @@ export declare const memberCreateSchema: z.ZodObject<{
     notes?: string | undefined;
     barcode?: string | undefined;
     emergencyContact?: {
-        name: string;
         phone: string;
+        name: string;
         relationship?: string | undefined;
     } | undefined;
     tagNames?: string[] | undefined;
@@ -852,12 +871,12 @@ export declare const memberUpdateSchema: z.ZodEffects<z.ZodObject<{
         phone: z.ZodString;
         relationship: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
-        name: string;
         phone: string;
+        name: string;
         relationship?: string | undefined;
     }, {
-        name: string;
         phone: string;
+        name: string;
         relationship?: string | undefined;
     }>>>;
     notes: z.ZodOptional<z.ZodOptional<z.ZodString>>;
@@ -871,8 +890,8 @@ export declare const memberUpdateSchema: z.ZodEffects<z.ZodObject<{
     notes?: string | undefined;
     barcode?: string | undefined;
     emergencyContact?: {
-        name: string;
         phone: string;
+        name: string;
         relationship?: string | undefined;
     } | undefined;
     tagNames?: string[] | undefined;
@@ -885,8 +904,8 @@ export declare const memberUpdateSchema: z.ZodEffects<z.ZodObject<{
     notes?: string | undefined;
     barcode?: string | undefined;
     emergencyContact?: {
-        name: string;
         phone: string;
+        name: string;
         relationship?: string | undefined;
     } | undefined;
     tagNames?: string[] | undefined;
@@ -899,8 +918,8 @@ export declare const memberUpdateSchema: z.ZodEffects<z.ZodObject<{
     notes?: string | undefined;
     barcode?: string | undefined;
     emergencyContact?: {
-        name: string;
         phone: string;
+        name: string;
         relationship?: string | undefined;
     } | undefined;
     tagNames?: string[] | undefined;
@@ -913,8 +932,8 @@ export declare const memberUpdateSchema: z.ZodEffects<z.ZodObject<{
     notes?: string | undefined;
     barcode?: string | undefined;
     emergencyContact?: {
-        name: string;
         phone: string;
+        name: string;
         relationship?: string | undefined;
     } | undefined;
     tagNames?: string[] | undefined;
@@ -1248,43 +1267,43 @@ export declare const accessRuleCreateSchema: z.ZodEffects<z.ZodEffects<z.ZodObje
     name: string;
     locationId: string;
     allowAllActiveMembers: boolean;
+    planId?: string | undefined;
     startsAt?: string | undefined;
     endsAt?: string | undefined;
-    planId?: string | undefined;
 }, {
     name: string;
     locationId: string;
+    planId?: string | undefined;
     startsAt?: string | undefined;
     endsAt?: string | undefined;
-    planId?: string | undefined;
     allowAllActiveMembers?: boolean | undefined;
 }>, {
     name: string;
     locationId: string;
     allowAllActiveMembers: boolean;
+    planId?: string | undefined;
     startsAt?: string | undefined;
     endsAt?: string | undefined;
-    planId?: string | undefined;
 }, {
     name: string;
     locationId: string;
+    planId?: string | undefined;
     startsAt?: string | undefined;
     endsAt?: string | undefined;
-    planId?: string | undefined;
     allowAllActiveMembers?: boolean | undefined;
 }>, {
     name: string;
     locationId: string;
     allowAllActiveMembers: boolean;
+    planId?: string | undefined;
     startsAt?: string | undefined;
     endsAt?: string | undefined;
-    planId?: string | undefined;
 }, {
     name: string;
     locationId: string;
+    planId?: string | undefined;
     startsAt?: string | undefined;
     endsAt?: string | undefined;
-    planId?: string | undefined;
     allowAllActiveMembers?: boolean | undefined;
 }>;
 export declare const accessDeviceEventSchema: z.ZodEffects<z.ZodObject<{
@@ -1365,6 +1384,7 @@ export declare const roleNameSchema: z.ZodNativeEnum<{
 }>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type PublicSignupInput = z.infer<typeof publicSignupSchema>;
 export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;

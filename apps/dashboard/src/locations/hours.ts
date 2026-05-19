@@ -1,20 +1,38 @@
-import { table } from "@gym-platform/ui";
+import { button, emptyState, table } from "@gym-platform/ui";
+import type { ButtonModel, EmptyStateModel } from "@gym-platform/ui";
 import type { OperatingHoursView } from "../gymSettings/types.js";
 
 const dayOrder = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
+const dayLabels: Record<(typeof dayOrder)[number], string> = {
+  mon: "Monday",
+  tue: "Tuesday",
+  wed: "Wednesday",
+  thu: "Thursday",
+  fri: "Friday",
+  sat: "Saturday",
+  sun: "Sunday"
+};
 
 export interface LocationHoursRow {
   day: (typeof dayOrder)[number];
+  dayLabel: string;
   opensAt: string;
   closesAt: string;
   valid: boolean;
+  error?: string;
 }
 
 export interface LocationBusinessHoursEditor {
   screen: "location_business_hours";
   rows: LocationHoursRow[];
   invalidRows: LocationHoursRow[];
+  coveredDays: Array<LocationHoursRow["day"]>;
+  validRowCount: number;
+  invalidRowCount: number;
+  summaryLabel: string;
   canSubmit: boolean;
+  empty?: EmptyStateModel;
+  saveAction: ButtonModel;
   table: ReturnType<typeof table<LocationHoursRow>>;
 }
 
@@ -22,32 +40,65 @@ export function buildLocationBusinessHoursEditor(
   operatingHours: OperatingHoursView
 ): LocationBusinessHoursEditor {
   const rows = dayOrder.flatMap((day) =>
-    (operatingHours[day] ?? []).map((range) => ({
-      day,
-      opensAt: range.opensAt,
-      closesAt: range.closesAt,
-      valid: isValidTimeRange(range.opensAt, range.closesAt)
-    }))
+    (operatingHours[day] ?? []).map((range) => buildHoursRow(day, range.opensAt, range.closesAt))
   );
   const invalidRows = rows.filter((row) => !row.valid);
+  const coveredDays = [...new Set(rows.map((row) => row.day))];
+  const validRowCount = rows.length - invalidRows.length;
+  const invalidRowCount = invalidRows.length;
+  const empty =
+    rows.length === 0
+      ? emptyState({
+          title: "No business hours configured",
+          body: "Add opening and closing hours for each day this location is available.",
+          action: button({ label: "Add hours", icon: "plus" })
+        })
+      : undefined;
+  const canSubmit = invalidRowCount === 0;
 
   return {
     screen: "location_business_hours",
     rows,
     invalidRows,
-    canSubmit: invalidRows.length === 0,
+    coveredDays,
+    validRowCount,
+    invalidRowCount,
+    summaryLabel: `${validRowCount} valid hours block${validRowCount === 1 ? "" : "s"}`,
+    canSubmit,
+    ...(empty ? { empty } : {}),
+    saveAction: button({ label: "Save hours", disabled: !canSubmit }),
     table: table({
       columns: [
-        { key: "day", label: "Day" },
+        { key: "dayLabel", label: "Day" },
         { key: "opensAt", label: "Opens" },
         { key: "closesAt", label: "Closes" },
-        { key: "valid", label: "Valid" }
+        { key: "valid", label: "Valid" },
+        { key: "error", label: "Issue" }
       ],
-      rows
+      rows,
+      ...(empty ? { empty } : {})
     })
   };
 }
 
-function isValidTimeRange(opensAt: string, closesAt: string) {
-  return /^\d{2}:\d{2}$/.test(opensAt) && /^\d{2}:\d{2}$/.test(closesAt) && closesAt > opensAt;
+function buildHoursRow(day: LocationHoursRow["day"], opensAt: string, closesAt: string): LocationHoursRow {
+  const error = hoursRowError(opensAt, closesAt);
+  return {
+    day,
+    dayLabel: dayLabels[day],
+    opensAt,
+    closesAt,
+    valid: !error,
+    ...(error ? { error } : {})
+  };
+}
+
+function hoursRowError(opensAt: string, closesAt: string) {
+  if (!/^\d{2}:\d{2}$/.test(opensAt) || !/^\d{2}:\d{2}$/.test(closesAt)) {
+    return "Use HH:MM format.";
+  }
+  if (closesAt <= opensAt) {
+    return "Closing time must be after opening time.";
+  }
+  return undefined;
 }

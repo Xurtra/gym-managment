@@ -4,11 +4,15 @@ export interface TrainerProfileImageUploadEditor {
     screen: "trainer_profile_image_upload";
     staff: StaffMemberView;
     eligible: boolean;
+    hasCurrentImage: boolean;
     currentImageUrl?: string;
+    hasPreview: boolean;
     previewUrl?: string;
     upload: DashboardImageUpload;
     canUpload: boolean;
     canRemove: boolean;
+    actionCount: number;
+    summaryLabel: string;
     removeAction: DashboardImageUpload["removeAction"];
     saveAction: DashboardImageUpload["uploadAction"];
     reason?: string;

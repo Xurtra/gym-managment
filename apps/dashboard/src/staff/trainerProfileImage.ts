@@ -16,11 +16,15 @@ export interface TrainerProfileImageUploadEditor {
   screen: "trainer_profile_image_upload";
   staff: StaffMemberView;
   eligible: boolean;
+  hasCurrentImage: boolean;
   currentImageUrl?: string;
+  hasPreview: boolean;
   previewUrl?: string;
   upload: DashboardImageUpload;
   canUpload: boolean;
   canRemove: boolean;
+  actionCount: number;
+  summaryLabel: string;
   removeAction: DashboardImageUpload["removeAction"];
   saveAction: DashboardImageUpload["uploadAction"];
   reason?: string;
@@ -53,13 +57,16 @@ export function buildTrainerProfileImageUpload(inputModel: {
   const canRemove = eligible && Boolean(currentImageUrl);
   const canClearUpload = eligible && Boolean(inputModel.file || currentImageUrl);
   const previewUrl = inputModel.file?.previewUrl ?? currentImageUrl;
+  const hasPreview = Boolean(previewUrl);
   const reason = eligibilityReason(inputModel.staff);
 
   return {
     screen: "trainer_profile_image_upload",
     staff: inputModel.staff,
     eligible,
+    hasCurrentImage: Boolean(currentImageUrl),
     ...(currentImageUrl ? { currentImageUrl } : {}),
+    hasPreview,
     ...(previewUrl ? { previewUrl } : {}),
     upload: {
       ...upload,
@@ -74,6 +81,14 @@ export function buildTrainerProfileImageUpload(inputModel: {
     },
     canUpload,
     canRemove,
+    actionCount: 2,
+    summaryLabel: !eligible
+      ? "Trainer profile image unavailable"
+      : canUpload
+        ? "Trainer profile image ready to upload"
+        : canRemove
+          ? "Trainer profile image available"
+          : "No trainer profile image selected",
     removeAction: button({
       label: "Remove profile image",
       icon: "trash-2",

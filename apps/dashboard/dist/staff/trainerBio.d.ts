@@ -20,7 +20,10 @@ export interface TrainerBioEditor {
     maxLength: number;
     remainingCharacters: number;
     overLimit: boolean;
+    hasChanges: boolean;
     bioField: TrainerBioField;
+    actionCount: number;
+    summaryLabel: string;
     canSubmit: boolean;
     saveAction: ButtonModel;
     clearAction: ButtonModel;

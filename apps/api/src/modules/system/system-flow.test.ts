@@ -55,7 +55,19 @@ interface TwoFactorVerifyResponse {
 interface LocationResponse {
   id: string;
   name: string;
+  address: {
+    line1: string;
+    line2?: string;
+    city: string;
+    region: string;
+    postalCode: string;
+    country: string;
+  };
+  timezone: string;
+  phone?: string;
+  operatingHours: Record<string, Array<{ opensAt: string; closesAt: string }>>;
   status: string;
+  archivedAt?: string;
 }
 
 interface LocationListResponse {
@@ -367,6 +379,227 @@ describe("system API flow", () => {
       { headers: authHeaders(outsider.accessToken) },
       403
     );
+  });
+
+  it("creates gym locations through the location endpoint and rejects duplicates", async () => {
+    const owner = await ok<RegisterResponse>(
+      "/auth/register",
+      json({
+        email: "owner@example.com",
+        password: "Password123",
+        firstName: "Demo",
+        lastName: "Owner",
+        gymName: "Demo Strength Club",
+        timezone: "America/New_York",
+        locale: "en-US"
+      })
+    );
+    const gymId = owner.gym?.id ?? "";
+
+    const createdLocation = await ok<LocationResponse>(
+      `/gyms/${gymId}/locations`,
+      json(
+        {
+          name: "Downtown Annex",
+          address: {
+            line1: "200 Fitness Ave",
+            line2: "Suite 300",
+            city: "New York",
+            region: "NY",
+            postalCode: "10002",
+            country: "us"
+          },
+          timezone: "America/New_York",
+          phone: "555-0100"
+        },
+        owner.accessToken
+      )
+    );
+
+    expect(createdLocation.name).toBe("Downtown Annex");
+    expect(createdLocation.address.line2).toBe("Suite 300");
+    expect(createdLocation.address.country).toBe("US");
+    expect(createdLocation.timezone).toBe("America/New_York");
+    expect(createdLocation.phone).toBe("555-0100");
+    expect(createdLocation.operatingHours).toEqual({});
+    expect(createdLocation.status).toBe("active");
+
+    const { response, data } = await api.request<{ error?: { code?: string; message?: string } }>(
+      `/gyms/${gymId}/locations`,
+      json(
+        {
+          name: "  downtown annex  ",
+          address: {
+            line1: "201 Fitness Ave",
+            city: "New York",
+            region: "NY",
+            postalCode: "10003",
+            country: "US"
+          },
+          timezone: "America/New_York"
+        },
+        owner.accessToken
+      )
+    );
+
+    expect(response.status).toBe(409);
+    expect(data.error?.code).toBe("location_name_exists");
+  });
+
+  it("edits gym locations through the location endpoint and rejects duplicate names", async () => {
+    const owner = await ok<RegisterResponse>(
+      "/auth/register",
+      json({
+        email: "owner@example.com",
+        password: "Password123",
+        firstName: "Demo",
+        lastName: "Owner",
+        gymName: "Demo Strength Club",
+        timezone: "America/New_York",
+        locale: "en-US"
+      })
+    );
+    const gymId = owner.gym?.id ?? "";
+
+    const originalLocation = await ok<LocationResponse>(
+      `/gyms/${gymId}/locations`,
+      json(
+        {
+          name: "Main Floor",
+          address: {
+            line1: "100 Fitness Ave",
+            line2: "Suite 100",
+            city: "New York",
+            region: "NY",
+            postalCode: "10001",
+            country: "US"
+          },
+          timezone: "America/New_York",
+          phone: "555-0100",
+          operatingHours: { mon: [{ opensAt: "06:00", closesAt: "22:00" }] }
+        },
+        owner.accessToken
+      )
+    );
+    const otherLocation = await ok<LocationResponse>(
+      `/gyms/${gymId}/locations`,
+      json(
+        {
+          name: "Uptown Studio",
+          address: {
+            line1: "300 Fitness Ave",
+            city: "New York",
+            region: "NY",
+            postalCode: "10004",
+            country: "US"
+          },
+          timezone: "America/New_York"
+        },
+        owner.accessToken
+      )
+    );
+
+    const updatedLocation = await ok<LocationResponse>(
+      `/gyms/${gymId}/locations/${originalLocation.id}`,
+      json(
+        {
+          name: "Midtown Studio",
+          address: {
+            line1: "150 Fitness Ave",
+            city: "Brooklyn",
+            region: "NY",
+            postalCode: "11201",
+            country: "us"
+          },
+          timezone: "America/Chicago",
+          phone: "",
+          operatingHours: { tue: [{ opensAt: "07:00", closesAt: "21:00" }] }
+        },
+        owner.accessToken,
+        "PATCH"
+      )
+    );
+
+    expect(updatedLocation.name).toBe("Midtown Studio");
+    expect(updatedLocation.address.line1).toBe("150 Fitness Ave");
+    expect(updatedLocation.address.line2).toBeUndefined();
+    expect(updatedLocation.address.city).toBe("Brooklyn");
+    expect(updatedLocation.address.country).toBe("US");
+    expect(updatedLocation.timezone).toBe("America/Chicago");
+    expect(updatedLocation.phone).toBeUndefined();
+    expect(updatedLocation.operatingHours).toEqual({
+      tue: [{ opensAt: "07:00", closesAt: "21:00" }]
+    });
+
+    const { response, data } = await api.request<{ error?: { code?: string; message?: string } }>(
+      `/gyms/${gymId}/locations/${originalLocation.id}`,
+      json({ name: otherLocation.name }, owner.accessToken, "PATCH")
+    );
+
+    expect(response.status).toBe(409);
+    expect(data.error?.code).toBe("location_name_exists");
+  });
+
+  it("archives gym locations through the location endpoint and removes them from active access", async () => {
+    const owner = await ok<RegisterResponse>(
+      "/auth/register",
+      json({
+        email: "owner@example.com",
+        password: "Password123",
+        firstName: "Demo",
+        lastName: "Owner",
+        gymName: "Demo Strength Club",
+        timezone: "America/New_York",
+        locale: "en-US"
+      })
+    );
+    const gymId = owner.gym?.id ?? "";
+
+    const activeLocation = await ok<LocationResponse>(
+      `/gyms/${gymId}/locations`,
+      json(
+        {
+          name: "Main Floor",
+          address: {
+            line1: "100 Fitness Ave",
+            city: "New York",
+            region: "NY",
+            postalCode: "10001",
+            country: "US"
+          },
+          timezone: "America/New_York"
+        },
+        owner.accessToken
+      )
+    );
+
+    const archivedLocation = await ok<LocationResponse>(`/gyms/${gymId}/locations/${activeLocation.id}`, {
+      method: "DELETE",
+      headers: authHeaders(owner.accessToken)
+    });
+
+    expect(archivedLocation.id).toBe(activeLocation.id);
+    expect(archivedLocation.status).toBe("archived");
+    expect(archivedLocation.archivedAt).toBe("2026-05-16T12:00:00.000Z");
+
+    const listedLocations = await ok<LocationListResponse>(`/gyms/${gymId}/locations`, {
+      headers: authHeaders(owner.accessToken)
+    });
+    expect(listedLocations.locations).toHaveLength(0);
+
+    const detail = await api.request<{ error?: { code?: string } }>(
+      `/gyms/${gymId}/locations/${activeLocation.id}`,
+      { headers: authHeaders(owner.accessToken) }
+    );
+    expect(detail.response.status).toBe(404);
+    expect(detail.data.error?.code).toBe("not_found");
+
+    const update = await api.request<{ error?: { code?: string } }>(
+      `/gyms/${gymId}/locations/${activeLocation.id}`,
+      json({ name: "Reopened Floor" }, owner.accessToken, "PATCH")
+    );
+    expect(update.response.status).toBe(404);
+    expect(update.data.error?.code).toBe("not_found");
   });
 
   it("assigns roles only when the actor has role-assignment permission", async () => {

@@ -6,6 +6,9 @@ export interface DashboardConfirmationModal {
     body: string;
     intent: UiIntent;
     destructive: boolean;
+    actionCount: number;
+    confirmDisabled: boolean;
+    summaryLabel: string;
     confirmAction: ButtonModel;
     cancelAction: ButtonModel;
     modal: ModalModel;

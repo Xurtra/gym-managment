@@ -8,6 +8,9 @@ export interface DashboardConfirmationModal {
   body: string;
   intent: UiIntent;
   destructive: boolean;
+  actionCount: number;
+  confirmDisabled: boolean;
+  summaryLabel: string;
   confirmAction: ButtonModel;
   cancelAction: ButtonModel;
   modal: ModalModel;
@@ -25,10 +28,11 @@ export function buildDashboardConfirmationModal(inputModel: {
 }): DashboardConfirmationModal {
   const destructive = inputModel.destructive ?? inputModel.intent === "danger";
   const intent = inputModel.intent ?? (destructive ? "danger" : "primary");
+  const confirmDisabled = inputModel.confirmDisabled ?? false;
   const confirmAction = button({
     label: inputModel.confirmLabel ?? "Confirm",
     intent,
-    disabled: inputModel.confirmDisabled ?? false
+    disabled: confirmDisabled
   });
   const cancelAction = button({
     label: inputModel.cancelLabel ?? "Cancel",
@@ -42,6 +46,9 @@ export function buildDashboardConfirmationModal(inputModel: {
     body: inputModel.body.trim(),
     intent,
     destructive,
+    actionCount: 2,
+    confirmDisabled,
+    summaryLabel: confirmDisabled ? "Confirmation disabled" : "Confirmation ready",
     confirmAction,
     cancelAction,
     modal: modal({

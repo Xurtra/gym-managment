@@ -14,6 +14,7 @@ export function buildDashboardImageUpload(inputModel) {
         uploading: inputModel.uploading ?? false,
         uploaded: inputModel.uploaded ?? false
     });
+    const hasPreview = Boolean(inputModel.file?.previewUrl);
     const upload = {
         kind: "dashboard_image_upload",
         label: inputModel.label.trim(),
@@ -24,6 +25,15 @@ export function buildDashboardImageUpload(inputModel) {
         ...(inputModel.minHeight ? { minHeight: inputModel.minHeight } : {}),
         ...(inputModel.aspectRatio ? { aspectRatio: inputModel.aspectRatio } : {}),
         errors,
+        errorCount: errors.length,
+        hasPreview,
+        summaryLabel: !inputModel.file
+            ? "No image selected"
+            : errors.length > 0
+                ? `${errors.length} image validation error${errors.length === 1 ? "" : "s"}`
+                : hasPreview
+                    ? "Image preview ready"
+                    : "Image ready",
         altTextField: input({
             name: "altText",
             label: "Alt text",

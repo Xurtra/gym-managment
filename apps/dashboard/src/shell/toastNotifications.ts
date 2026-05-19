@@ -48,7 +48,10 @@ export interface DashboardToastNotificationCenter {
   placement: ToastNotificationPlacement;
   toasts: DashboardToastNotification[];
   visibleToasts: DashboardToastNotification[];
+  totalCount: number;
+  visibleCount: number;
   queuedCount: number;
+  summaryLabel: string;
   dismissAllAction: ButtonModel;
 }
 
@@ -65,7 +68,15 @@ export function buildDashboardToastNotificationCenter(inputModel: {
     placement: inputModel.placement ?? "top-right",
     toasts,
     visibleToasts: toasts.slice(0, maxVisible),
+    totalCount: toasts.length,
+    visibleCount: Math.min(toasts.length, maxVisible),
     queuedCount: Math.max(0, toasts.length - maxVisible),
+    summaryLabel:
+      toasts.length === 0
+        ? "No notifications"
+        : `${Math.min(toasts.length, maxVisible)} of ${toasts.length} notification${
+            toasts.length === 1 ? "" : "s"
+          } visible`,
     dismissAllAction: button({
       label: "Dismiss all",
       icon: "x",

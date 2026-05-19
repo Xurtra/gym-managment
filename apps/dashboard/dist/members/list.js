@@ -10,6 +10,12 @@ export function buildMemberListPage(inputModel) {
         ...(inputModel.filters?.tagName ? { tagName: normalizeText(inputModel.filters.tagName) } : {})
     };
     const canWriteMembers = inputModel.permissions.includes(Permission.MemberWrite);
+    const statusOptions = Object.values(MemberStatus).map((status) => ({
+        value: status,
+        label: memberStatusLabel(status),
+        selected: status === filters.status
+    }));
+    const tagFilterOptions = tagOptions(inputModel.members, filters.tagName);
     const rows = inputModel.members
         .filter((member) => matchesFilters(member, filters))
         .sort(compareMembers)
@@ -32,13 +38,14 @@ export function buildMemberListPage(inputModel) {
             type: "text",
             required: false
         }),
-        statusOptions: Object.values(MemberStatus).map((status) => ({
-            value: status,
-            label: memberStatusLabel(status),
-            selected: status === filters.status
-        })),
-        tagOptions: tagOptions(inputModel.members, filters.tagName),
+        statusOptions,
+        tagOptions: tagFilterOptions,
         summary: buildSummary(inputModel.members, rows.length),
+        summaryLabel: `Showing ${rows.length} of ${inputModel.members.length} members`,
+        rowCount: rows.length,
+        activeFilterCount: countActiveFilters(filters),
+        statusOptionCount: statusOptions.length,
+        tagOptionCount: tagFilterOptions.length,
         rows,
         table: table({
             columns: [
@@ -191,5 +198,8 @@ function normalizeText(value) {
 }
 function hasActiveFilters(filters) {
     return Boolean(filters.query || filters.status || filters.tagName);
+}
+function countActiveFilters(filters) {
+    return [filters.query, filters.status, filters.tagName].filter(Boolean).length;
 }
 //# sourceMappingURL=list.js.map

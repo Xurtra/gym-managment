@@ -5,6 +5,9 @@ export interface MobileDashboardNavigation {
     open: boolean;
     activePath: string;
     groups: DashboardNavigationGroup[];
+    groupCount: number;
+    activeGroupKey?: string;
+    summaryLabel: string;
     toggleAction: ButtonModel;
     closeAction: ButtonModel;
     itemCount: number;

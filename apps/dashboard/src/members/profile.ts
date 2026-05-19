@@ -39,7 +39,9 @@ export interface MemberProfilePage {
   emergencyContactSection: MemberEmergencyContactSection;
   notesSection: MemberNotesSection;
   sections: MemberProfileSection[];
+  sectionCount: number;
   memberships: MemberProfileMembershipRow[];
+  membershipCount: number;
   membershipSummary: {
     totalCount: number;
     activeCount: number;
@@ -48,7 +50,9 @@ export interface MemberProfilePage {
     cancelledCount: number;
     expiredCount: number;
   };
+  membershipSummaryLabel: string;
   actions: MemberProfileAction[];
+  actionCount: number;
   membershipEmpty?: EmptyStateModel;
 }
 
@@ -63,10 +67,33 @@ export function buildMemberProfilePage(inputModel: {
   const contactSection = buildMemberContactInformationSection(inputModel.member);
   const emergencyContactSection = buildMemberEmergencyContactSection(inputModel.member);
   const notesSection = buildMemberNotesSection(inputModel.member);
+  const sections = buildSections(
+    inputModel.member,
+    statusBadge,
+    contactSection,
+    emergencyContactSection,
+    notesSection
+  );
   const memberships = (inputModel.memberships ?? [])
     .slice()
     .sort(compareMemberships)
     .map(buildMembershipRow);
+  const membershipSummary = {
+    totalCount: memberships.length,
+    activeCount: memberships.filter((membership) => membership.status === MembershipStatus.Active)
+      .length,
+    trialingCount: memberships.filter(
+      (membership) => membership.status === MembershipStatus.Trialing
+    ).length,
+    pausedCount: memberships.filter((membership) => membership.status === MembershipStatus.Paused)
+      .length,
+    cancelledCount: memberships.filter(
+      (membership) => membership.status === MembershipStatus.Canceled
+    ).length,
+    expiredCount: memberships.filter((membership) => membership.status === MembershipStatus.Expired)
+      .length
+  };
+  const actions = buildActions(inputModel.member, canWriteMembers, archived);
 
   return {
     screen: "member_profile",
@@ -80,31 +107,14 @@ export function buildMemberProfilePage(inputModel: {
     contactSection,
     emergencyContactSection,
     notesSection,
-    sections: buildSections(
-      inputModel.member,
-      statusBadge,
-      contactSection,
-      emergencyContactSection,
-      notesSection
-    ),
+    sections,
+    sectionCount: sections.length,
     memberships,
-    membershipSummary: {
-      totalCount: memberships.length,
-      activeCount: memberships.filter((membership) => membership.status === MembershipStatus.Active)
-        .length,
-      trialingCount: memberships.filter(
-        (membership) => membership.status === MembershipStatus.Trialing
-      ).length,
-      pausedCount: memberships.filter((membership) => membership.status === MembershipStatus.Paused)
-        .length,
-      cancelledCount: memberships.filter(
-        (membership) => membership.status === MembershipStatus.Canceled
-      ).length,
-      expiredCount: memberships.filter(
-        (membership) => membership.status === MembershipStatus.Expired
-      ).length
-    },
-    actions: buildActions(inputModel.member, canWriteMembers, archived),
+    membershipCount: memberships.length,
+    membershipSummary,
+    membershipSummaryLabel: `Showing ${memberships.length} membership${memberships.length === 1 ? "" : "s"}`,
+    actions,
+    actionCount: actions.length,
     ...(memberships.length === 0
       ? {
           membershipEmpty: emptyState({

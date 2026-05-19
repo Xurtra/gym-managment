@@ -10,10 +10,14 @@ export interface TrainerSpecialtiesEditor {
     staff: StaffMemberView;
     eligible: boolean;
     specialties: TrainerSpecialtyItem[];
+    specialtyCount: number;
     pendingSpecialtyField: InputModel;
     duplicatePendingSpecialty: boolean;
+    hasChanges: boolean;
+    summaryLabel: string;
     canAdd: boolean;
     canSubmit: boolean;
+    actionCount: number;
     addAction: ButtonModel;
     saveAction: ButtonModel;
     reason?: string;

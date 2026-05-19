@@ -27,9 +27,14 @@ export interface PageHeaderModel {
   eyebrow?: string;
   description?: string;
   breadcrumbs: PageHeaderBreadcrumb[];
+  breadcrumbCount: number;
   primaryAction?: PageHeaderAction;
   secondaryActions: PageHeaderAction[];
+  actionCount: number;
   tabs: PageHeaderTab[];
+  tabCount: number;
+  activeTabKey?: string;
+  summaryLabel: string;
 }
 
 export function buildPageHeader(inputModel: {
@@ -59,20 +64,34 @@ export function buildPageHeader(inputModel: {
   }>;
   activeTabKey?: string;
 }): PageHeaderModel {
+  const breadcrumbs = buildBreadcrumbs(inputModel.breadcrumbs ?? []);
+  const secondaryActions = (inputModel.secondaryActions ?? []).map((action) =>
+    buildHeaderAction(action, "secondary")
+  );
+  const tabs = (inputModel.tabs ?? []).map((tab) => ({
+    key: tab.key,
+    label: tab.label,
+    href: tab.href,
+    active: tab.key === inputModel.activeTabKey,
+    disabled: tab.disabled ?? false
+  }));
+  const activeTab = tabs.find((tab) => tab.active);
   const header: PageHeaderModel = {
     kind: "page_header",
     title: inputModel.title.trim(),
-    breadcrumbs: buildBreadcrumbs(inputModel.breadcrumbs ?? []),
-    secondaryActions: (inputModel.secondaryActions ?? []).map((action) =>
-      buildHeaderAction(action, "secondary")
-    ),
-    tabs: (inputModel.tabs ?? []).map((tab) => ({
-      key: tab.key,
-      label: tab.label,
-      href: tab.href,
-      active: tab.key === inputModel.activeTabKey,
-      disabled: tab.disabled ?? false
-    }))
+    breadcrumbs,
+    breadcrumbCount: breadcrumbs.length,
+    secondaryActions,
+    actionCount: secondaryActions.length + (inputModel.primaryAction ? 1 : 0),
+    tabs,
+    tabCount: tabs.length,
+    ...(activeTab ? { activeTabKey: activeTab.key } : {}),
+    summaryLabel:
+      tabs.length > 0
+        ? `${tabs.length} page tab${tabs.length === 1 ? "" : "s"}`
+        : `${secondaryActions.length + (inputModel.primaryAction ? 1 : 0)} header action${
+            secondaryActions.length + (inputModel.primaryAction ? 1 : 0) === 1 ? "" : "s"
+          }`
   };
   const eyebrow = inputModel.eyebrow?.trim();
   if (eyebrow) {

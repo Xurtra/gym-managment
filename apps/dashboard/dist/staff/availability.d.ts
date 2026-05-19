@@ -19,10 +19,13 @@ export interface StaffScheduleAvailabilityModel {
     staff: StaffMemberView;
     timezone: string;
     slots: StaffAvailabilitySlot[];
+    slotCount: number;
+    conflictCount: number;
     weeklyMinutes: number;
     availableDays: StaffAvailabilityDay[];
     unavailableDays: StaffAvailabilityDay[];
     conflicts: string[];
+    summaryLabel: string;
     canCreateShift: boolean;
 }
 export interface StaffAvailabilityEditor {
@@ -36,6 +39,9 @@ export interface StaffAvailabilityEditor {
         label: string;
         selected: boolean;
     }>;
+    locationOptionCount: number;
+    hasChanges: boolean;
+    summaryLabel: string;
     canAdd: boolean;
     canSubmit: boolean;
     addAction: ButtonModel;

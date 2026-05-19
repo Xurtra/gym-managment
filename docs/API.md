@@ -37,6 +37,10 @@ Authorization: Bearer <access-token>
 
 Gym settings routes enforce tenant access and `gym:read` or `gym:update`.
 
+The current Checkout & Signup public-site slice does not add dedicated backend endpoints yet. It is modeled as framework-neutral public website state around existing gym feature flags and membership-plan visibility. In practice, public signup availability is expected to depend on the gym `online_signup` feature flag plus active, public, non-archived membership plans, while checkout submission is expected to normalize member signup data before future payment or member-creation integration points are attached.
+
+The current Stripe Payments dashboard slice does not add dedicated backend endpoints yet. It is modeled as framework-neutral dashboard state around existing gym feature flags, roles, members, and future Stripe integration points. In practice, payment collection and refund actions are expected to require `payment:write`, payment-history visibility is expected to require `payment:read`, and point-of-sale collection depends on the gym `point_of_sale` feature flag plus a connected Stripe account.
+
 ## Locations
 
 - `GET /gyms/:gymId/locations` - lists active locations for a gym.
@@ -50,12 +54,12 @@ Location routes enforce tenant access and role permissions.
 
 ## Roles
 
-- `GET /gyms/:gymId/roles` - lists roles available in the gym for role-selection flows.
+- `GET /gyms/:gymId/roles` - lists roles available in the gym for role-selection, staff-permission, and invite flows.
 - `POST /gyms/:gymId/roles` - creates a custom, non-system gym role with selected permissions.
 - `PATCH /gyms/:gymId/roles/:roleId` - edits a custom role name and permissions.
 - `POST /gyms/:gymId/roles/assign` - assigns an existing gym role to a gym user.
 
-Role listing requires `staff:read`. Custom role creation, custom role editing, and role assignment require `staff:role_assign`. Custom roles reject reserved default role names and `platform:admin`. System roles cannot be edited. Role assignment rejects owner/member role assignments, rejects self role changes, and writes a staff audit log when the role changes.
+Role listing requires `staff:read`. Custom role creation, custom role editing, and role assignment require `staff:role_assign`. Custom roles reject reserved default role names and `platform:admin`. System roles cannot be edited. Role assignment rejects owner/member role assignments, rejects self role changes, and writes a staff audit log when the role changes. The shared API client covers role listing, custom role create/update, and role assignment request construction.
 
 ## Staff Access
 
@@ -63,7 +67,7 @@ Role listing requires `staff:read`. Custom role creation, custom role editing, a
 - `GET /gyms/:gymId/staff/audit` - lists staff access audit entries for role changes and access removals.
 - `DELETE /gyms/:gymId/staff/:userId` - removes staff access by disabling the gym-user membership and writing an audit entry. Optional JSON body: `{ "reason": "..." }`.
 
-Staff access listing and audit reads require `staff:read`. Removing staff access requires `staff:remove`, rejects owner removal, rejects self-removal, and preserves the disabled membership row for history.
+Staff access listing and audit reads require `staff:read`. Removing staff access requires `staff:remove`, rejects owner removal, rejects self-removal, and preserves the disabled membership row for history. These routes back the dashboard staff-management screens for staff profile access state, audit history, restricted-role administration, and staff removal flows.
 
 ## Staff Invites
 
@@ -71,7 +75,7 @@ Staff access listing and audit reads require `staff:read`. Removing staff access
 - `POST /gyms/:gymId/staff/invites` - creates a pending staff invite for an email and selected role, returning a one-time invite token.
 - `POST /staff/invites/accept` - accepts a pending invite token, creates or verifies the invited user, grants the selected gym role, marks the invite accepted, and returns a dashboard session.
 
-Staff invite listing requires `staff:read`; creating invites requires `staff:invite`. Invite creation rejects owner/member-role invites, duplicate pending invites, roles outside the gym, and users who already have gym access.
+Staff invite listing requires `staff:read`; creating invites requires `staff:invite`. Invite creation rejects owner/member-role invites, duplicate pending invites, roles outside the gym, and users who already have gym access. The shared API client covers invite list/create/accept request paths, methods, auth behavior, and request bodies used by the staff invite, role-selection, and access-management flows.
 
 ## Members
 
@@ -82,7 +86,7 @@ Staff invite listing requires `staff:read`; creating invites requires `staff:inv
 - `GET /gyms/:gymId/members/:memberId/memberships` - lists membership assignments for a member.
 - `POST /gyms/:gymId/members/:memberId/memberships` - assigns an existing membership plan to an existing member.
 
-Member routes enforce tenant access and `member:read` or `member:write`.
+Member routes enforce tenant access and `member:read` or `member:write`. These routes back the dashboard member-management flows for member list filtering, profile sections, membership summaries, directory search, status badges, and permission-aware row or profile actions. The same routes also back the current Leads & CRM dashboard slice because leads are represented as members with `status: "lead"`, so lead list filtering, lead profile detail, lead directory search, and lead conversion to `trial` or `active` all use the shared member read and update contracts.
 
 ## Membership Plans
 
@@ -91,7 +95,7 @@ Member routes enforce tenant access and `member:read` or `member:write`.
 - `PATCH /gyms/:gymId/membership-plans/:planId` - updates pricing and plan metadata.
 - `DELETE /gyms/:gymId/membership-plans/:planId` - archives a plan.
 
-Plan routes enforce tenant access and `plan:read` or `plan:write`.
+Plan routes enforce tenant access and `plan:read` or `plan:write`. These routes back the dashboard membership-plan flows for list filtering by billing interval, detail sections, create/edit validation and normalized submissions, and archive confirmation state. The shared API client covers membership-plan list/create/update/archive request paths, methods, auth behavior, and request bodies used by those dashboard flows.
 
 ## Classes
 
@@ -101,6 +105,8 @@ Plan routes enforce tenant access and `plan:read` or `plan:write`.
 - `GET /public/gyms/:gymSlug/schedule?from=<iso>&to=<iso>&locationId=<id>` - returns public scheduled class sessions in the requested date range, optionally filtered to one active location.
 
 Class management routes enforce tenant access and `class:read` or `class:write`. Public schedule access does not require authentication.
+
+The current Personal Training dashboard slice does not add dedicated backend endpoints yet. It is modeled as framework-neutral dashboard state around existing gym feature flags, members, staff, and location records. In practice, personal-training scheduling is expected to depend on the gym `personal_training` feature flag plus existing member, trainer, and location data, with create/edit and cancel actions expected to require the same authenticated write access used by adjacent scheduling flows.
 
 ## Bookings & Waitlists
 

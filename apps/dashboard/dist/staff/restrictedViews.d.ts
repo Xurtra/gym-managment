@@ -4,11 +4,16 @@ import { type GuardedNavigationItem } from "../routing/index.js";
 export interface RestrictedDashboardView {
     screen: "restricted_dashboard";
     roleName: RoleNameValue;
+    activePath: string;
     permissions: PermissionValue[];
     navItems: GuardedNavigationItem[];
     visibleRoutes: string[];
+    visibleRouteCount: number;
     hiddenRoutes: string[];
+    hiddenRouteCount: number;
     primaryActions: ButtonModel[];
+    primaryActionCount: number;
+    summaryLabel: string;
 }
 export declare function buildTrainerRestrictedView(path?: string): RestrictedDashboardView;
 export declare function buildFrontDeskRestrictedView(path?: string): RestrictedDashboardView;

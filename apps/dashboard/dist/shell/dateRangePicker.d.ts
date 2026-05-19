@@ -17,9 +17,13 @@ export interface DashboardDateRangePicker {
     max?: string;
     valid: boolean;
     errors: string[];
+    errorCount: number;
     fromField: InputModel;
     toField: InputModel;
     presets: DateRangePreset[];
+    presetCount: number;
+    activePresetKey?: string;
+    summaryLabel: string;
     applyAction: ButtonModel;
     clearAction: ButtonModel;
 }

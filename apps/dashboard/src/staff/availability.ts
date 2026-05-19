@@ -25,10 +25,13 @@ export interface StaffScheduleAvailabilityModel {
   staff: StaffMemberView;
   timezone: string;
   slots: StaffAvailabilitySlot[];
+  slotCount: number;
+  conflictCount: number;
   weeklyMinutes: number;
   availableDays: StaffAvailabilityDay[];
   unavailableDays: StaffAvailabilityDay[];
   conflicts: string[];
+  summaryLabel: string;
   canCreateShift: boolean;
 }
 
@@ -39,6 +42,9 @@ export interface StaffAvailabilityEditor {
   startsAtField: InputModel;
   endsAtField: InputModel;
   locationOptions: Array<{ id: string; label: string; selected: boolean }>;
+  locationOptionCount: number;
+  hasChanges: boolean;
+  summaryLabel: string;
   canAdd: boolean;
   canSubmit: boolean;
   addAction: ButtonModel;
@@ -81,10 +87,16 @@ export function buildStaffScheduleAvailabilityModel(inputModel: {
     staff: inputModel.staff,
     timezone: inputModel.timezone?.trim() || "America/New_York",
     slots,
+    slotCount: slots.length,
+    conflictCount: conflicts.length,
     weeklyMinutes: slots.reduce((total, slot) => total + slot.durationMinutes, 0),
     availableDays,
     unavailableDays: DAYS.filter((day) => !availableDays.includes(day)),
     conflicts,
+    summaryLabel:
+      slots.length === 0
+        ? "No availability configured"
+        : `${slots.length} availability slot${slots.length === 1 ? "" : "s"}`,
     canCreateShift: inputModel.staff.status === UserStatus.Active && conflicts.length === 0
   };
 }
@@ -120,10 +132,16 @@ export function buildStaffAvailabilityEditor(inputModel: {
   });
   const pendingError = availabilityRangeError(pendingRange);
   const canAdd = inputModel.staff.status === UserStatus.Active && !pendingError;
+  const hasChanges = !sameAvailability(current, original);
   const canSubmit =
     inputModel.staff.status === UserStatus.Active &&
     availability.conflicts.length === 0 &&
-    !sameAvailability(current, original);
+    hasChanges;
+  const locationOptions = (inputModel.locations ?? []).map((location) => ({
+    id: location.id,
+    label: location.name,
+    selected: location.id === inputModel.selectedLocationId
+  }));
 
   return {
     screen: "staff_availability_editor",
@@ -145,11 +163,14 @@ export function buildStaffAvailabilityEditor(inputModel: {
       required: true,
       ...(pendingError && endsAt ? { error: pendingError } : {})
     }),
-    locationOptions: (inputModel.locations ?? []).map((location) => ({
-      id: location.id,
-      label: location.name,
-      selected: location.id === inputModel.selectedLocationId
-    })),
+    locationOptions,
+    locationOptionCount: locationOptions.length,
+    hasChanges,
+    summaryLabel: pendingError
+      ? "Pending availability range is invalid"
+      : !hasChanges
+        ? "No availability changes"
+        : "Availability changes ready",
     canAdd,
     canSubmit,
     addAction: button({ label: "Add availability", icon: "plus", disabled: !canAdd }),

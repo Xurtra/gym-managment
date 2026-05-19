@@ -5,12 +5,16 @@ export interface TrainerPublicVisibilitySetting {
     staff: StaffMemberView;
     eligible: boolean;
     visible: boolean;
+    visibilityLabel: string;
     profileSlug: string;
+    hasPublicUrl: boolean;
     publicUrl?: string;
     slugField: InputModel;
     publishAction: ButtonModel;
     hideAction: ButtonModel;
     previewAction: ButtonModel;
+    actionCount: number;
+    summaryLabel: string;
     canSubmit: boolean;
     reason?: string;
 }

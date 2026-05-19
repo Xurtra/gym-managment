@@ -8,6 +8,8 @@ import type { PageHeaderModel } from "./pageHeader.js";
 export interface DashboardNavigationGroup {
   key: string;
   label: string;
+  active: boolean;
+  itemCount: number;
   items: GuardedNavigationItem[];
 }
 
@@ -28,12 +30,16 @@ export interface AccountMenuModel {
 
 export interface DashboardSidebarModel {
   collapsed: boolean;
+  groupCount: number;
+  itemCount: number;
+  activeGroupKey?: string;
   groups: DashboardNavigationGroup[];
 }
 
 export interface DashboardTopBarModel {
   title: string;
   gymName?: string;
+  searchResultCount: number;
   globalSearch: GlobalGymSearchModel;
   accountMenu: AccountMenuModel;
 }

@@ -26,7 +26,10 @@ export interface DashboardFilterDrawer {
     title: string;
     open: boolean;
     fields: FilterDrawerField[];
+    fieldCount: number;
     activeFilterCount: number;
+    errorCount: number;
+    summaryLabel: string;
     applyAction: ButtonModel;
     resetAction: ButtonModel;
     closeAction: ButtonModel;

@@ -13,6 +13,7 @@ export interface GlobalSearchItem {
 export interface GlobalSearchResult extends GlobalSearchItem {
     selected: boolean;
     score: number;
+    typeLabel: string;
 }
 export interface GlobalGymSearchModel {
     kind: "global_gym_search";
@@ -21,7 +22,11 @@ export interface GlobalGymSearchModel {
     query: string;
     placeholder: string;
     resultCount: number;
+    routeResultCount: number;
+    entityResultCount: number;
+    summaryLabel: string;
     results: GlobalSearchResult[];
+    selectedResultIndex?: number;
     selectedResult?: GlobalSearchResult;
     empty: boolean;
 }

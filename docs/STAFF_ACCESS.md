@@ -25,12 +25,23 @@ API routes:
 
 Framework-neutral staff access state lives under `apps/dashboard/src/staff`:
 
-- `buildStaffPermissionsScreen` builds editable staff rows, assignable role options, removal confirmation state, and audit-trail state.
-- `buildCustomRoleCreateScreen` and `buildCustomRoleEditScreen` build grouped permission toggles for custom roles.
+- `buildStaffPermissionsScreen` builds editable staff rows, assignable role options, removal confirmation state, audit-trail state, summary counts, selected-staff context, locked-reason labels, and an empty state when no staff access records exist.
+- `buildCustomRoleCreateScreen` and `buildCustomRoleEditScreen` build grouped permission toggles for custom roles, including permission-count summaries, per-group selection summaries, locked-role state, and role-name validation feedback.
 - `createCustomRoleSubmission` trims role names, de-duplicates permissions, and strips `platform:admin`.
 - `createStaffPermissionChangeSubmission` creates the role assignment payload.
 - `createStaffAccessRemovalSubmission` normalizes the removal reason.
-- `buildTrainerRestrictedView` and `buildFrontDeskRestrictedView` derive role-specific navigation and primary actions from the shared permission matrix.
+- `buildTrainerRestrictedView` and `buildFrontDeskRestrictedView` derive role-specific navigation and primary actions from the shared permission matrix, including active path, visible/hidden route counts, action counts, and summary labels for restricted dashboards.
+
+Related staff-management dashboard models in the same module area also cover:
+
+- trainer public visibility settings with eligibility checks, visibility labels, public URL previews, and normalized slug submission
+- trainer specialties editing with duplicate detection, specialty counts, change summaries, and normalized submission
+- trainer bio editing with character-limit validation, change tracking, summary state, and normalized submission
+- trainer profile image upload state with square-headshot validation, current-image and preview summaries, and eligibility locks
+- staff availability models and editor state with slot summaries, conflict detection, change tracking, and location selection
+- staff shift calendar summaries with weekly grouping, staff/location filters, overlap flags, option counts, and coverage totals
+- staff shift conflict reporting with blocking and warning summaries plus affected staff and shift details
+- staff task assignment, task list, and task completion state with assignee filters, status and priority summaries, due-state labels, blocking reasons, and normalized submission
 
 ## Persistence
 
@@ -42,3 +53,4 @@ Framework-neutral staff access state lives under `apps/dashboard/src/staff`:
 - `apps/api/src/modules/system/system-flow.test.ts`
 - `apps/dashboard/src/staff/staffInviteDashboard.test.ts`
 - `packages/api-client/src/apiClientAuth.test.ts`
+  Covers role/staff-access request paths, HTTP methods, auth headers, and request bodies for role listing, custom role create/update, role assignment, staff removal, audit listing, and staff invite flows.

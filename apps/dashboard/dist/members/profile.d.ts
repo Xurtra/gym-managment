@@ -26,7 +26,9 @@ export interface MemberProfilePage {
     emergencyContactSection: MemberEmergencyContactSection;
     notesSection: MemberNotesSection;
     sections: MemberProfileSection[];
+    sectionCount: number;
     memberships: MemberProfileMembershipRow[];
+    membershipCount: number;
     membershipSummary: {
         totalCount: number;
         activeCount: number;
@@ -35,7 +37,9 @@ export interface MemberProfilePage {
         cancelledCount: number;
         expiredCount: number;
     };
+    membershipSummaryLabel: string;
     actions: MemberProfileAction[];
+    actionCount: number;
     membershipEmpty?: EmptyStateModel;
 }
 export declare function buildMemberProfilePage(inputModel: {

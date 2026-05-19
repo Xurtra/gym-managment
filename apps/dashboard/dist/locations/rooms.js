@@ -1,16 +1,35 @@
-import { button, input, table } from "@gym-platform/ui";
+import { button, emptyState, input, table } from "@gym-platform/ui";
 export function buildLocationClassRoomManagement(inputModel) {
-    const rooms = inputModel.rooms.filter((room) => room.locationId === inputModel.locationId);
+    const rooms = inputModel.rooms
+        .filter((room) => room.locationId === inputModel.locationId)
+        .slice()
+        .sort((left, right) => left.name.localeCompare(right.name))
+        .map((room) => ({
+        ...room,
+        nextSessionLabel: room.nextSessionAt ? room.nextSessionAt : "No upcoming session"
+    }));
     const draftName = inputModel.draftName?.trim() ?? "";
-    const duplicate = rooms.some((room) => room.name.toLowerCase() === draftName.toLowerCase());
+    const duplicateRoom = rooms.find((room) => room.name.toLowerCase() === draftName.toLowerCase());
+    const duplicate = Boolean(duplicateRoom);
     const canSubmit = Boolean(draftName && !duplicate);
+    const empty = rooms.length === 0
+        ? emptyState({
+            title: "No rooms configured",
+            body: "Add a room to start assigning classes inside this location.",
+            action: button({ label: "Add room", icon: "plus" })
+        })
+        : undefined;
     return {
         screen: "location_class_rooms",
         locationId: inputModel.locationId,
         rooms,
+        roomCount: rooms.length,
+        totalSessionCount: rooms.reduce((total, room) => total + room.sessionCount, 0),
         draftName,
         duplicate,
+        ...(duplicateRoom ? { duplicateRoomName: duplicateRoom.name } : {}),
         canSubmit,
+        ...(empty ? { empty } : {}),
         nameField: input({
             name: "roomName",
             label: "Room name",
@@ -24,9 +43,10 @@ export function buildLocationClassRoomManagement(inputModel) {
             columns: [
                 { key: "name", label: "Room" },
                 { key: "sessionCount", label: "Sessions" },
-                { key: "nextSessionAt", label: "Next session" }
+                { key: "nextSessionLabel", label: "Next session" }
             ],
-            rows: rooms
+            rows: rooms,
+            ...(empty ? { empty } : {})
         })
     };
 }

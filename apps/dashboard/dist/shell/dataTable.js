@@ -23,9 +23,16 @@ export function buildDashboardDataTable(inputModel) {
             ...(sort?.key === column.key ? { direction: sort.direction } : {}),
             nextDirection: sort?.key === column.key && sort.direction === "asc" ? "desc" : "asc"
         })),
+        columnCount: inputModel.columns.length,
         rows,
+        rowCount: rows.length,
         allRows: sortedRows,
+        totalRowCount: sortedRows.length,
         ...(sort ? { sort } : {}),
+        ...(sort ? { sortedColumnKey: sort.key } : {}),
+        summaryLabel: sortedRows.length === 0
+            ? "No table rows"
+            : `${rows.length} of ${sortedRows.length} row${sortedRows.length === 1 ? "" : "s"} shown`,
         pagination,
         table: table({
             columns: inputModel.columns.map((column) => ({ key: column.key, label: column.label })),

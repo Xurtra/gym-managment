@@ -21,9 +21,13 @@ export interface DashboardDateRangePicker {
   max?: string;
   valid: boolean;
   errors: string[];
+  errorCount: number;
   fromField: InputModel;
   toField: InputModel;
   presets: DateRangePreset[];
+  presetCount: number;
+  activePresetKey?: string;
+  summaryLabel: string;
   applyAction: ButtonModel;
   clearAction: ButtonModel;
 }
@@ -42,6 +46,11 @@ export function buildDashboardDateRangePicker(inputModel: {
   const min = normalizeDateValue(inputModel.min);
   const max = normalizeDateValue(inputModel.max);
   const errors = validateRange({ from, to, min, max });
+  const presets = (inputModel.presets ?? []).map((preset) => ({
+    ...preset,
+    active: preset.from === from && preset.to === to
+  }));
+  const activePreset = presets.find((preset) => preset.active);
 
   return {
     kind: "dashboard_date_range_picker",
@@ -52,6 +61,7 @@ export function buildDashboardDateRangePicker(inputModel: {
     ...(max ? { max } : {}),
     valid: errors.length === 0,
     errors,
+    errorCount: errors.length,
     fromField: input({
       name: "from",
       label: "From",
@@ -72,10 +82,15 @@ export function buildDashboardDateRangePicker(inputModel: {
         ? { error: "Invalid to date" }
         : {})
     }),
-    presets: (inputModel.presets ?? []).map((preset) => ({
-      ...preset,
-      active: preset.from === from && preset.to === to
-    })),
+    presets,
+    presetCount: presets.length,
+    ...(activePreset ? { activePresetKey: activePreset.key } : {}),
+    summaryLabel:
+      errors.length > 0
+        ? `${errors.length} date range error${errors.length === 1 ? "" : "s"}`
+        : from || to
+          ? "Date range selected"
+          : "No date range selected",
     applyAction: button({
       label: inputModel.applyLabel ?? "Apply date range",
       icon: "calendar-range",

@@ -19,7 +19,13 @@ export function buildDashboardDetailDrawer(inputModel) {
         title: inputModel.title.trim(),
         open: inputModel.open ?? false,
         sections,
+        sectionCount: sections.length,
+        itemCount,
         actions: (inputModel.actions ?? []).map(buildDetailAction),
+        actionCount: (inputModel.actions ?? []).length,
+        summaryLabel: itemCount === 0
+            ? "No detail items"
+            : `${itemCount} detail item${itemCount === 1 ? "" : "s"}`,
         closeAction: button({
             label: "Close details",
             icon: "x",

@@ -59,11 +59,19 @@ describe("member search", () => {
         expect(barcodeSearch.results[0]?.statusBadge.tone).toBe("warning");
         expect(barcodeSearch.results[0]?.matchSummary).toBe("Matched on barcode");
         expect(barcodeSearch.selectedMember?.id).toBe("member-2");
+        expect(barcodeSearch.selectedMemberId).toBe("member-2");
+        expect(barcodeSearch.resultCount).toBe(1);
         expect(barcodeSearch.searchableFields).toEqual(["name", "email", "phone", "barcode"]);
+        expect(barcodeSearch.searchableFieldCount).toBe(4);
+        expect(barcodeSearch.summaryLabel).toBe("Found 1 member");
         expect(phoneSearch.results[0]?.matchedFields).toEqual(["phone"]);
         expect(browse.results.map((member) => member.id)).toEqual(["member-1", "member-3", "member-2"]);
         expect(browse.results[0]?.matchSummary).toBe("Browse members");
+        expect(browse.resultCount).toBe(3);
+        expect(browse.summaryLabel).toBe("Browsing 3 members");
         expect(empty.emptyState).toBe(true);
+        expect(empty.resultCount).toBe(0);
+        expect(empty.summaryLabel).toBe("Found 0 members");
     });
 });
 //# sourceMappingURL=memberSearch.test.js.map

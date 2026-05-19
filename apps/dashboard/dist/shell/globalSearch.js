@@ -11,9 +11,12 @@ export function buildGlobalGymSearch(inputModel) {
         .slice(0, inputModel.limit ?? 8)
         .map((result) => ({
         ...result,
-        selected: result.id === inputModel.selectedResultId
+        selected: result.id === inputModel.selectedResultId,
+        typeLabel: globalSearchTypeLabels[result.type]
     }));
     const selectedResult = results.find((result) => result.selected);
+    const routeResultCount = results.filter((result) => result.type === "route").length;
+    const entityResultCount = results.length - routeResultCount;
     const model = {
         kind: "global_gym_search",
         queryField: input({
@@ -27,9 +30,20 @@ export function buildGlobalGymSearch(inputModel) {
         query,
         placeholder: "Search gym",
         resultCount: results.length,
+        routeResultCount,
+        entityResultCount,
+        summaryLabel: query.length === 0
+            ? "Search routes and gym records"
+            : results.length === 0
+                ? `No results for "${query}"`
+                : `${results.length} result${results.length === 1 ? "" : "s"}`,
         results,
         empty: query.length > 0 && results.length === 0
     };
+    const selectedResultIndex = results.findIndex((result) => result.selected);
+    if (selectedResultIndex >= 0) {
+        model.selectedResultIndex = selectedResultIndex;
+    }
     if (selectedResult) {
         model.selectedResult = selectedResult;
     }
@@ -95,4 +109,13 @@ function scoreSearchItem(item, normalizedQuery) {
 function normalize(value) {
     return value.trim().toLowerCase();
 }
+const globalSearchTypeLabels = {
+    route: "Route",
+    gym: "Gym",
+    location: "Location",
+    member: "Member",
+    staff: "Staff",
+    class: "Class",
+    plan: "Plan"
+};
 //# sourceMappingURL=globalSearch.js.map

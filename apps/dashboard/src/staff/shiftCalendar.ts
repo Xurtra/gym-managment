@@ -29,6 +29,7 @@ export interface StaffShiftCalendarView {
   weekEndsAt: string;
   timezone: string;
   days: StaffShiftCalendarDay[];
+  dayCount: number;
   visibleShifts: StaffShiftCalendarItem[];
   totalShiftCount: number;
   totalShiftMinutes: number;
@@ -37,6 +38,9 @@ export interface StaffShiftCalendarView {
   selectedLocationId?: string;
   staffOptions: Array<{ id: string; label: string; selected: boolean }>;
   locationOptions: Array<{ id: string; label: string; selected: boolean }>;
+  staffOptionCount: number;
+  locationOptionCount: number;
+  summaryLabel: string;
   previousWeekAction: ButtonModel;
   nextWeekAction: ButtonModel;
   createShiftAction: ButtonModel;
@@ -119,6 +123,7 @@ export function buildStaffShiftCalendarView(inputModel: {
     weekEndsAt: addDays(weekEnd, -1).toISOString(),
     timezone,
     days,
+    dayCount: days.length,
     visibleShifts,
     totalShiftCount: visibleShifts.length,
     totalShiftMinutes,
@@ -135,6 +140,12 @@ export function buildStaffShiftCalendarView(inputModel: {
       label: location.name,
       selected: location.id === selectedLocationId
     })),
+    staffOptionCount: inputModel.staff.length,
+    locationOptionCount: (inputModel.locations ?? []).length,
+    summaryLabel:
+      visibleShifts.length === 0
+        ? "No scheduled shifts"
+        : `${visibleShifts.length} scheduled shift${visibleShifts.length === 1 ? "" : "s"}`,
     previousWeekAction: button({
       label: "Previous week",
       icon: "chevron-left",

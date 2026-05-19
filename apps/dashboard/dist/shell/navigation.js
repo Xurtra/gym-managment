@@ -10,6 +10,8 @@ export function buildGroupedDashboardNavigation(path, context = { permissions: [
                 {
                     key: group.key,
                     label: group.label,
+                    active: groupItems.some((item) => item.active),
+                    itemCount: groupItems.length,
                     items: groupItems
                 }
             ]

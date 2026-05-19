@@ -19,11 +19,15 @@ export function buildStaffShiftConflictReport(inputModel) {
     return {
         screen: "staff_shift_conflict_detection",
         conflicts,
+        conflictCount: conflicts.length,
         blockingCount,
         warningCount,
         hasBlockingConflicts: blockingCount > 0,
         affectedStaffIds,
         affectedShiftIds,
+        summaryLabel: conflicts.length === 0
+            ? "No shift conflicts detected"
+            : `${conflicts.length} shift conflict${conflicts.length === 1 ? "" : "s"}`,
         reviewAction: button({
             label: "Review conflicts",
             icon: "triangle-alert",

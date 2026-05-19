@@ -13,6 +13,7 @@ export function buildCustomRoleEditScreen(inputModel) {
         screen: "custom_role_edit",
         actionLabel: "Save role",
         roleId: inputModel.role.id,
+        roleLabel: inputModel.role.label,
         name: inputModel.name ?? inputModel.role.label,
         selectedPermissions: inputModel.selectedPermissions ?? inputModel.role.permissions ?? [],
         locked: inputModel.role.isSystem === true || inputModel.role.name === RoleName.Owner
@@ -28,6 +29,17 @@ function buildCustomRoleScreen(inputModel) {
     const name = inputModel.name?.trim() ?? "";
     const selectedPermissions = editablePermissions(inputModel.selectedPermissions ?? []);
     const locked = inputModel.locked ?? false;
+    const permissionGroups = buildPermissionGroups(selectedPermissions, locked);
+    const selectedPermissionCount = selectedPermissions.length;
+    const availablePermissionCount = permissionGroups.reduce((count, group) => count + group.availableCount, 0);
+    const disabledPermissionCount = permissionGroups.reduce((count, group) => count + group.toggles.filter((toggle) => toggle.disabled).length, 0);
+    const nameError = locked
+        ? "System roles cannot be edited."
+        : name.length === 0
+            ? "Role name is required."
+            : name.length < 2
+                ? "Role name must be at least 2 characters."
+                : undefined;
     const canSubmit = Boolean(!locked && name.length >= 2 && selectedPermissions.length > 0);
     const screen = {
         screen: inputModel.screen,
@@ -37,21 +49,34 @@ function buildCustomRoleScreen(inputModel) {
             value: name,
             type: "text",
             required: true,
-            ...(locked ? { error: "System roles cannot be edited." } : {})
+            ...(nameError ? { error: nameError } : {})
         }),
-        permissionGroups: buildPermissionGroups(selectedPermissions, locked),
+        permissionGroups,
         selectedPermissions,
+        selectedPermissionCount,
+        availablePermissionCount,
+        disabledPermissionCount,
+        summaryLabel: selectedPermissionCount === 0
+            ? "No permissions selected"
+            : `${selectedPermissionCount} permission${selectedPermissionCount === 1 ? "" : "s"} selected`,
+        ...(locked ? { lockedReason: "System roles cannot be edited." } : {}),
         canSubmit,
         action: button({ label: inputModel.actionLabel, disabled: !canSubmit })
     };
     if (inputModel.roleId) {
         screen.roleId = inputModel.roleId;
     }
+    if (inputModel.roleLabel) {
+        screen.roleLabel = inputModel.roleLabel;
+    }
     return screen;
 }
 function buildPermissionGroups(selectedPermissions, locked) {
     return permissionGroups.map((group) => ({
         ...group,
+        selectedCount: group.permissions.filter((permission) => selectedPermissions.includes(permission)).length,
+        availableCount: group.permissions.filter((permission) => permission !== Permission.PlatformAdmin).length,
+        summaryLabel: `${group.permissions.filter((permission) => selectedPermissions.includes(permission)).length} of ${group.permissions.filter((permission) => permission !== Permission.PlatformAdmin).length} selected`,
         toggles: group.permissions.map((permission) => ({
             permission,
             label: permissionLabels[permission],

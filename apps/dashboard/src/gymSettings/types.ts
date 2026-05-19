@@ -1,4 +1,5 @@
 import type { FeatureFlag } from "@gym-platform/constants";
+import type { ButtonModel } from "@gym-platform/ui";
 
 export interface HoursRangeView {
   opensAt: string;
@@ -38,4 +39,33 @@ export interface OnboardingStepView {
   title: string;
   completed: boolean;
   current: boolean;
+}
+
+export interface WebsiteTemplateOptionView {
+  id: string;
+  name: string;
+  description: string;
+  selected: boolean;
+}
+
+export interface OnboardingWizardStepScreen {
+  screen: "onboarding_wizard_step";
+  stepId: string;
+  title: string;
+  submit: ButtonModel;
+  description?: string;
+  canSubmit?: boolean;
+  selectedTemplateId?: string;
+  templateOptions?: WebsiteTemplateOptionView[];
+}
+
+export interface OnboardingProgressIndicatorScreen {
+  screen: "onboarding_progress";
+  completedCount: number;
+  totalCount: number;
+  remainingCount: number;
+  percentComplete: number;
+  complete: boolean;
+  statusLabel: string;
+  nextStepId?: string;
 }

@@ -20,8 +20,10 @@ export interface StaffTaskAssignmentModel {
     };
     assigneeOptions: StaffTaskAssigneeOption[];
     priorityOptions: StaffTaskPriorityOption[];
+    assigneeOptionCount: number;
     selectedAssigneeId?: string;
     selectedPriority: StaffTaskPriority;
+    summaryLabel: string;
     canSubmit: boolean;
     assignAction: ButtonModel;
     cancelAction: ButtonModel;
@@ -59,6 +61,8 @@ export interface StaffTaskListView {
     }>;
     priorityOptions: StaffTaskPriorityOption[];
     rows: StaffTaskListRow[];
+    rowCount: number;
+    summaryLabel: string;
     table: TableModel<StaffTaskListRow>;
     summary: {
         totalCount: number;
@@ -79,6 +83,8 @@ export interface StaffTaskCompletionFlow {
     completedByUserId?: string;
     completedAt: string;
     noteField: InputModel;
+    noteLength: number;
+    summaryLabel: string;
     canComplete: boolean;
     blockedReason?: string;
     completeAction: ButtonModel;

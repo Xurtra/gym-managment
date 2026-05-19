@@ -32,3 +32,6 @@ Framework-neutral dashboard state lives under `apps/dashboard/src/accessControl`
 - `devices.ts` builds device registration, offline list, and key rotation states.
 - `rules.ts` builds the location/plan rule editor state.
 - `events.ts` filters and sorts access event history.
+
+These modules align with the membership-plan dashboard models in `apps/dashboard/src/membershipPlans`, so plan list filtering, detail metadata, create/edit validation, and archive state stay consistent with the active plan records available for location access-rule selection. They also align with the Stripe Payments dashboard models in `apps/dashboard/src/payments`, where the same front-desk permission gates and point-of-sale feature flags help determine which operational actions are available when staff need to resolve a denied member state before access is restored.
+They also align with the check-in dashboard models in `apps/dashboard/src/checkIns`, where the same member credential resolution, denied-state reasoning, and front-desk location context support both facility check-in decisions and door-access authorization flows.

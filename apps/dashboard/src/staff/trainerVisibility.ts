@@ -8,12 +8,16 @@ export interface TrainerPublicVisibilitySetting {
   staff: StaffMemberView;
   eligible: boolean;
   visible: boolean;
+  visibilityLabel: string;
   profileSlug: string;
+  hasPublicUrl: boolean;
   publicUrl?: string;
   slugField: InputModel;
   publishAction: ButtonModel;
   hideAction: ButtonModel;
   previewAction: ButtonModel;
+  actionCount: number;
+  summaryLabel: string;
   canSubmit: boolean;
   reason?: string;
 }
@@ -31,6 +35,7 @@ export function buildTrainerPublicVisibilitySetting(inputModel: {
   const publicUrl = inputModel.basePublicUrl
     ? `${inputModel.basePublicUrl.replace(/\/$/, "")}/trainers/${profileSlug}`
     : undefined;
+  const hasPublicUrl = Boolean(publicUrl);
   const reason = eligibilityReason(inputModel.staff);
 
   return {
@@ -38,7 +43,9 @@ export function buildTrainerPublicVisibilitySetting(inputModel: {
     staff: inputModel.staff,
     eligible,
     visible,
+    visibilityLabel: visible ? "Public profile visible" : "Public profile hidden",
     profileSlug,
+    hasPublicUrl,
     ...(publicUrl ? { publicUrl } : {}),
     slugField: input({
       name: "profileSlug",
@@ -65,6 +72,12 @@ export function buildTrainerPublicVisibilitySetting(inputModel: {
       intent: "secondary",
       disabled: !visible || !publicUrl
     }),
+    actionCount: 3,
+    summaryLabel: !eligible
+      ? "Trainer public profile unavailable"
+      : visible
+        ? "Trainer public profile is visible"
+        : "Trainer public profile is hidden",
     canSubmit: eligible && Boolean(profileSlug),
     ...(reason ? { reason } : {})
   };

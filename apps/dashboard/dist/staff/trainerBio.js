@@ -9,8 +9,9 @@ export function buildTrainerBioEditor(inputModel) {
     const characterCount = bio.length;
     const remainingCharacters = maxLength - characterCount;
     const overLimit = remainingCharacters < 0;
+    const hasChanges = bio !== originalBio;
     const reason = eligibilityReason(inputModel.staff);
-    const canSubmit = eligible && !overLimit && bio !== originalBio;
+    const canSubmit = eligible && !overLimit && hasChanges;
     return {
         screen: "trainer_bio_editor",
         staff: inputModel.staff,
@@ -21,6 +22,7 @@ export function buildTrainerBioEditor(inputModel) {
         maxLength,
         remainingCharacters,
         overLimit,
+        hasChanges,
         bioField: {
             kind: "textarea",
             name: "bio",
@@ -31,6 +33,14 @@ export function buildTrainerBioEditor(inputModel) {
             maxLength,
             ...(overLimit ? { error: `Bio must be ${maxLength} characters or fewer.` } : {})
         },
+        actionCount: 2,
+        summaryLabel: !eligible
+            ? "Trainer bio unavailable"
+            : overLimit
+                ? "Trainer bio exceeds character limit"
+                : !bio
+                    ? "Trainer bio is empty"
+                    : `${characterCount} bio character${characterCount === 1 ? "" : "s"}`,
         canSubmit,
         saveAction: button({
             label: "Save bio",

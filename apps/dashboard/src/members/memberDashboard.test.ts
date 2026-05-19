@@ -98,6 +98,11 @@ describe("member dashboard screens", () => {
       archivedCount: 1,
       visibleCount: 1
     });
+    expect(page.summaryLabel).toBe("Showing 1 of 4 members");
+    expect(page.rowCount).toBe(1);
+    expect(page.activeFilterCount).toBe(2);
+    expect(page.statusOptionCount).toBe(Object.values(MemberStatus).length);
+    expect(page.tagOptionCount).toBe(3);
     expect(page.tagOptions.map((option) => option.value)).toEqual(["Founding", "Strength", "Yoga"]);
     expect(page.tagOptions.find((option) => option.value === "Strength")?.selected).toBe(true);
     expect(page.createMemberAction.disabled).toBe(false);
@@ -105,7 +110,9 @@ describe("member dashboard screens", () => {
     expect(
       readOnly.rows[0]?.actions.find((action) => action.key === "archive")?.button.disabled
     ).toBe(true);
+    expect(readOnly.activeFilterCount).toBe(1);
     expect(empty.empty?.title).toBe("No members match your filters");
+    expect(empty.summaryLabel).toBe("Showing 0 of 0 members");
     expect(empty.createMemberAction.disabled).toBe(true);
   });
 
@@ -190,10 +197,12 @@ describe("member dashboard screens", () => {
     expect(profile.sections.find((section) => section.key === "notes")?.details[0]?.value).toBe(
       "Prefers morning classes."
     );
+    expect(profile.sectionCount).toBe(5);
     expect(profile.memberships.map((membership) => membership.id)).toEqual([
       "membership-active",
       "membership-old"
     ]);
+    expect(profile.membershipCount).toBe(2);
     expect(profile.memberships[0]?.statusLabel).toBe("Active");
     expect(profile.memberships[0]?.active).toBe(true);
     expect(profile.memberships[0]?.dateRangeLabel).toBe("2026-05-01T12:00:00.000Z to ongoing");
@@ -206,11 +215,14 @@ describe("member dashboard screens", () => {
       trialingCount: 0,
       expiredCount: 1
     });
+    expect(profile.membershipSummaryLabel).toBe("Showing 2 memberships");
+    expect(profile.actionCount).toBe(5);
     expect(profile.actions.find((action) => action.key === "edit")?.button.disabled).toBe(false);
     expect(profile.actions.find((action) => action.key === "check_in")?.href).toBe(
       "/check-ins?memberId=member-1"
     );
     expect(readOnly.membershipEmpty?.title).toBe("No memberships");
+    expect(readOnly.membershipSummaryLabel).toBe("Showing 0 memberships");
     expect(readOnly.emergencyContactSection.complete).toBe(true);
     expect(readOnly.notesSection.hasNotes).toBe(true);
     expect(readOnly.actions.find((action) => action.key === "assign_plan")?.button.disabled).toBe(

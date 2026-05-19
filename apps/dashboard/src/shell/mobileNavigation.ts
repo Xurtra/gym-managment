@@ -8,6 +8,9 @@ export interface MobileDashboardNavigation {
   open: boolean;
   activePath: string;
   groups: DashboardNavigationGroup[];
+  groupCount: number;
+  activeGroupKey?: string;
+  summaryLabel: string;
   toggleAction: ButtonModel;
   closeAction: ButtonModel;
   itemCount: number;
@@ -22,10 +25,18 @@ export function buildMobileDashboardNavigation(inputModel: {
     inputModel.path,
     inputModel.context ?? { permissions: [] }
   );
+  const activeGroup = groups.find((group) => group.active);
+  const itemCount = groups.reduce((total, group) => total + group.items.length, 0);
   return {
     open: inputModel.open ?? false,
     activePath: inputModel.path,
     groups,
+    groupCount: groups.length,
+    ...(activeGroup ? { activeGroupKey: activeGroup.key } : {}),
+    summaryLabel:
+      itemCount === 0
+        ? "No mobile navigation items"
+        : `${itemCount} mobile navigation item${itemCount === 1 ? "" : "s"}`,
     toggleAction: button({
       label: "Menu",
       icon: "menu",
@@ -36,6 +47,6 @@ export function buildMobileDashboardNavigation(inputModel: {
       icon: "x",
       intent: "secondary"
     }),
-    itemCount: groups.reduce((total, group) => total + group.items.length, 0)
+    itemCount
   };
 }

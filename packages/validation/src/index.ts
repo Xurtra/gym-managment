@@ -16,7 +16,7 @@ const id = z.string().uuid();
 export const emailSchema = trimmed.email().transform((value) => value.toLowerCase());
 export const passwordSchema = z
   .string()
-  .min(10)
+  .min(8)
   .regex(/[A-Z]/, "Password must contain an uppercase letter.")
   .regex(/[a-z]/, "Password must contain a lowercase letter.")
   .regex(/[0-9]/, "Password must contain a number.");
@@ -36,6 +36,14 @@ export const loginSchema = z.object({
   password: z.string().min(1),
   twoFactorCode: trimmed.regex(/^\d{6}$/).optional(),
   recoveryCode: trimmed.min(8).max(40).optional()
+});
+
+export const publicSignupSchema = z.object({
+  planId: id,
+  firstName: trimmed.min(1).max(80),
+  lastName: trimmed.min(1).max(80),
+  email: emailSchema,
+  phone: trimmed.min(7).max(30).optional()
 });
 
 export const refreshTokenSchema = z.object({
@@ -346,6 +354,7 @@ export const roleNameSchema = z.nativeEnum(RoleName);
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type PublicSignupInput = z.infer<typeof publicSignupSchema>;
 export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;

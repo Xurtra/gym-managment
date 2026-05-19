@@ -1,6 +1,6 @@
 import { MembershipStatus } from "@gym-platform/constants";
-import { table } from "@gym-platform/ui";
-import type { TableModel } from "@gym-platform/ui";
+import { emptyState, table } from "@gym-platform/ui";
+import type { EmptyStateModel, TableModel } from "@gym-platform/ui";
 import type {
   LocationAccessRuleView,
   LocationView,
@@ -15,16 +15,27 @@ const activeMembershipStatuses = new Set<MembershipStatus>([
 export interface LocationAccessRulesScreen {
   screen: "location_access_rules";
   locationId: string;
-  rules: LocationAccessRuleView[];
+  rules: LocationAccessRuleRow[];
   allowAllRuleCount: number;
   planRuleCount: number;
-  table: TableModel<LocationAccessRuleView>;
+  totalRuleCount: number;
+  summaryLabel: string;
+  empty?: EmptyStateModel;
+  table: TableModel<LocationAccessRuleRow>;
+}
+
+export interface LocationAccessRuleRow extends LocationAccessRuleView {
+  planLabel: string;
+  scopeLabel: string;
 }
 
 export interface MemberLocationAccessRow {
   locationId: string;
   locationName: string;
   allowed: boolean;
+  accessLabel: string;
+  matchedRuleCount: number;
+  reasonLabel: string;
   ruleNames: string[];
 }
 
@@ -33,26 +44,50 @@ export interface MultiLocationMemberAccessSetting {
   multiLocation: boolean;
   locations: MemberLocationAccessRow[];
   allowedLocationIds: string[];
+  allowedCount: number;
+  deniedCount: number;
+  summaryLabel: string;
+  empty?: EmptyStateModel;
+  table: TableModel<MemberLocationAccessRow>;
 }
 
 export function buildLocationAccessRulesScreen(input: {
   locationId: string;
   rules: LocationAccessRuleView[];
 }): LocationAccessRulesScreen {
-  const rules = input.rules.filter((rule) => rule.locationId === input.locationId);
+  const rules = input.rules
+    .filter((rule) => rule.locationId === input.locationId)
+    .slice()
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .map<LocationAccessRuleRow>((rule) => ({
+      ...rule,
+      planLabel: rule.planName ?? "All active members",
+      scopeLabel: rule.allowAllActiveMembers ? "All active members" : "Membership-specific"
+    }));
+  const empty =
+    rules.length === 0
+      ? emptyState({
+          title: "No access rules",
+          body: "Create a location rule to control which members can enter this location."
+        })
+      : undefined;
   return {
     screen: "location_access_rules",
     locationId: input.locationId,
     rules,
     allowAllRuleCount: rules.filter((rule) => rule.allowAllActiveMembers).length,
     planRuleCount: rules.filter((rule) => Boolean(rule.planId)).length,
+    totalRuleCount: rules.length,
+    summaryLabel: `${rules.length} access rule${rules.length === 1 ? "" : "s"}`,
+    ...(empty ? { empty } : {}),
     table: table({
       columns: [
         { key: "name", label: "Rule" },
-        { key: "planName", label: "Plan" },
-        { key: "allowAllActiveMembers", label: "All active" }
+        { key: "planLabel", label: "Plan" },
+        { key: "scopeLabel", label: "Scope" }
       ],
-      rows: rules
+      rows: rules,
+      ...(empty ? { empty } : {})
     })
   };
 }
@@ -67,26 +102,65 @@ export function buildMultiLocationMemberAccessSetting(input: {
   const activeMemberships = input.memberships.filter((membership) =>
     isActiveMembership(membership, now)
   );
+  const hasActiveMemberships = activeMemberships.length > 0;
   const rows = input.locations.map((location) => {
     const matchingRules = input.accessRules.filter((rule) => rule.locationId === location.id);
     const allowedRules = matchingRules.filter(
       (rule) =>
-        (rule.allowAllActiveMembers && activeMemberships.length > 0) ||
+        (rule.allowAllActiveMembers && hasActiveMemberships) ||
         activeMemberships.some((membership) => membership.planId === rule.planId)
     );
+    const allowed = allowedRules.length > 0;
+    const ruleNames = allowedRules.map((rule) => rule.name);
     return {
       locationId: location.id,
       locationName: location.name,
-      allowed: allowedRules.length > 0,
-      ruleNames: allowedRules.map((rule) => rule.name)
+      allowed,
+      accessLabel: allowed ? "Allowed" : "Restricted",
+      matchedRuleCount: allowedRules.length,
+      reasonLabel: allowed
+        ? `Allowed by ${ruleNames.join(", ")}`
+        : matchingRules.length === 0
+          ? "No access rules configured"
+          : hasActiveMemberships
+            ? "No matching access rule"
+            : "No active memberships",
+      ruleNames
     };
   });
+  const allowedLocationIds = rows.filter((row) => row.allowed).map((row) => row.locationId);
+  const allowedCount = allowedLocationIds.length;
+  const deniedCount = rows.length - allowedCount;
+  const empty =
+    rows.length === 0
+      ? emptyState({
+          title: "No locations available",
+          body: "Add a location to review multi-location member access."
+        })
+      : undefined;
 
   return {
     screen: "multi_location_member_access",
     multiLocation: input.locations.length > 1,
     locations: rows,
-    allowedLocationIds: rows.filter((row) => row.allowed).map((row) => row.locationId)
+    allowedLocationIds,
+    allowedCount,
+    deniedCount,
+    summaryLabel:
+      rows.length === 0
+        ? "No locations configured"
+        : `${allowedCount} of ${rows.length} location${rows.length === 1 ? "" : "s"} accessible`,
+    ...(empty ? { empty } : {}),
+    table: table({
+      columns: [
+        { key: "locationName", label: "Location" },
+        { key: "accessLabel", label: "Access" },
+        { key: "matchedRuleCount", label: "Matched rules" },
+        { key: "reasonLabel", label: "Reason" }
+      ],
+      rows,
+      ...(empty ? { empty } : {})
+    })
   };
 }
 

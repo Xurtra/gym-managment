@@ -25,7 +25,11 @@ export interface DashboardCsvUpload {
   maxSizeBytes: number;
   file?: UploadFileInput;
   errors: string[];
+  errorCount: number;
   preview?: CsvUploadPreview;
+  previewRowCount: number;
+  columnCount: number;
+  summaryLabel: string;
   empty?: EmptyStateModel;
   chooseAction: ButtonModel;
   uploadAction: ButtonModel;
@@ -60,6 +64,8 @@ export function buildDashboardCsvUpload(inputModel: {
     uploading: inputModel.uploading ?? false,
     uploaded: inputModel.uploaded ?? false
   });
+  const previewRowCount = preview.rowCount;
+  const columnCount = preview.columns.length;
 
   const upload: DashboardCsvUpload = {
     kind: "dashboard_csv_upload",
@@ -68,7 +74,16 @@ export function buildDashboardCsvUpload(inputModel: {
     accept: ".csv,text/csv",
     maxSizeBytes,
     errors,
+    errorCount: errors.length,
     preview,
+    previewRowCount,
+    columnCount,
+    summaryLabel:
+      !inputModel.file
+        ? "No CSV selected"
+        : errors.length > 0
+          ? `${errors.length} CSV validation error${errors.length === 1 ? "" : "s"}`
+          : `${previewRowCount} preview row${previewRowCount === 1 ? "" : "s"} ready`,
     chooseAction: button({
       label: inputModel.file ? "Replace CSV" : "Choose CSV",
       icon: "file-up",

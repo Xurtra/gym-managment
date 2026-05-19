@@ -18,11 +18,13 @@ export interface StaffShiftConflict {
 export interface StaffShiftConflictReport {
     screen: "staff_shift_conflict_detection";
     conflicts: StaffShiftConflict[];
+    conflictCount: number;
     blockingCount: number;
     warningCount: number;
     hasBlockingConflicts: boolean;
     affectedStaffIds: string[];
     affectedShiftIds: string[];
+    summaryLabel: string;
     reviewAction: ButtonModel;
     empty?: EmptyStateModel;
 }

@@ -30,7 +30,11 @@ export interface DashboardDetailDrawer {
     open: boolean;
     subtitle?: string;
     sections: DetailDrawerSection[];
+    sectionCount: number;
+    itemCount: number;
     actions: DetailDrawerAction[];
+    actionCount: number;
+    summaryLabel: string;
     closeAction: ButtonModel;
     empty?: EmptyStateModel;
 }

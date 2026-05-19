@@ -24,6 +24,13 @@ export const loginSchema = z.object({
     twoFactorCode: trimmed.regex(/^\d{6}$/).optional(),
     recoveryCode: trimmed.min(8).max(40).optional()
 });
+export const publicSignupSchema = z.object({
+    planId: id,
+    firstName: trimmed.min(1).max(80),
+    lastName: trimmed.min(1).max(80),
+    email: emailSchema,
+    phone: trimmed.min(7).max(30).optional()
+});
 export const refreshTokenSchema = z.object({
     refreshToken: z.string().min(32)
 });

@@ -16,6 +16,8 @@ export function buildGroupedDashboardNavigation(
           {
             key: group.key,
             label: group.label,
+            active: groupItems.some((item) => item.active),
+            itemCount: groupItems.length,
             items: groupItems
           }
         ]

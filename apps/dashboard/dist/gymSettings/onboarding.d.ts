@@ -1,4 +1,4 @@
-import type { OnboardingStepView } from "./types.js";
+import type { OnboardingProgressIndicatorScreen, OnboardingStepView, OnboardingWizardStepScreen, WebsiteTemplateOptionView } from "./types.js";
 export declare const onboardingSteps: readonly [{
     readonly id: "gym-details";
     readonly title: "Gym Details";
@@ -16,17 +16,10 @@ export declare const onboardingSteps: readonly [{
     readonly title: "Website Template";
 }];
 export declare function buildOnboardingChecklist(completedStepIds: string[], currentStepId?: string): OnboardingStepView[];
-export declare function buildOnboardingWizardStep(stepId: (typeof onboardingSteps)[number]["id"]): {
-    screen: string;
-    stepId: "gym-details" | "location-details" | "membership-plans" | "payment-connection" | "website-template";
-    title: "Gym Details" | "Location Details" | "Membership Plans" | "Payment Connection" | "Website Template";
-    submit: import("@gym-platform/ui").ButtonModel;
-};
-export declare function buildOnboardingProgressIndicator(completedStepIds: string[]): {
-    screen: string;
-    completedCount: number;
-    totalCount: 5;
-    percentComplete: number;
-    nextStepId: "gym-details" | "location-details" | "membership-plans" | "payment-connection" | "website-template" | undefined;
-};
+export declare function buildOnboardingWizardStep(stepId: (typeof onboardingSteps)[number]["id"], input?: {
+    selectedTemplateId?: string;
+    templateOptions?: ReadonlyArray<Pick<WebsiteTemplateOptionView, "id" | "name" | "description">>;
+}): OnboardingWizardStepScreen;
+export declare function buildWebsiteTemplateSelectionStep(selectedTemplateId?: string, templateOptions?: ReadonlyArray<Pick<WebsiteTemplateOptionView, "id" | "name" | "description">>): OnboardingWizardStepScreen;
+export declare function buildOnboardingProgressIndicator(completedStepIds: string[]): OnboardingProgressIndicatorScreen;
 //# sourceMappingURL=onboarding.d.ts.map

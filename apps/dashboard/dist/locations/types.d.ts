@@ -22,8 +22,11 @@ export interface LocationView {
 }
 export interface LocationMapLink {
     label: string;
+    shortLabel: string;
     address: string;
+    query: string;
     href: string;
+    external: boolean;
 }
 export interface LocationRoomView {
     locationId: string;

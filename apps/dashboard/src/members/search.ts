@@ -18,6 +18,10 @@ export interface MemberDirectorySearchScreen {
   results: MemberDirectorySearchResult[];
   selectedMember?: MemberDirectorySearchResult;
   searchableFields: MemberSearchField[];
+  resultCount: number;
+  searchableFieldCount: number;
+  selectedMemberId?: string;
+  summaryLabel: string;
   emptyState: boolean;
 }
 
@@ -29,14 +33,7 @@ export function buildMemberDirectorySearchScreen(
   selectedMemberId?: string
 ): MemberDirectorySearchScreen {
   const normalizedQuery = normalizeSearchText(query);
-  const results = (
-    normalizedQuery
-      ? members.filter((member) => matchesMemberDirectoryQuery(member, query))
-      : members
-  )
-    .map((member) => buildMemberSearchResult(member, normalizedQuery))
-    .sort(compareResults)
-    .slice(0, 25);
+  const results = resultsForQuery(members, query);
   const selectedMember = selectedMemberId
     ? results.find((member) => member.id === selectedMemberId)
     : undefined;
@@ -47,6 +44,10 @@ export function buildMemberDirectorySearchScreen(
     results,
     ...(selectedMember ? { selectedMember } : {}),
     searchableFields: SEARCHABLE_FIELDS,
+    resultCount: results.length,
+    searchableFieldCount: SEARCHABLE_FIELDS.length,
+    ...(selectedMember ? { selectedMemberId: selectedMember.id } : {}),
+    summaryLabel: buildSummaryLabel(results.length, normalizedQuery),
     emptyState: results.length === 0
   };
 }
@@ -147,4 +148,23 @@ function normalizeSearchText(value: string) {
 
 function normalizePhone(value: string | undefined) {
   return value?.replace(/\D+/g, "") ?? "";
+}
+
+function resultsForQuery(members: MemberView[], query: string) {
+  const normalizedQuery = normalizeSearchText(query);
+  return (
+    normalizedQuery
+      ? members.filter((member) => matchesMemberDirectoryQuery(member, query))
+      : members
+  )
+    .map((member) => buildMemberSearchResult(member, normalizedQuery))
+    .sort(compareResults)
+    .slice(0, 25);
+}
+
+function buildSummaryLabel(resultCount: number, normalizedQuery: string) {
+  if (!normalizedQuery) {
+    return `Browsing ${resultCount} member${resultCount === 1 ? "" : "s"}`;
+  }
+  return `Found ${resultCount} member${resultCount === 1 ? "" : "s"}`;
 }

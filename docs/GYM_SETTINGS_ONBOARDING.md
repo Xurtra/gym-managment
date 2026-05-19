@@ -32,6 +32,8 @@ Framework-neutral dashboard state lives under `apps/dashboard/src/gymSettings`:
 - timezone and locale settings
 - operating hours editor
 - feature flag settings
-- onboarding checklist
-- onboarding wizard steps
-- onboarding progress indicator
+- onboarding checklist, including the membership-plans setup step
+- onboarding wizard steps, including membership-plan selection, Stripe payment-connection routing, and progress routing
+- onboarding progress indicator with the next membership-plan or payment-connection step when it is still incomplete
+
+The public website signup and checkout models in `apps/website-renderer/src` also depend on these gym settings. In particular, the `online_signup` feature flag and the set of active, public membership plans determine whether the public signup flow is available and which plans can proceed into checkout.

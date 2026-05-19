@@ -32,8 +32,10 @@ export interface StaffTaskAssignmentModel {
   };
   assigneeOptions: StaffTaskAssigneeOption[];
   priorityOptions: StaffTaskPriorityOption[];
+  assigneeOptionCount: number;
   selectedAssigneeId?: string;
   selectedPriority: StaffTaskPriority;
+  summaryLabel: string;
   canSubmit: boolean;
   assignAction: ButtonModel;
   cancelAction: ButtonModel;
@@ -69,6 +71,8 @@ export interface StaffTaskListView {
   statusOptions: Array<{ value: StaffTaskStatus; label: string; selected: boolean }>;
   priorityOptions: StaffTaskPriorityOption[];
   rows: StaffTaskListRow[];
+  rowCount: number;
+  summaryLabel: string;
   table: TableModel<StaffTaskListRow>;
   summary: {
     totalCount: number;
@@ -90,6 +94,8 @@ export interface StaffTaskCompletionFlow {
   completedByUserId?: string;
   completedAt: string;
   noteField: InputModel;
+  noteLength: number;
+  summaryLabel: string;
   canComplete: boolean;
   blockedReason?: string;
   completeAction: ButtonModel;
@@ -148,8 +154,17 @@ export function buildStaffTaskAssignmentModel(inputModel: {
       label: priorityLabel(priority),
       selected: priority === selectedPriority
     })),
+    assigneeOptionCount: assigneeOptions.length,
     ...(selectedAssignee ? { selectedAssigneeId: selectedAssignee.id } : {}),
     selectedPriority,
+    summaryLabel:
+      !title
+        ? "Task title is required"
+        : !selectedAssignee
+          ? "Task assignee is required"
+          : !validDueAt
+            ? "Task due date is invalid"
+            : "Task assignment ready",
     canSubmit,
     assignAction: button({ label: "Assign task", icon: "clipboard-plus", disabled: !canSubmit }),
     cancelAction: button({ label: "Cancel", icon: "x", intent: "secondary" })
@@ -206,6 +221,12 @@ export function buildStaffTaskCompletionFlow(inputModel: {
       type: "text",
       required: false
     }),
+    noteLength: note.length,
+    summaryLabel: blockedReason
+      ? blockedReason
+      : note
+        ? "Task completion ready with note"
+        : "Task completion ready",
     canComplete,
     ...(blockedReason ? { blockedReason } : {}),
     completeAction: button({
@@ -289,6 +310,13 @@ export function buildStaffTaskListView(inputModel: {
       selected: priority === filters.priority
     })),
     rows,
+    rowCount: rows.length,
+    summaryLabel:
+      rows.length === 0
+        ? hasActiveFilters(filters)
+          ? "No staff tasks match the current filters"
+          : "No staff tasks"
+        : `${rows.length} staff task${rows.length === 1 ? "" : "s"} shown`,
     table: table({
       columns: [
         { key: "title", label: "Task" },

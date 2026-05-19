@@ -15,11 +15,16 @@ import {
 export interface RestrictedDashboardView {
   screen: "restricted_dashboard";
   roleName: RoleNameValue;
+  activePath: string;
   permissions: PermissionValue[];
   navItems: GuardedNavigationItem[];
   visibleRoutes: string[];
+  visibleRouteCount: number;
   hiddenRoutes: string[];
+  hiddenRouteCount: number;
   primaryActions: ButtonModel[];
+  primaryActionCount: number;
+  summaryLabel: string;
 }
 
 export function buildTrainerRestrictedView(path = "/classes"): RestrictedDashboardView {
@@ -82,10 +87,15 @@ function buildRoleRestrictedView(input: {
   return {
     screen: "restricted_dashboard",
     roleName: input.roleName,
+    activePath: input.path,
     permissions,
     navItems: buildGuardedNavigation(input.path, context),
     visibleRoutes,
+    visibleRouteCount: visibleRoutes.length,
     hiddenRoutes,
-    primaryActions: input.primaryActions
+    hiddenRouteCount: hiddenRoutes.length,
+    primaryActions: input.primaryActions,
+    primaryActionCount: input.primaryActions.length,
+    summaryLabel: `${visibleRoutes.length} dashboard route${visibleRoutes.length === 1 ? "" : "s"} available`
   };
 }

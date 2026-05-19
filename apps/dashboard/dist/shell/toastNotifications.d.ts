@@ -41,7 +41,10 @@ export interface DashboardToastNotificationCenter {
     placement: ToastNotificationPlacement;
     toasts: DashboardToastNotification[];
     visibleToasts: DashboardToastNotification[];
+    totalCount: number;
+    visibleCount: number;
     queuedCount: number;
+    summaryLabel: string;
     dismissAllAction: ButtonModel;
 }
 export declare function buildDashboardToastNotificationCenter(inputModel: {

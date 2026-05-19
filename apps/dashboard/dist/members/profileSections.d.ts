@@ -18,6 +18,9 @@ export interface MemberContactInformationSection extends MemberProfileSection {
     hasPhone: boolean;
     complete: boolean;
     primaryContactMethod: "email" | "phone" | "none";
+    fieldCount: number;
+    completeFieldCount: number;
+    summaryLabel: string;
 }
 export interface MemberEmergencyContactSection extends MemberProfileSection {
     key: "emergency_contact";
@@ -27,6 +30,9 @@ export interface MemberEmergencyContactSection extends MemberProfileSection {
     contactName: string;
     contactPhone: string;
     relationship: string;
+    fieldCount: number;
+    completeFieldCount: number;
+    summaryLabel: string;
 }
 export interface MemberNotesSection extends MemberProfileSection {
     key: "notes";
@@ -35,6 +41,7 @@ export interface MemberNotesSection extends MemberProfileSection {
     hasNotes: boolean;
     characterCount: number;
     preview: string;
+    summaryLabel: string;
 }
 export declare function buildMemberContactInformationSection(member: MemberView): MemberContactInformationSection;
 export declare function buildMemberEmergencyContactSection(member: MemberView): MemberEmergencyContactSection;

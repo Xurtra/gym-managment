@@ -32,7 +32,10 @@ export interface DashboardFilterDrawer {
   title: string;
   open: boolean;
   fields: FilterDrawerField[];
+  fieldCount: number;
   activeFilterCount: number;
+  errorCount: number;
+  summaryLabel: string;
   applyAction: ButtonModel;
   resetAction: ButtonModel;
   closeAction: ButtonModel;
@@ -47,17 +50,24 @@ export function buildDashboardFilterDrawer(inputModel: {
 }): DashboardFilterDrawer {
   const fields = inputModel.fields.map(normalizeField);
   const activeFilterCount = fields.filter((field) => field.active).length;
+  const errorCount = fields.filter((field) => Boolean(field.error)).length;
 
   return {
     kind: "dashboard_filter_drawer",
     title: inputModel.title.trim(),
     open: inputModel.open ?? false,
     fields,
+    fieldCount: fields.length,
     activeFilterCount,
+    errorCount,
+    summaryLabel:
+      activeFilterCount === 0
+        ? "No active filters"
+        : `${activeFilterCount} active filter${activeFilterCount === 1 ? "" : "s"}`,
     applyAction: button({
       label: inputModel.applyLabel ?? "Apply filters",
       icon: "filter",
-      disabled: fields.some((field) => Boolean(field.error))
+      disabled: errorCount > 0
     }),
     resetAction: button({
       label: inputModel.resetLabel ?? "Reset",

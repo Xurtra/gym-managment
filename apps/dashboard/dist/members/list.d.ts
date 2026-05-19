@@ -52,6 +52,11 @@ export interface MemberListPage {
     statusOptions: MemberListStatusFilterOption[];
     tagOptions: MemberListTagFilterOption[];
     summary: MemberListSummary;
+    summaryLabel: string;
+    rowCount: number;
+    activeFilterCount: number;
+    statusOptionCount: number;
+    tagOptionCount: number;
     rows: MemberListRow[];
     table: TableModel<MemberListRow>;
     empty?: EmptyStateModel;

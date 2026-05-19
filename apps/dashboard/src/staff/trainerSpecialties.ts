@@ -14,10 +14,14 @@ export interface TrainerSpecialtiesEditor {
   staff: StaffMemberView;
   eligible: boolean;
   specialties: TrainerSpecialtyItem[];
+  specialtyCount: number;
   pendingSpecialtyField: InputModel;
   duplicatePendingSpecialty: boolean;
+  hasChanges: boolean;
+  summaryLabel: string;
   canAdd: boolean;
   canSubmit: boolean;
+  actionCount: number;
   addAction: ButtonModel;
   saveAction: ButtonModel;
   reason?: string;
@@ -39,7 +43,8 @@ export function buildTrainerSpecialtiesEditor(inputModel: {
       specialties.some((specialty) => specialty.toLowerCase() === pendingSpecialty.toLowerCase())
   );
   const canAdd = Boolean(eligible && pendingSpecialty && !duplicatePendingSpecialty);
-  const canSubmit = Boolean(eligible && !sameSpecialties(specialties, originalSpecialties));
+  const hasChanges = !sameSpecialties(specialties, originalSpecialties);
+  const canSubmit = Boolean(eligible && hasChanges);
   const reason = eligibilityReason(inputModel.staff);
 
   return {
@@ -56,6 +61,7 @@ export function buildTrainerSpecialtiesEditor(inputModel: {
         disabled: !eligible
       })
     })),
+    specialtyCount: specialties.length,
     pendingSpecialtyField: input({
       name: "specialty",
       label: "Specialty",
@@ -65,8 +71,15 @@ export function buildTrainerSpecialtiesEditor(inputModel: {
       ...(duplicatePendingSpecialty ? { error: "Specialty already exists." } : {})
     }),
     duplicatePendingSpecialty,
+    hasChanges,
+    summaryLabel: !eligible
+      ? "Trainer specialties unavailable"
+      : specialties.length === 0
+        ? "No specialties added"
+        : `${specialties.length} trainer specialt${specialties.length === 1 ? "y" : "ies"}`,
     canAdd,
     canSubmit,
+    actionCount: 2,
     addAction: button({
       label: "Add specialty",
       icon: "plus",

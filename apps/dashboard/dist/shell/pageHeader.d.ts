@@ -22,9 +22,14 @@ export interface PageHeaderModel {
     eyebrow?: string;
     description?: string;
     breadcrumbs: PageHeaderBreadcrumb[];
+    breadcrumbCount: number;
     primaryAction?: PageHeaderAction;
     secondaryActions: PageHeaderAction[];
+    actionCount: number;
     tabs: PageHeaderTab[];
+    tabCount: number;
+    activeTabKey?: string;
+    summaryLabel: string;
 }
 export declare function buildPageHeader(inputModel: {
     title: string;

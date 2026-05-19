@@ -11,14 +11,23 @@ export interface PermissionToggle {
 export interface PermissionGroup {
     key: string;
     label: string;
+    selectedCount: number;
+    availableCount: number;
+    summaryLabel: string;
     toggles: PermissionToggle[];
 }
 export interface CustomRoleScreen {
     screen: "custom_role_create" | "custom_role_edit";
     roleId?: string;
+    roleLabel?: string;
     nameField: InputModel;
     permissionGroups: PermissionGroup[];
     selectedPermissions: PermissionValue[];
+    selectedPermissionCount: number;
+    availablePermissionCount: number;
+    disabledPermissionCount: number;
+    summaryLabel: string;
+    lockedReason?: string;
     canSubmit: boolean;
     action: ButtonModel;
 }

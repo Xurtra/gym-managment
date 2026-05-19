@@ -1,4 +1,4 @@
-import type { AccessDeviceCreateInput, AccessDeviceEventInput, AccessDeviceHeartbeatInput, AccessRuleCreateInput, ClassBookingCreateInput, CheckInCreateInput, ClassSessionCreateInput, ClassTypeCreateInput, CustomRoleCreateInput, CustomRoleUpdateInput, GymCreateInput, GymUpdateInput, LocationCreateInput, LocationUpdateInput, LoginInput, MemberCreateInput, MemberMembershipAssignInput, MemberUpdateInput, MembershipPlanCreateInput, MembershipPlanUpdateInput, RegisterInput, ResetPasswordInput, RoleAssignmentInput, StaffAccessRemoveInput, StaffInviteAcceptInput, StaffInviteCreateInput, StaffShiftCreateInput, StaffManualBookingInput } from "@gym-platform/validation";
+import type { AccessDeviceCreateInput, AccessDeviceEventInput, AccessDeviceHeartbeatInput, AccessRuleCreateInput, ClassBookingCreateInput, CheckInCreateInput, ClassSessionCreateInput, ClassTypeCreateInput, CustomRoleCreateInput, CustomRoleUpdateInput, GymCreateInput, GymUpdateInput, LocationCreateInput, LocationUpdateInput, LoginInput, MemberCreateInput, MemberMembershipAssignInput, MemberUpdateInput, MembershipPlanCreateInput, MembershipPlanUpdateInput, PublicSignupInput, RegisterInput, ResetPasswordInput, RoleAssignmentInput, StaffAccessRemoveInput, StaffInviteAcceptInput, StaffInviteCreateInput, StaffShiftCreateInput, StaffManualBookingInput } from "@gym-platform/validation";
 export interface ApiClientOptions {
     baseUrl: string;
     accessToken?: string;
@@ -85,6 +85,9 @@ export declare class GymApiClient {
     createAccessDeviceEvent(input: AccessDeviceEventInput): Promise<unknown>;
     createAccessDeviceHeartbeat(input: AccessDeviceHeartbeatInput): Promise<unknown>;
     publicSchedule(gymSlug: string, from?: string, to?: string, locationId?: string): Promise<unknown>;
+    publicGym(gymSlug: string): Promise<unknown>;
+    publicPlans(gymSlug: string): Promise<unknown>;
+    publicSignup(gymSlug: string, input: PublicSignupInput): Promise<unknown>;
     private request;
     private send;
     private refreshStoredTokens;

@@ -1,5 +1,5 @@
 import type { Permission as PermissionValue } from "@gym-platform/constants";
-import type { ButtonModel, CardModel } from "@gym-platform/ui";
+import type { ButtonModel, CardModel, EmptyStateModel } from "@gym-platform/ui";
 export interface DashboardSummaryMetric {
     key: "activeMembers" | "checkInsToday" | "classesToday" | "pendingTasks";
     label: string;
@@ -19,6 +19,12 @@ export interface DashboardSummaryCard {
 export interface DashboardHomePage {
     screen: "dashboard_home";
     cards: DashboardSummaryCard[];
+    cardCount: number;
+    visibleMetricKeys: DashboardSummaryMetric["key"][];
+    summaryLabel: string;
+    enabledPrimaryActionCount: number;
+    disabledPrimaryActionCount: number;
+    empty?: EmptyStateModel;
     primaryActions: ButtonModel[];
 }
 export declare function buildDashboardHomePage(inputModel: {
