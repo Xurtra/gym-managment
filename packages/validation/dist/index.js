@@ -271,6 +271,34 @@ export const accessDeviceHeartbeatSchema = z.object({
     apiKey: z.string().min(24),
     occurredAt: z.string().datetime().optional()
 });
+export const stripePaymentMethodSchema = z.enum(["card_reader", "manual_entry"]);
+export const stripePaymentCollectSchema = z.object({
+    memberId: id.optional(),
+    amountCents: z.number().int().min(1),
+    currency: trimmed.length(3).default("usd").transform((value) => value.toLowerCase()),
+    paymentMethod: stripePaymentMethodSchema,
+    note: trimmed.max(500).optional(),
+    receiptEmail: emailSchema.optional()
+});
+export const stripePaymentRefundSchema = z.object({
+    amountCents: z.number().int().min(1).optional(),
+    reason: trimmed.max(500).optional()
+});
+export const notificationProcessSchema = z.object({
+    markFailed: z.boolean().default(false),
+    failureReason: trimmed.max(500).optional()
+});
+export const contractWaiverTypeSchema = z.enum(["contract", "waiver"]);
+export const contractWaiverCreateSchema = z.object({
+    title: trimmed.min(1).max(160),
+    type: contractWaiverTypeSchema,
+    version: z.number().int().min(1).default(1),
+    requiresSignature: z.boolean().default(true),
+    publish: z.boolean().default(false)
+});
+export const contractWaiverUpdateSchema = contractWaiverCreateSchema
+    .partial()
+    .refine((value) => Object.keys(value).length > 0, "At least one field must be provided.");
 export const permissionSchema = z.nativeEnum(Permission);
 export const roleNameSchema = z.nativeEnum(RoleName);
 //# sourceMappingURL=index.js.map

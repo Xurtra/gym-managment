@@ -17,7 +17,8 @@ export default tseslint.config(
         SharedArrayBuffer: "readonly",
         console: "readonly",
         fetch: "readonly",
-        process: "readonly"
+        process: "readonly",
+        setTimeout: "readonly"
       }
     }
   },

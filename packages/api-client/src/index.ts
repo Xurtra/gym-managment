@@ -7,6 +7,8 @@ import type {
   CheckInCreateInput,
   ClassSessionCreateInput,
   ClassTypeCreateInput,
+  ContractWaiverCreateInput,
+  ContractWaiverUpdateInput,
   CustomRoleCreateInput,
   CustomRoleUpdateInput,
   GymCreateInput,
@@ -27,7 +29,10 @@ import type {
   StaffInviteAcceptInput,
   StaffInviteCreateInput,
   StaffShiftCreateInput,
-  StaffManualBookingInput
+  StaffManualBookingInput,
+  StripePaymentCollectInput,
+  StripePaymentRefundInput,
+  NotificationProcessInput
 } from "@gym-platform/validation";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
@@ -321,6 +326,58 @@ export class GymApiClient {
 
   createAccessDeviceHeartbeat(input: AccessDeviceHeartbeatInput) {
     return this.request("POST", "/access/device-heartbeats", input);
+  }
+
+  getStripePaymentAccount(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/payments/stripe-account`);
+  }
+
+  connectStripePaymentAccount(gymId: string) {
+    return this.request("POST", `/gyms/${gymId}/payments/stripe-account/connect`);
+  }
+
+  listPayments(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/payments`);
+  }
+
+  collectPayment(gymId: string, input: StripePaymentCollectInput) {
+    return this.request("POST", `/gyms/${gymId}/payments`, input);
+  }
+
+  refundPayment(gymId: string, paymentId: string, input: StripePaymentRefundInput = {}) {
+    return this.request("POST", `/gyms/${gymId}/payments/${paymentId}/refund`, input);
+  }
+
+  listNotifications(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/notifications`);
+  }
+
+  processNotification(gymId: string, notificationId: string, input: NotificationProcessInput = {}) {
+    return this.request("POST", `/gyms/${gymId}/notifications/${notificationId}/process`, input);
+  }
+
+  retryNotification(gymId: string, notificationId: string) {
+    return this.request("POST", `/gyms/${gymId}/notifications/${notificationId}/retry`);
+  }
+
+  listContractWaiverDocuments(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/contracts-waivers`);
+  }
+
+  createContractWaiverDocument(gymId: string, input: ContractWaiverCreateInput) {
+    return this.request("POST", `/gyms/${gymId}/contracts-waivers`, input);
+  }
+
+  updateContractWaiverDocument(
+    gymId: string,
+    documentId: string,
+    input: ContractWaiverUpdateInput
+  ) {
+    return this.request("PATCH", `/gyms/${gymId}/contracts-waivers/${documentId}`, input);
+  }
+
+  archiveContractWaiverDocument(gymId: string, documentId: string) {
+    return this.request("DELETE", `/gyms/${gymId}/contracts-waivers/${documentId}`);
   }
 
   publicSchedule(gymSlug: string, from?: string, to?: string, locationId?: string) {

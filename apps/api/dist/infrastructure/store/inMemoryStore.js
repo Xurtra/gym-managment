@@ -19,6 +19,9 @@ export class InMemoryStore {
     accessDeviceRecords = new Map();
     accessRuleRecords = new Map();
     accessEventRecords = new Map();
+    stripePaymentAccountRecords = new Map();
+    stripePaymentTransactionRecords = new Map();
+    contractWaiverDocumentRecords = new Map();
     refreshTokenRecords = new Map();
     purposeTokenRecords = new Map();
     users = {
@@ -106,7 +109,9 @@ export class InMemoryStore {
     };
     notifications = {
         createNotificationEvent: (event) => this.createNotificationEvent(event),
-        listNotificationEventsForGym: (gymId) => this.listNotificationEventsForGym(gymId)
+        getNotificationEvent: (eventId) => this.getNotificationEvent(eventId),
+        listNotificationEventsForGym: (gymId) => this.listNotificationEventsForGym(gymId),
+        updateNotificationEvent: (event) => this.updateNotificationEvent(event)
     };
     checkIns = {
         createCheckIn: (checkIn) => this.createCheckIn(checkIn),
@@ -124,6 +129,20 @@ export class InMemoryStore {
         listAccessRulesForGym: (gymId) => this.listAccessRulesForGym(gymId),
         createAccessEvent: (event) => this.createAccessEvent(event),
         listAccessEventsForGym: (gymId) => this.listAccessEventsForGym(gymId)
+    };
+    payments = {
+        upsertStripeAccount: (account) => this.upsertStripeAccount(account),
+        getStripeAccountForGym: (gymId) => this.getStripeAccountForGym(gymId),
+        createPaymentTransaction: (transaction) => this.createPaymentTransaction(transaction),
+        getPaymentTransaction: (paymentId) => this.getPaymentTransaction(paymentId),
+        listPaymentTransactionsForGym: (gymId) => this.listPaymentTransactionsForGym(gymId),
+        updatePaymentTransaction: (transaction) => this.updatePaymentTransaction(transaction)
+    };
+    contractWaivers = {
+        createDocument: (document) => this.createContractWaiverDocument(document),
+        getDocument: (documentId) => this.getContractWaiverDocument(documentId),
+        listDocumentsForGym: (gymId) => this.listContractWaiverDocumentsForGym(gymId),
+        updateDocument: (document) => this.updateContractWaiverDocument(document)
     };
     tokens = {
         createRefreshToken: (refreshToken) => this.createRefreshToken(refreshToken),
@@ -361,8 +380,17 @@ export class InMemoryStore {
         this.notificationEventRecords.set(event.id, event);
         return event;
     }
+    async getNotificationEvent(eventId) {
+        return this.notificationEventRecords.get(eventId);
+    }
     async listNotificationEventsForGym(gymId) {
-        return [...this.notificationEventRecords.values()].filter((event) => event.gymId === gymId);
+        return [...this.notificationEventRecords.values()]
+            .filter((event) => event.gymId === gymId)
+            .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+    }
+    async updateNotificationEvent(event) {
+        this.notificationEventRecords.set(event.id, event);
+        return event;
     }
     async createCheckIn(checkIn) {
         this.checkInRecords.set(checkIn.id, checkIn);
@@ -415,6 +443,45 @@ export class InMemoryStore {
             .filter((event) => event.gymId === gymId)
             .sort((left, right) => right.occurredAt.getTime() - left.occurredAt.getTime());
     }
+    async upsertStripeAccount(account) {
+        this.stripePaymentAccountRecords.set(account.gymId, account);
+        return account;
+    }
+    async getStripeAccountForGym(gymId) {
+        return this.stripePaymentAccountRecords.get(gymId);
+    }
+    async createPaymentTransaction(transaction) {
+        this.stripePaymentTransactionRecords.set(transaction.id, transaction);
+        return transaction;
+    }
+    async getPaymentTransaction(paymentId) {
+        return this.stripePaymentTransactionRecords.get(paymentId);
+    }
+    async listPaymentTransactionsForGym(gymId) {
+        return [...this.stripePaymentTransactionRecords.values()]
+            .filter((transaction) => transaction.gymId === gymId)
+            .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+    }
+    async updatePaymentTransaction(transaction) {
+        this.stripePaymentTransactionRecords.set(transaction.id, transaction);
+        return transaction;
+    }
+    async createContractWaiverDocument(document) {
+        this.contractWaiverDocumentRecords.set(document.id, document);
+        return document;
+    }
+    async getContractWaiverDocument(documentId) {
+        return this.contractWaiverDocumentRecords.get(documentId);
+    }
+    async listContractWaiverDocumentsForGym(gymId) {
+        return [...this.contractWaiverDocumentRecords.values()]
+            .filter((document) => document.gymId === gymId)
+            .sort((left, right) => left.title.localeCompare(right.title) || right.version - left.version);
+    }
+    async updateContractWaiverDocument(document) {
+        this.contractWaiverDocumentRecords.set(document.id, document);
+        return document;
+    }
     async createRefreshToken(refreshToken) {
         this.refreshTokenRecords.set(refreshToken.id, refreshToken);
         return refreshToken;
@@ -461,6 +528,9 @@ export class InMemoryStore {
             accessDevices: [...this.accessDeviceRecords.values()],
             accessRules: [...this.accessRuleRecords.values()],
             accessEvents: [...this.accessEventRecords.values()],
+            stripePaymentAccounts: [...this.stripePaymentAccountRecords.values()],
+            stripePaymentTransactions: [...this.stripePaymentTransactionRecords.values()],
+            contractWaiverDocuments: [...this.contractWaiverDocumentRecords.values()],
             refreshTokens: [...this.refreshTokenRecords.values()],
             purposeTokens: [...this.purposeTokenRecords.values()]
         };

@@ -11,6 +11,10 @@ export interface ApiConfig {
     emailVerificationTokenTtlHours: number;
     databaseUrl?: string;
     redisUrl?: string;
+    stripeSecretKey?: string;
+    stripeWebhookSecret?: string;
+    stripeConnectClientId?: string;
+    stripeMockMode: boolean;
 }
 export declare function loadConfig(): ApiConfig;
 //# sourceMappingURL=env.d.ts.map

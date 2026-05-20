@@ -18,6 +18,9 @@ This repository is now scaffolded as a TypeScript monorepo for a modular gym man
 
 ```bash
 npm install
+npm run setup:demo
+npm run dev:api:postgres
+npm run dev:frontend
 npm run typecheck
 npm test
 npm run test:postgres
@@ -28,7 +31,35 @@ npm run dev:worker
 npm run tracker:summary
 ```
 
-The API defaults to `http://0.0.0.0:4000`. Copy `.env.example` to `.env` when local secrets or service URLs need to differ. `PERSISTENCE_DRIVER=memory` is the local default; set `PERSISTENCE_DRIVER=postgres` with `DATABASE_URL` to run against Postgres.
+## Local Demo
+
+For a stable local demo with persistent data, use Postgres instead of the in-memory API:
+
+```bash
+npm install
+npm run setup:demo
+npm run dev:api:postgres
+npm run dev:frontend
+```
+
+Then open:
+
+```text
+http://127.0.0.1:5173/?gymSlug=demo-strength-club#/dashboard
+```
+
+Demo owner login:
+
+```text
+owner@example.com
+Password123
+```
+
+`npm run setup:demo` requires Docker Desktop to be running. It starts local Postgres and Redis with Docker Compose, runs migrations, and seeds the demo gym if it is not already present. To recreate the database from scratch, run `npm run setup:demo -- --reset`; this removes the local Docker Postgres volume before seeding again.
+
+The API defaults to `http://0.0.0.0:4000`. Copy `.env.example` to `.env` when local secrets or service URLs need to differ. `PERSISTENCE_DRIVER=memory` is the quick local default, but memory-mode data disappears when the API process restarts. Use `npm run dev:api:postgres` for persistent local data.
+
+Stripe payments run in mock mode by default for local development. To prepare a real Stripe environment later, add `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and optionally `STRIPE_CONNECT_CLIENT_ID` to `.env`, then set `STRIPE_MOCK_MODE=false`.
 
 `npm run test:postgres` requires Docker. It starts a disposable Postgres container on port `55432`, runs migrations, executes the Postgres-backed API flow test, and removes the container.
 

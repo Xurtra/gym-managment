@@ -8,6 +8,7 @@ import type {
   CheckIn,
   ClassSession,
   ClassType,
+  ContractWaiverDocument,
   Location,
   Member,
   MemberMembership,
@@ -16,6 +17,8 @@ import type {
   PurposeToken,
   RefreshToken,
   Role,
+  StripePaymentAccount,
+  StripePaymentTransaction,
   StaffAuditLog,
   StaffInvite,
   StaffShift,
@@ -126,7 +129,9 @@ export interface BookingRepository {
 
 export interface NotificationRepository {
   createNotificationEvent(event: NotificationEvent): RepositoryResult<NotificationEvent>;
+  getNotificationEvent(eventId: string): RepositoryResult<NotificationEvent | undefined>;
   listNotificationEventsForGym(gymId: string): RepositoryResult<NotificationEvent[]>;
+  updateNotificationEvent(event: NotificationEvent): RepositoryResult<NotificationEvent>;
 }
 
 export interface CheckInRepository {
@@ -146,6 +151,26 @@ export interface AccessControlRepository {
   listAccessRulesForGym(gymId: string): RepositoryResult<AccessRule[]>;
   createAccessEvent(event: AccessEvent): RepositoryResult<AccessEvent>;
   listAccessEventsForGym(gymId: string): RepositoryResult<AccessEvent[]>;
+}
+
+export interface PaymentRepository {
+  upsertStripeAccount(account: StripePaymentAccount): RepositoryResult<StripePaymentAccount>;
+  getStripeAccountForGym(gymId: string): RepositoryResult<StripePaymentAccount | undefined>;
+  createPaymentTransaction(
+    transaction: StripePaymentTransaction
+  ): RepositoryResult<StripePaymentTransaction>;
+  getPaymentTransaction(paymentId: string): RepositoryResult<StripePaymentTransaction | undefined>;
+  listPaymentTransactionsForGym(gymId: string): RepositoryResult<StripePaymentTransaction[]>;
+  updatePaymentTransaction(
+    transaction: StripePaymentTransaction
+  ): RepositoryResult<StripePaymentTransaction>;
+}
+
+export interface ContractWaiverRepository {
+  createDocument(document: ContractWaiverDocument): RepositoryResult<ContractWaiverDocument>;
+  getDocument(documentId: string): RepositoryResult<ContractWaiverDocument | undefined>;
+  listDocumentsForGym(gymId: string): RepositoryResult<ContractWaiverDocument[]>;
+  updateDocument(document: ContractWaiverDocument): RepositoryResult<ContractWaiverDocument>;
 }
 
 export interface TokenRepository {
@@ -178,6 +203,8 @@ export interface Repositories {
   notifications: NotificationRepository;
   checkIns: CheckInRepository;
   accessControl: AccessControlRepository;
+  payments: PaymentRepository;
+  contractWaivers: ContractWaiverRepository;
   tokens: TokenRepository;
   transaction<T>(work: (repositories: Repositories) => Promise<T>): Promise<T>;
 }

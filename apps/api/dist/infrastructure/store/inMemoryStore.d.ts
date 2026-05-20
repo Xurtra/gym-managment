@@ -1,5 +1,5 @@
-import type { AccessDevice, AccessEvent, AccessRule, Gym, GymUser, ClassBooking, CheckIn, ClassSession, ClassType, Location, Member, MemberMembership, MembershipPlan, NotificationEvent, PurposeToken, RefreshToken, Role, StaffAuditLog, StaffInvite, StaffShift, StoreSnapshot, User } from "./entities.js";
-import type { GymRepository, GymUserRepository, AccessControlRepository, BookingRepository, CheckInRepository, ClassRepository, LocationRepository, MemberRepository, MemberMembershipRepository, MembershipPlanRepository, NotificationRepository, Repositories, RoleRepository, StaffAuditLogRepository, StaffInviteRepository, StaffShiftRepository, TokenRepository, UserRepository } from "./repositories.js";
+import type { AccessDevice, AccessEvent, AccessRule, Gym, GymUser, ClassBooking, CheckIn, ClassSession, ClassType, ContractWaiverDocument, Location, Member, MemberMembership, MembershipPlan, NotificationEvent, PurposeToken, RefreshToken, Role, StripePaymentAccount, StripePaymentTransaction, StaffAuditLog, StaffInvite, StaffShift, StoreSnapshot, User } from "./entities.js";
+import type { GymRepository, GymUserRepository, AccessControlRepository, BookingRepository, CheckInRepository, ClassRepository, LocationRepository, MemberRepository, MemberMembershipRepository, MembershipPlanRepository, NotificationRepository, PaymentRepository, ContractWaiverRepository, Repositories, RoleRepository, StaffAuditLogRepository, StaffInviteRepository, StaffShiftRepository, TokenRepository, UserRepository } from "./repositories.js";
 export declare class InMemoryStore implements Repositories {
     private readonly userRecords;
     private readonly gymRecords;
@@ -20,6 +20,9 @@ export declare class InMemoryStore implements Repositories {
     private readonly accessDeviceRecords;
     private readonly accessRuleRecords;
     private readonly accessEventRecords;
+    private readonly stripePaymentAccountRecords;
+    private readonly stripePaymentTransactionRecords;
+    private readonly contractWaiverDocumentRecords;
     private readonly refreshTokenRecords;
     private readonly purposeTokenRecords;
     readonly users: UserRepository;
@@ -38,6 +41,8 @@ export declare class InMemoryStore implements Repositories {
     readonly notifications: NotificationRepository;
     readonly checkIns: CheckInRepository;
     readonly accessControl: AccessControlRepository;
+    readonly payments: PaymentRepository;
+    readonly contractWaivers: ContractWaiverRepository;
     readonly tokens: TokenRepository;
     transaction<T>(work: (repositories: Repositories) => Promise<T>): Promise<T>;
     createUser(user: User): Promise<User>;
@@ -98,7 +103,9 @@ export declare class InMemoryStore implements Repositories {
     listClassBookingsForMember(memberId: string): Promise<ClassBooking[]>;
     updateClassBooking(booking: ClassBooking): Promise<ClassBooking>;
     createNotificationEvent(event: NotificationEvent): Promise<NotificationEvent>;
+    getNotificationEvent(eventId: string): Promise<NotificationEvent | undefined>;
     listNotificationEventsForGym(gymId: string): Promise<NotificationEvent[]>;
+    updateNotificationEvent(event: NotificationEvent): Promise<NotificationEvent>;
     createCheckIn(checkIn: CheckIn): Promise<CheckIn>;
     listCheckInsForMember(memberId: string): Promise<CheckIn[]>;
     listCheckInsForGym(gymId: string): Promise<CheckIn[]>;
@@ -112,6 +119,16 @@ export declare class InMemoryStore implements Repositories {
     listAccessRulesForGym(gymId: string): Promise<AccessRule[]>;
     createAccessEvent(event: AccessEvent): Promise<AccessEvent>;
     listAccessEventsForGym(gymId: string): Promise<AccessEvent[]>;
+    upsertStripeAccount(account: StripePaymentAccount): Promise<StripePaymentAccount>;
+    getStripeAccountForGym(gymId: string): Promise<StripePaymentAccount | undefined>;
+    createPaymentTransaction(transaction: StripePaymentTransaction): Promise<StripePaymentTransaction>;
+    getPaymentTransaction(paymentId: string): Promise<StripePaymentTransaction | undefined>;
+    listPaymentTransactionsForGym(gymId: string): Promise<StripePaymentTransaction[]>;
+    updatePaymentTransaction(transaction: StripePaymentTransaction): Promise<StripePaymentTransaction>;
+    createContractWaiverDocument(document: ContractWaiverDocument): Promise<ContractWaiverDocument>;
+    getContractWaiverDocument(documentId: string): Promise<ContractWaiverDocument | undefined>;
+    listContractWaiverDocumentsForGym(gymId: string): Promise<ContractWaiverDocument[]>;
+    updateContractWaiverDocument(document: ContractWaiverDocument): Promise<ContractWaiverDocument>;
     createRefreshToken(refreshToken: RefreshToken): Promise<RefreshToken>;
     findRefreshTokenByHash(tokenHash: string): Promise<RefreshToken | undefined>;
     listRefreshTokensForUser(userId: string): Promise<RefreshToken[]>;

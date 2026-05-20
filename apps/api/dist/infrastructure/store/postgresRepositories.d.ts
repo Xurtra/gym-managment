@@ -1,5 +1,5 @@
 import type { Pool, QueryResult, QueryResultRow } from "pg";
-import type { AccessDevice, AccessEvent, AccessRule, Gym, GymUser, ClassBooking, CheckIn, ClassSession, ClassType, Location, Member, MemberMembership, MembershipPlan, NotificationEvent, PurposeToken, RefreshToken, Role, StaffAuditLog, StaffInvite, StaffShift, User } from "./entities.js";
+import type { AccessDevice, AccessEvent, AccessRule, Gym, GymUser, ClassBooking, CheckIn, ClassSession, ClassType, ContractWaiverDocument, Location, Member, MemberMembership, MembershipPlan, NotificationEvent, PurposeToken, RefreshToken, Role, StripePaymentAccount, StripePaymentTransaction, StaffAuditLog, StaffInvite, StaffShift, User } from "./entities.js";
 import type { Repositories } from "./repositories.js";
 interface QueryExecutor {
     query<R extends QueryResultRow = QueryResultRow>(text: string, values?: readonly unknown[]): Promise<QueryResult<R>>;
@@ -98,7 +98,9 @@ export declare class PostgresRepositories implements Repositories {
     };
     readonly notifications: {
         createNotificationEvent: (event: NotificationEvent) => Promise<NotificationEvent>;
+        getNotificationEvent: (eventId: string) => Promise<NotificationEvent | undefined>;
         listNotificationEventsForGym: (gymId: string) => Promise<NotificationEvent[]>;
+        updateNotificationEvent: (event: NotificationEvent) => Promise<NotificationEvent>;
     };
     readonly checkIns: {
         createCheckIn: (checkIn: CheckIn) => Promise<CheckIn>;
@@ -116,6 +118,20 @@ export declare class PostgresRepositories implements Repositories {
         listAccessRulesForGym: (gymId: string) => Promise<AccessRule[]>;
         createAccessEvent: (event: AccessEvent) => Promise<AccessEvent>;
         listAccessEventsForGym: (gymId: string) => Promise<AccessEvent[]>;
+    };
+    readonly payments: {
+        upsertStripeAccount: (account: StripePaymentAccount) => Promise<StripePaymentAccount>;
+        getStripeAccountForGym: (gymId: string) => Promise<StripePaymentAccount | undefined>;
+        createPaymentTransaction: (transaction: StripePaymentTransaction) => Promise<StripePaymentTransaction>;
+        getPaymentTransaction: (paymentId: string) => Promise<StripePaymentTransaction | undefined>;
+        listPaymentTransactionsForGym: (gymId: string) => Promise<StripePaymentTransaction[]>;
+        updatePaymentTransaction: (transaction: StripePaymentTransaction) => Promise<StripePaymentTransaction>;
+    };
+    readonly contractWaivers: {
+        createDocument: (document: ContractWaiverDocument) => Promise<ContractWaiverDocument>;
+        getDocument: (documentId: string) => Promise<ContractWaiverDocument | undefined>;
+        listDocumentsForGym: (gymId: string) => Promise<ContractWaiverDocument[]>;
+        updateDocument: (document: ContractWaiverDocument) => Promise<ContractWaiverDocument>;
     };
     readonly tokens: {
         createRefreshToken: (refreshToken: RefreshToken) => Promise<RefreshToken>;
@@ -186,7 +202,9 @@ export declare class PostgresRepositories implements Repositories {
     listClassBookingsForMember(memberId: string): Promise<ClassBooking[]>;
     updateClassBooking(booking: ClassBooking): Promise<ClassBooking>;
     createNotificationEvent(event: NotificationEvent): Promise<NotificationEvent>;
+    getNotificationEvent(eventId: string): Promise<NotificationEvent | undefined>;
     listNotificationEventsForGym(gymId: string): Promise<NotificationEvent[]>;
+    updateNotificationEvent(event: NotificationEvent): Promise<NotificationEvent>;
     createCheckIn(checkIn: CheckIn): Promise<CheckIn>;
     listCheckInsForMember(memberId: string): Promise<CheckIn[]>;
     listCheckInsForGym(gymId: string): Promise<CheckIn[]>;
@@ -200,6 +218,16 @@ export declare class PostgresRepositories implements Repositories {
     listAccessRulesForGym(gymId: string): Promise<AccessRule[]>;
     createAccessEvent(event: AccessEvent): Promise<AccessEvent>;
     listAccessEventsForGym(gymId: string): Promise<AccessEvent[]>;
+    upsertStripeAccount(account: StripePaymentAccount): Promise<StripePaymentAccount>;
+    getStripeAccountForGym(gymId: string): Promise<StripePaymentAccount | undefined>;
+    createPaymentTransaction(transaction: StripePaymentTransaction): Promise<StripePaymentTransaction>;
+    getPaymentTransaction(paymentId: string): Promise<StripePaymentTransaction | undefined>;
+    listPaymentTransactionsForGym(gymId: string): Promise<StripePaymentTransaction[]>;
+    updatePaymentTransaction(transaction: StripePaymentTransaction): Promise<StripePaymentTransaction>;
+    createContractWaiverDocument(document: ContractWaiverDocument): Promise<ContractWaiverDocument>;
+    getContractWaiverDocument(documentId: string): Promise<ContractWaiverDocument | undefined>;
+    listContractWaiverDocumentsForGym(gymId: string): Promise<ContractWaiverDocument[]>;
+    updateContractWaiverDocument(document: ContractWaiverDocument): Promise<ContractWaiverDocument>;
     createRefreshToken(refreshToken: RefreshToken): Promise<RefreshToken>;
     findRefreshTokenByHash(tokenHash: string): Promise<RefreshToken | undefined>;
     listRefreshTokensForUser(userId: string): Promise<RefreshToken[]>;

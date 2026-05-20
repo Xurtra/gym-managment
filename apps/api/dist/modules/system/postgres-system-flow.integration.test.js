@@ -1,10 +1,5 @@
-import { createServer } from "node:http";
-import { Pool } from "pg";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createApp, createPostgresServices } from "../../app.js";
-import { runMigrations } from "../../db/migrationRunner.js";
-import { fixedClock, testConfig } from "../../testUtils.js";
-const describePostgres = process.env.RUN_POSTGRES_TESTS === "1" ? describe : describe.skip;
+import { afterEach, beforeEach, expect, it } from "vitest";
+import { describePostgres, startPostgresApi } from "./postgres-test-utils.js";
 let api;
 beforeEach(async () => {
     api = await startPostgresApi();
@@ -54,69 +49,6 @@ describePostgres("Postgres-backed API flow", () => {
         expect(Number(countResult.rows[0]?.count ?? 0)).toBe(1);
     });
 });
-async function startPostgresApi() {
-    const databaseUrl = process.env.DATABASE_URL;
-    if (!databaseUrl) {
-        throw new Error("DATABASE_URL is required when RUN_POSTGRES_TESTS=1.");
-    }
-    assertTestDatabase(databaseUrl);
-    const pool = new Pool({ connectionString: databaseUrl });
-    await runMigrations(pool, { logger: { log: () => undefined } });
-    await resetDatabase(pool);
-    const config = {
-        ...testConfig,
-        persistenceDriver: "postgres",
-        databaseUrl
-    };
-    const services = createPostgresServices(config, fixedClock, pool);
-    const server = createServer(createApp(config, services));
-    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const address = server.address();
-    const baseUrl = `http://127.0.0.1:${address.port}`;
-    return {
-        baseUrl,
-        pool,
-        request: async (path, options = {}) => {
-            const response = await fetch(`${baseUrl}${path}`, options);
-            const data = (await response.json());
-            return { response, data };
-        },
-        close: async () => {
-            await closeServer(server);
-            await services.close();
-        }
-    };
-}
-async function resetDatabase(pool) {
-    await pool.query(`
-    TRUNCATE TABLE
-      purpose_tokens,
-      refresh_tokens,
-      access_events,
-      access_rules,
-      access_devices,
-      check_ins,
-      notification_events,
-      class_bookings,
-      class_sessions,
-      class_types,
-      member_memberships,
-      membership_plans,
-      members,
-      locations,
-      gym_users,
-      roles,
-      gyms,
-      users
-    RESTART IDENTITY CASCADE
-  `);
-}
-function assertTestDatabase(databaseUrl) {
-    const databaseName = new URL(databaseUrl).pathname.replace(/^\//, "");
-    if (!databaseName.includes("test") && process.env.ALLOW_DATABASE_RESET !== "true") {
-        throw new Error("Refusing to reset a non-test database. Use a database name containing 'test' or set ALLOW_DATABASE_RESET=true.");
-    }
-}
 async function ok(path, options) {
     const { response, data } = await api.request(path, options);
     expect(response.status).toBe(200);
@@ -141,16 +73,5 @@ function authHeaders(accessToken) {
         headers.authorization = `Bearer ${accessToken}`;
     }
     return headers;
-}
-async function closeServer(server) {
-    await new Promise((resolve, reject) => {
-        server.close((error) => {
-            if (error) {
-                reject(error);
-                return;
-            }
-            resolve();
-        });
-    });
 }
 //# sourceMappingURL=postgres-system-flow.integration.test.js.map

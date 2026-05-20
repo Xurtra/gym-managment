@@ -62,14 +62,13 @@ Completed in code:
 - Postgres repository adapter and transaction handling.
 - Operations core Postgres migrations for gym settings, staff invites, members, membership plans, member memberships, class types, class sessions, bookings, booking policies, notification events, check-ins, and access control.
 - Driver-based migration runner with `schema_migrations` tracking.
-- Optional Docker-backed Postgres API integration test path.
+- Docker-backed Postgres API integration test runner is in place and now executes all `*.integration.test.ts` suites under `apps/api/src/modules/system`.
 - Pre-commit hook path and precommit quality gate command.
 - Unit tests for authentication, two-factor auth, permissions, tenant isolation, gym settings, dashboard onboarding, locations, dashboard location logic, roles, custom role creation/editing, staff access/audit/scheduling, staff invite creation/acceptance, dashboard staff list/profile/create/edit forms/status flow/invite email sending/trainer visibility/trainer specialties/trainer bio/trainer profile image/staff availability/shift calendar/shift conflicts/staff tasks, dashboard member list/profile/search/status-badge/contact-section/emergency-contact-section/notes-section logic, dashboard lead list/profile/search/conversion logic, dashboard membership-plan list/detail/create-edit/archive logic, dashboard contracts-and-waivers list/detail/create-edit/archive logic, dashboard Stripe payment connection/collection/history/detail-refund logic including limited-capability, validation-error, filtered-empty, and refund-blocking edge cases, dashboard staff invite and staff access logic, restricted staff views, dashboard shell layout/navigation/global search/home/page header/data table/filter drawer/confirmation modal/detail drawer/toast notification center/date range picker/CSV upload/image upload/mobile navigation/account menu, members, member memberships, membership plans, class scheduling, booking eligibility, cancellation policy, late fees, staff overrides, check-ins, check-in dashboard screen logic, access control, access-control dashboard screen logic, shared UI, frontend routing, dashboard auth flow, dashboard navigation permission guards, and API-client token refresh/location/staff/roles/member/lead/membership-plan routes with shared-member-route lead create and convert coverage plus membership-plan list/create/update/archive coverage.
 - Full HTTP system-flow tests for the backend process, including operations core endpoints.
 
 Still ongoing after this milestone:
 
-- Add Docker-backed API integration tests against real Postgres.
 - Add complete frontend screens.
 - Continue through member management UI, reminder/confirmation notifications, payments, reporting, and deployment modules from the spreadsheet.
 

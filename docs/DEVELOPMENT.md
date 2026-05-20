@@ -19,6 +19,9 @@ git config core.hooksPath .githooks
 ## Useful Commands
 
 ```bash
+npm run setup:demo
+npm run dev:api:postgres
+npm run dev:frontend
 npm run lint
 npm run typecheck
 npm test
@@ -26,6 +29,49 @@ npm run build
 npm run dev:api
 npm run dev:worker
 ```
+
+## Stable Local Demo
+
+Use the Postgres-backed demo flow when you want accounts, gyms, and members to survive API restarts:
+
+```bash
+npm install
+npm run setup:demo
+npm run dev:api:postgres
+npm run dev:frontend
+```
+
+Open:
+
+```text
+http://127.0.0.1:5173/?gymSlug=demo-strength-club#/dashboard
+```
+
+Demo credentials:
+
+```text
+owner@example.com
+Password123
+```
+
+`npm run setup:demo` requires Docker Desktop to be running. It starts Docker Compose services for Postgres and Redis, runs API migrations, and seeds the demo gym when `owner@example.com` is not already present. Use `npm run setup:demo -- --reset` to remove the local Docker database volume and recreate the demo from scratch.
+
+The normal `npm run dev:api` command still uses the default memory-backed API unless environment variables override it. Memory mode is useful for quick tests, but any data created through the browser disappears when that API process restarts.
+
+## Stripe Payments
+
+Local development uses mock Stripe by default, so the Payments tab can connect an account, enable point of sale, collect payments, and refund payments without live Stripe credentials.
+
+Real Stripe configuration is environment-driven:
+
+```env
+STRIPE_MOCK_MODE=false
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_CONNECT_CLIENT_ID=ca_...
+```
+
+The backend now stores Stripe account state and payment transactions in memory or Postgres. The current local flow records mock transactions; live account onboarding, webhooks, and card-present confirmation are the next provider-specific pieces.
 
 Focused dashboard staff-management coverage is in:
 

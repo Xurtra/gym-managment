@@ -1,5 +1,5 @@
-﻿import { GymApiClient, ApiError, type ApiTokenStore } from "@gym-platform/api-client";
-import { BillingInterval, MemberStatus, MembershipStatus, Permission, RoleName } from "@gym-platform/constants";
+import { GymApiClient, ApiError, type ApiTokenStore } from "@gym-platform/api-client";
+import { AccessDeviceType, BillingInterval, FeatureFlag, MemberStatus, MembershipStatus, Permission } from "@gym-platform/constants";
 import {
   buildMemberListPage,
   type CheckInRecord,
@@ -15,17 +15,6 @@ import "./style.css";
 const API_BASE_URL = "http://127.0.0.1:4000";
 const SESSION_STORAGE_KEY = "gym-platform-session";
 const PUBLIC_SLUG_STORAGE_KEY = "gym-platform-public-slug";
-const THEME_STORAGE_KEY = "gym-platform-theme";
-const MEMBER_DESK_STORAGE_KEY = "gym-platform-member-desk";
-const ROLE_PERMISSION_OPTIONS = Object.values(Permission).filter(
-  (permission) => permission !== Permission.PlatformAdmin
-);
-const DEFAULT_SIGNATURE_REQUIREMENTS = [
-  "Waiver",
-  "Photo consent",
-  "Billing agreement",
-  "Emergency contact acknowledgment"
-];
 
 interface SessionTokens {
   accessToken: string;
@@ -49,24 +38,6 @@ interface GymRecord {
   businessInfo?: { email?: string; phone?: string; website?: string };
 }
 
-interface LocationRecord {
-  id: string;
-  name: string;
-  address: {
-    line1: string;
-    line2?: string;
-    city: string;
-    region: string;
-    postalCode: string;
-    country: string;
-  };
-  timezone: string;
-  phone?: string;
-  operatingHours: Record<string, Array<{ opensAt: string; closesAt: string }>>;
-  status: string;
-  archivedAt?: string;
-}
-
 interface RoleRecord {
   id: string;
   name: string;
@@ -86,24 +57,10 @@ interface MeResponse {
     email: string;
     firstName: string;
     lastName: string;
+    twoFactorEnabled?: boolean;
   };
   activeGym?: GymRecord;
   memberships: MembershipRecord[];
-}
-
-interface LocationListResponse {
-  locations: LocationRecord[];
-}
-
-interface CheckInPayload {
-  memberId?: string;
-  barcode?: string;
-  qrPayload?: string;
-  locationId: string;
-  classSessionId?: string;
-  method: CheckInMethod;
-  overrideEligibility?: boolean;
-  overrideReason?: string;
 }
 
 interface AuthResponse {
@@ -132,50 +89,6 @@ interface MemberRecord {
   archivedAt?: string;
 }
 
-interface MemberMembershipRecord {
-  id: string;
-  gymId: string;
-  memberId: string;
-  planId: string;
-  status: string;
-  startsAt: string;
-  endsAt?: string;
-}
-
-interface MemberDeskAlertRecord {
-  id: string;
-  title: string;
-  message: string;
-  createdAt: string;
-  resolvedAt?: string;
-}
-
-interface MemberDeskSignatureRecord {
-  id: string;
-  label: string;
-  required: boolean;
-  signedAt?: string;
-}
-
-interface MemberDeskStore {
-  alertsByMemberId: Record<string, MemberDeskAlertRecord[]>;
-  signaturesByMemberId: Record<string, MemberDeskSignatureRecord[]>;
-}
-
-interface StaffRecord {
-  membershipId: string;
-  gymId: string;
-  userId: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  roleId: string;
-  roleName: string;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
 interface MemberListResponse {
   members: MemberRecord[];
 }
@@ -200,6 +113,296 @@ interface PlanRecord {
 
 interface PlanListResponse {
   plans: PlanRecord[];
+}
+
+interface TwoFactorSetupResponse {
+  secret: string;
+  otpauthUrl: string;
+}
+
+interface TwoFactorVerifyResponse {
+  enabled: true;
+  recoveryCodes: string[];
+}
+
+interface TwoFactorRecoveryCodesResponse {
+  recoveryCodes: string[];
+}
+
+interface LocationRecord {
+  id: string;
+  gymId: string;
+  name: string;
+  timezone: string;
+  phone?: string;
+  address: {
+    line1: string;
+    line2?: string;
+    city: string;
+    region: string;
+    postalCode: string;
+    country: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+  archivedAt?: string;
+}
+
+interface LocationListResponse {
+  locations: LocationRecord[];
+}
+
+interface ClassTypeRecord {
+  id: string;
+  gymId: string;
+  name: string;
+  description?: string;
+  defaultDurationMinutes: number;
+  defaultCapacity: number;
+  defaultWaitlistCapacity: number;
+  isPublic: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ClassTypeListResponse {
+  classTypes: ClassTypeRecord[];
+}
+
+interface ClassBookingRecord {
+  id: string;
+  gymId: string;
+  classSessionId: string;
+  memberId: string;
+  status: string;
+  waitlistPosition?: number;
+  bookedAt: string;
+  cancelledAt?: string;
+  isLateCancellation: boolean;
+  lateCancellationFeeCents: number;
+  staffOverride: boolean;
+  overrideReason?: string;
+}
+
+interface ClassBookingListResponse {
+  bookings: ClassBookingRecord[];
+}
+
+interface MemberMembershipRecord {
+  id: string;
+  gymId: string;
+  memberId: string;
+  planId: string;
+  status: string;
+  startsAt: string;
+  endsAt?: string;
+}
+
+interface MemberMembershipListResponse {
+  memberships: MemberMembershipRecord[];
+}
+
+interface StaffAccessRecord {
+  membershipId: string;
+  gymId: string;
+  userId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  roleId: string;
+  roleName: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface StaffListResponse {
+  staff: StaffAccessRecord[];
+}
+
+interface StaffInviteRecord {
+  id: string;
+  gymId: string;
+  email: string;
+  roleId: string;
+  invitedByUserId: string;
+  status: string;
+  expiresAt: string;
+  acceptedAt?: string;
+  revokedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface StaffInviteCreateResponse {
+  invite: StaffInviteRecord;
+  inviteToken: string;
+}
+
+interface StaffInviteListResponse {
+  invites: StaffInviteRecord[];
+}
+
+interface StaffAuditRecord {
+  id: string;
+  gymId: string;
+  actorUserId: string;
+  targetUserId: string;
+  action: string;
+  previousRoleId?: string;
+  nextRoleId?: string;
+  previousStatus?: string;
+  nextStatus?: string;
+  reason?: string;
+  createdAt: string;
+}
+
+interface StaffAuditListResponse {
+  entries: StaffAuditRecord[];
+}
+
+interface RoleListResponse {
+  roles: RoleRecord[];
+}
+
+interface AccessDeviceRecord {
+  id: string;
+  gymId: string;
+  locationId: string;
+  name: string;
+  deviceType: string;
+  status: string;
+  apiKeyPreview: string;
+  lastHeartbeatAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  rotatedAt?: string;
+}
+
+interface AccessDeviceListResponse {
+  devices: AccessDeviceRecord[];
+}
+
+interface AccessDeviceCreateResponse {
+  device: AccessDeviceRecord;
+  apiKey: string;
+}
+
+interface AccessRuleRecord {
+  id: string;
+  gymId: string;
+  locationId: string;
+  name: string;
+  planId?: string;
+  allowAllActiveMembers: boolean;
+  startsAt?: string;
+  endsAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface AccessRuleListResponse {
+  rules: AccessRuleRecord[];
+}
+
+interface AccessEventRecord {
+  id: string;
+  gymId: string;
+  deviceId: string;
+  locationId: string;
+  memberId?: string;
+  decision: string;
+  reason: string;
+  occurredAt: string;
+  createdAt: string;
+}
+
+interface AccessEventListResponse {
+  events: AccessEventRecord[];
+}
+
+interface AccessDeviceEventResponse {
+  unlock: boolean;
+  reason: string;
+  event: AccessEventRecord;
+  memberId?: string;
+}
+
+interface StripePaymentAccountRecord {
+  id: string;
+  gymId: string;
+  stripeAccountId: string;
+  onboardingComplete: boolean;
+  chargesEnabled: boolean;
+  payoutsEnabled: boolean;
+  requirementsCurrentlyDue: string[];
+  dashboardUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface StripePaymentAccountResponse {
+  account?: StripePaymentAccountRecord;
+  onboardingUrl?: string;
+}
+
+interface StripePaymentRecord {
+  id: string;
+  gymId: string;
+  memberId?: string;
+  stripeAccountId?: string;
+  stripePaymentIntentId?: string;
+  amountCents: number;
+  currency: string;
+  applicationFeeCents: number;
+  paymentMethod: "card_reader" | "manual_entry";
+  status: "pending" | "succeeded" | "failed" | "refunded";
+  note?: string;
+  receiptEmail?: string;
+  refundedAmountCents: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface StripePaymentListResponse {
+  payments: StripePaymentRecord[];
+}
+
+interface NotificationRecord {
+  id: string;
+  gymId: string;
+  type: string;
+  status: string;
+  recipientMemberId: string;
+  relatedBookingId?: string;
+  payload: Record<string, unknown>;
+  sentAt?: string;
+  failedAt?: string;
+  failureReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface NotificationListResponse {
+  notifications: NotificationRecord[];
+}
+
+interface ContractWaiverDocumentRecord {
+  id: string;
+  gymId: string;
+  title: string;
+  type: "contract" | "waiver";
+  version: number;
+  requiresSignature: boolean;
+  signedMemberCount: number;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt?: string;
+  archivedAt?: string;
+}
+
+interface ContractWaiverDocumentListResponse {
+  documents: ContractWaiverDocumentRecord[];
 }
 
 interface PublicGymResponse {
@@ -242,20 +445,6 @@ interface PublicSignupResponse {
 
 type ViewName = "dashboard" | "public";
 type BannerTone = "success" | "error" | "info";
-type ThemeName = "light" | "dark";
-type SettingsSectionKey =
-  | "setup"
-  | "company_information"
-  | "roles_staff"
-  | "featured_items"
-  | "media"
-  | "resources"
-  | "promotions"
-  | "templates"
-  | "customized_themes"
-  | "tags"
-  | "taxes"
-  | "forms";
 
 interface AppState {
   view: ViewName;
@@ -265,61 +454,51 @@ interface AppState {
   session: SessionTokens | null;
   me: MeResponse | null;
   gym: GymRecord | null;
-  locations: LocationRecord[];
-  selectedLocationId: string;
   platformGyms: GymRecord[];
   members: MemberRecord[];
-  staff: StaffRecord[];
   plans: PlanRecord[];
+  locations: LocationRecord[];
+  classTypes: ClassTypeRecord[];
+  classSessions: PublicSessionRecord[];
+  classBookings: Record<string, ClassBookingRecord[]>;
+  memberMemberships: Record<string, MemberMembershipRecord[]>;
+  roles: RoleRecord[];
+  staff: StaffAccessRecord[];
+  staffInvites: StaffInviteRecord[];
+  staffAudit: StaffAuditRecord[];
+  latestInviteToken?: string;
+  accessDevices: AccessDeviceRecord[];
+  accessRules: AccessRuleRecord[];
+  accessEvents: AccessEventRecord[];
+  latestAccessApiKey?: string;
+  latestAccessDecision?: AccessDeviceEventResponse;
+  stripeAccount?: StripePaymentAccountRecord;
+  stripePayments: StripePaymentRecord[];
+  latestStripeOnboardingUrl?: string;
+  notifications: NotificationRecord[];
+  contractWaiverDocuments: ContractWaiverDocumentRecord[];
+  twoFactorLogin?: { email: string; password: string };
+  twoFactorSetup?: TwoFactorSetupResponse;
+  twoFactorRecoveryCodes: string[];
   publicSlug: string;
   publicGym: GymRecord | null;
   publicPlans: PlanRecord[];
   publicSchedule: PublicSessionRecord[];
   selectedPlanId: string;
-  theme: ThemeName;
-  settingsSection: SettingsSectionKey;
-  roles: RoleRecord[];
-  selectedRoleId: string;
   banner?: { tone: BannerTone; text: string };
+  createdGym?: GymRecord;
   publicSuccess?: string;
   // Dashboard sub-views
-  dashboardView:
-    | "home"
-    | "customers"
-    | "customer_profile"
-    | "customer_edit"
-    | "leads"
-    | "staff"
-    | "pos"
-    | "marketing"
-    | "reports"
-    | "settings"
-    | "check_in"
-    | "check_in_history";
+  dashboardView: "home" | "plans" | "members" | "member_profile" | "locations" | "classes" | "staff" | "security" | "access" | "payments" | "notifications" | "contracts" | "check_in" | "check_in_history" | "member_search";
   selectedMemberId?: string;
-  editingMemberId?: string;
+  selectedClassSessionId: string;
+  memberSearchQuery: string;
   checkInBarcode: string;
+  selectedCheckInLocationId: string;
   checkInResult?: CheckInRecord;
-  checkInReview?: {
-    memberId?: string;
-    memberName: string;
-    profileImageUrl?: string;
-    status: "allowed" | "denied";
-    deniedReason?: string;
-    locationId: string;
-    payload: CheckInPayload;
-  };
-  checkInDebug?: {
-    title: string;
-    message: string;
-    details: string[];
-  };
   checkInHistory: CheckInRecord[];
-  memberCache: Record<string, { memberships: MemberMembershipRecord[]; checkIns: CheckInRecord[] }>;
-  memberDesk: MemberDeskStore;
 }
 
-const initialRoute = readRoute();
 const app = document.querySelector<HTMLDivElement>("#app");
 
 if (!app) {
@@ -327,35 +506,43 @@ if (!app) {
 }
 
 const state: AppState = {
-  view: initialRoute.view,
+  view: readView(),
   apiHealthy: null,
   dashboardLoading: false,
   publicLoading: false,
   session: loadSession(),
   me: null,
   gym: null,
-  locations: [],
-  selectedLocationId: "",
   platformGyms: [],
   members: [],
-  staff: [],
   plans: [],
+  locations: [],
+  classTypes: [],
+  classSessions: [],
+  classBookings: {},
+  memberMemberships: {},
+  roles: [],
+  staff: [],
+  staffInvites: [],
+  staffAudit: [],
+  accessDevices: [],
+  accessRules: [],
+  accessEvents: [],
+  stripePayments: [],
+  notifications: [],
+  contractWaiverDocuments: [],
+  twoFactorRecoveryCodes: [],
   publicSlug: loadPublicSlug(),
   publicGym: null,
   publicPlans: [],
   publicSchedule: [],
   selectedPlanId: "",
-  theme: loadTheme(),
-  settingsSection: initialRoute.settingsSection ?? "setup",
-  roles: [],
-  selectedRoleId: "",
-  dashboardView: initialRoute.dashboardView,
+  dashboardView: "home",
+  selectedClassSessionId: "",
+  memberSearchQuery: "",
   checkInBarcode: "",
+  selectedCheckInLocationId: "",
   checkInHistory: [],
-  checkInDebug: undefined,
-  checkInReview: undefined,
-  memberCache: {},
-  memberDesk: loadMemberDeskStore(),
 };
 
 const tokenStore: ApiTokenStore = {
@@ -382,11 +569,9 @@ const client = new GymApiClient({
 });
 
 window.addEventListener("hashchange", () => {
-  syncRouteFromHash();
+  state.view = readView();
   render();
 });
-
-applyTheme();
 
 void initialize();
 
@@ -405,7 +590,6 @@ async function initialize() {
   }
 
   render();
-  ensureDashboardRouteHash();
   await checkApiHealth();
   if (state.session) {
     await refreshDashboard();
@@ -438,57 +622,109 @@ async function refreshDashboard() {
     state.me = me;
     state.gym = me.activeGym ?? me.memberships[0]?.gym ?? null;
     if (state.gym) {
-      const [members, plans, locations, checkIns] = (await Promise.all([
+      const scheduleFrom = new Date();
+      const scheduleTo = new Date(scheduleFrom);
+      scheduleTo.setUTCDate(scheduleTo.getUTCDate() + 30);
+      const [
+        members,
+        plans,
+        locations,
+        classTypes,
+        classSessions,
+        roles,
+        staff,
+        staffInvites,
+        staffAudit,
+        accessDevices,
+        accessRules,
+        accessEvents,
+        stripeAccount,
+        stripePayments,
+        notifications,
+        contractWaiverDocuments
+      ] = (await Promise.all([
         client.listMembers(state.gym.id) as Promise<MemberListResponse>,
         client.listMembershipPlans(state.gym.id) as Promise<PlanListResponse>,
         client.listLocations(state.gym.id) as Promise<LocationListResponse>,
-        client.listCheckIns(state.gym.id) as Promise<{ checkIns?: CheckInRecord[] } | CheckInRecord[]>
-      ])) as [MemberListResponse, PlanListResponse, LocationListResponse, { checkIns?: CheckInRecord[] } | CheckInRecord[]];
+        client.listClassTypes(state.gym.id) as Promise<ClassTypeListResponse>,
+        client.publicSchedule(
+          state.gym.slug,
+          scheduleFrom.toISOString(),
+          scheduleTo.toISOString()
+        ) as Promise<PublicSessionRecord[]>,
+        client.listRoles(state.gym.id) as Promise<RoleListResponse>,
+        client.listStaff(state.gym.id) as Promise<StaffListResponse>,
+        client.listStaffInvites(state.gym.id) as Promise<StaffInviteListResponse>,
+        client.listStaffAuditLogs(state.gym.id) as Promise<StaffAuditListResponse>,
+        client.listAccessDevices(state.gym.id) as Promise<AccessDeviceListResponse>,
+        client.listAccessRules(state.gym.id) as Promise<AccessRuleListResponse>,
+        client.listAccessEvents(state.gym.id) as Promise<AccessEventListResponse>,
+        client.getStripePaymentAccount(state.gym.id) as Promise<StripePaymentAccountResponse>,
+        client.listPayments(state.gym.id) as Promise<StripePaymentListResponse>,
+        client.listNotifications(state.gym.id) as Promise<NotificationListResponse>,
+        client.listContractWaiverDocuments(state.gym.id) as Promise<ContractWaiverDocumentListResponse>
+      ])) as [
+        MemberListResponse,
+        PlanListResponse,
+        LocationListResponse,
+        ClassTypeListResponse,
+        PublicSessionRecord[],
+        RoleListResponse,
+        StaffListResponse,
+        StaffInviteListResponse,
+        StaffAuditListResponse,
+        AccessDeviceListResponse,
+        AccessRuleListResponse,
+        AccessEventListResponse,
+        StripePaymentAccountResponse,
+        StripePaymentListResponse,
+        NotificationListResponse,
+        ContractWaiverDocumentListResponse
+      ];
       state.members = members.members;
       state.plans = plans.plans;
       state.locations = locations.locations;
-      if (!state.selectedLocationId || !state.locations.some((location) => location.id === state.selectedLocationId)) {
-        state.selectedLocationId = state.locations[0]?.id ?? "";
+      state.classTypes = classTypes.classTypes;
+      state.classSessions = classSessions;
+      state.roles = roles.roles;
+      state.staff = staff.staff;
+      state.staffInvites = staffInvites.invites;
+      state.staffAudit = staffAudit.entries;
+      state.accessDevices = accessDevices.devices;
+      state.accessRules = accessRules.rules;
+      state.accessEvents = accessEvents.events;
+      state.stripeAccount = stripeAccount.account;
+      state.stripePayments = stripePayments.payments;
+      state.notifications = notifications.notifications;
+      state.contractWaiverDocuments = contractWaiverDocuments.documents;
+      if (!state.selectedCheckInLocationId || !state.locations.some((location) => location.id === state.selectedCheckInLocationId)) {
+        state.selectedCheckInLocationId = state.locations[0]?.id ?? "";
       }
-      const cachedMembers = members.members
-        .slice()
-        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-        .slice(0, 6);
-      state.memberCache = Object.fromEntries(
+      if (!state.selectedClassSessionId || !state.classSessions.some((session) => session.id === state.selectedClassSessionId)) {
+        state.selectedClassSessionId = state.classSessions[0]?.id ?? "";
+      }
+      state.classBookings = Object.fromEntries(
         await Promise.all(
-          cachedMembers.map(async (member) => {
-            try {
-              const [membershipResponse, checkInsResponse] = await Promise.all([
-                client.listMemberMemberships(state.gym!.id, member.id) as Promise<{ memberships?: MemberMembershipRecord[] } | MemberMembershipRecord[]>,
-                client.listMemberCheckIns(state.gym!.id, member.id) as Promise<{ checkIns?: CheckInRecord[] } | CheckInRecord[]>
-              ]);
-              const memberships = Array.isArray(membershipResponse)
-                ? membershipResponse
-                : membershipResponse.memberships ?? [];
-              const checkIns = Array.isArray(checkInsResponse)
-                ? checkInsResponse
-                : checkInsResponse.checkIns ?? [];
-              return [member.id, { memberships, checkIns }];
-            } catch {
-              return [member.id, { memberships: [], checkIns: [] }];
-            }
+          state.classSessions.map(async (session) => {
+            const bookings = (await client.listClassBookings(
+              state.gym?.id ?? "",
+              session.id
+            )) as ClassBookingListResponse;
+            return [session.id, bookings.bookings] as const;
           })
         )
       );
-      const checkInRecords = Array.isArray(checkIns) ? checkIns : checkIns.checkIns ?? [];
-      state.checkInHistory = mergeCheckInHistory(checkInRecords);
-      try {
-        const rolesResponse = (await client.listRoles(state.gym.id)) as { roles?: RoleRecord[] } | RoleRecord[];
-        state.roles = Array.isArray(rolesResponse) ? rolesResponse : rolesResponse.roles ?? [];
-        if (!state.selectedRoleId || !state.roles.some((role) => role.id === state.selectedRoleId)) {
-          state.selectedRoleId = state.roles[0]?.id ?? "";
-        }
-        const staffResponse = (await client.listStaff(state.gym.id)) as { staff?: StaffRecord[] };
-        state.staff = staffResponse.staff ?? [];
-      } catch {
-        state.roles = [];
-        state.staff = [];
-      }
+      state.memberMemberships = Object.fromEntries(
+        await Promise.all(
+          state.members.map(async (member) => {
+            const memberships = (await client.listMemberMemberships(
+              state.gym?.id ?? "",
+              member.id
+            )) as MemberMembershipListResponse;
+            return [member.id, memberships.memberships] as const;
+          })
+        )
+      );
       if (!state.publicSlug) {
         state.publicSlug = state.gym.slug;
         localStorage.setItem(PUBLIC_SLUG_STORAGE_KEY, state.publicSlug);
@@ -500,12 +736,29 @@ async function refreshDashboard() {
         state.platformGyms = gymsData.gyms || [];
       }
       state.members = [];
-      state.roles = [];
-      state.staff = [];
       state.plans = [];
       state.locations = [];
-      state.selectedLocationId = "";
-      state.memberCache = {};
+      state.classTypes = [];
+      state.classSessions = [];
+      state.classBookings = {};
+      state.memberMemberships = {};
+      state.roles = [];
+      state.staff = [];
+      state.staffInvites = [];
+      state.staffAudit = [];
+      state.latestInviteToken = undefined;
+      state.accessDevices = [];
+      state.accessRules = [];
+      state.accessEvents = [];
+      state.latestAccessApiKey = undefined;
+      state.latestAccessDecision = undefined;
+      state.stripeAccount = undefined;
+      state.stripePayments = [];
+      state.latestStripeOnboardingUrl = undefined;
+      state.notifications = [];
+      state.contractWaiverDocuments = [];
+      state.selectedCheckInLocationId = "";
+      state.selectedClassSessionId = "";
     }
     if (state.publicSlug) {
       await refreshPublic(state.publicSlug, false);
@@ -566,7 +819,6 @@ async function refreshPublic(slug: string, shouldRender = true) {
 }
 
 function render() {
-  applyTheme();
   const publicPlanPage = state.publicGym
     ? buildPublicPlansPage({
         plans: state.publicPlans,
@@ -597,17 +849,17 @@ function render() {
       })
     : undefined;
   app.innerHTML = `
-    ${state.view === "dashboard"
-      ? renderDashboard()
-      : `
-        <div class="shell shell-public">
-          <main class="layout layout-public">
-            <section class="panel primary">
-              ${renderPublic(publicPlanPage, publicSignupPage, publicSchedulePage)}
-            </section>
-          </main>
-        </div>
-      `}
+    <div class="shell" style="background:#09090b; color:#e5e5e5; min-height:100vh;">
+
+      <main class="layout" style="padding: 2rem; max-width: 1200px; margin: 0 auto;">
+        <section class="panel primary" style="width:100%;">
+          ${renderBanner()}
+          ${state.view === "dashboard"
+            ? renderDashboard()
+            : renderPublic(publicPlanPage, publicSignupPage, publicSchedulePage)}
+        </section>
+      </main>
+    </div>
   `;
   bindEvents();
 }
@@ -626,7 +878,7 @@ function renderDashboard() {
   if (!state.session || !state.me) {
     const gymNameTitle = state.publicGym ? state.publicGym.name : gymSlugMatch;
     const logoHtml = state.publicGym?.logoUrl
-      ? `<img src="${escapeAttribute(state.publicGym.logoUrl)}" alt="${escapeAttribute(state.publicGym.name)} logo" style="max-height: 48px; margin-bottom: 0.5rem; display: block;" />`
+      ? `<img src="${state.publicGym.logoUrl}" alt="${state.publicGym.name} logo" style="max-height: 48px; margin-bottom: 0.5rem; display: block;" />`
       : '';
 
     return `
@@ -642,6 +894,25 @@ function renderDashboard() {
           ${renderInput("email", "Email", "email")}
           ${renderInput("password", "Password", "password")}
           <button type="submit">Log in</button>
+        </form>
+        ${
+          state.twoFactorLogin
+            ? `<form id="two-factor-login-form" class="form-card">
+                <h3>Two-factor code</h3>
+                <p class="muted">Enter a six-digit authenticator code or a recovery code.</p>
+                ${renderInput("twoFactorCode", "Authenticator code")}
+                ${renderInput("recoveryCode", "Recovery code")}
+                <button type="submit">Verify login</button>
+              </form>`
+            : ""
+        }
+        <form id="accept-staff-invite-form" class="form-card">
+          <h3>Accept staff invite</h3>
+          ${renderInput("token", "Invite token")}
+          ${renderInput("firstName", "First name")}
+          ${renderInput("lastName", "Last name")}
+          ${renderInput("password", "Password", "password")}
+          <button type="submit">Accept invite</button>
         </form>
       </div>
     `;
@@ -660,34 +931,63 @@ function renderDashboard() {
     `;
   }
 
+  // Navigation tabs
+  const tabs = `
+    <nav style="display:flex;gap:8px;margin-bottom:1.5rem;flex-wrap:wrap;">
+      <button class="tab-btn ${state.dashboardView === 'home' ? 'active' : ''}" data-dashboard-view="home">Dashboard</button>
+      <button class="tab-btn ${state.dashboardView === 'plans' ? 'active' : ''}" data-dashboard-view="plans">Plans</button>
+      <button class="tab-btn ${state.dashboardView === 'members' ? 'active' : ''}" data-dashboard-view="members">Members</button>
+      <button class="tab-btn ${state.dashboardView === 'locations' ? 'active' : ''}" data-dashboard-view="locations">Locations</button>
+      <button class="tab-btn ${state.dashboardView === 'classes' ? 'active' : ''}" data-dashboard-view="classes">Classes</button>
+      <button class="tab-btn ${state.dashboardView === 'staff' ? 'active' : ''}" data-dashboard-view="staff">Staff</button>
+      <button class="tab-btn ${state.dashboardView === 'security' ? 'active' : ''}" data-dashboard-view="security">Security</button>
+      <button class="tab-btn ${state.dashboardView === 'access' ? 'active' : ''}" data-dashboard-view="access">Access</button>
+      <button class="tab-btn ${state.dashboardView === 'payments' ? 'active' : ''}" data-dashboard-view="payments">Payments</button>
+      <button class="tab-btn ${state.dashboardView === 'notifications' ? 'active' : ''}" data-dashboard-view="notifications">Notifications</button>
+      <button class="tab-btn ${state.dashboardView === 'contracts' ? 'active' : ''}" data-dashboard-view="contracts">Contracts</button>
+      <button class="tab-btn ${state.dashboardView === 'member_search' ? 'active' : ''}" data-dashboard-view="member_search">Search</button>
+      <button class="tab-btn ${state.dashboardView === 'check_in' ? 'active' : ''}" data-dashboard-view="check_in">Check-In</button>
+      <button class="tab-btn ${state.dashboardView === 'check_in_history' ? 'active' : ''}" data-dashboard-view="check_in_history">History</button>
+    </nav>
+  `;
+
   let content = '';
   switch (state.dashboardView) {
-    case 'customers':
-      content = renderCustomersView();
+    case 'members':
+      content = renderMembersView();
       break;
-    case 'customer_profile':
-      content = renderCustomerProfileView();
+    case 'plans':
+      content = renderPlansView();
       break;
-    case 'customer_edit':
-      content = renderCustomerEditView();
+    case 'member_profile':
+      content = renderMemberProfileView();
       break;
-    case 'leads':
-      content = renderLeadsView();
+    case 'locations':
+      content = renderLocationsView();
+      break;
+    case 'classes':
+      content = renderClassesView();
       break;
     case 'staff':
       content = renderStaffView();
       break;
-    case 'pos':
-      content = renderPosView();
+    case 'security':
+      content = renderSecurityView();
       break;
-    case 'marketing':
-      content = renderMarketingView();
+    case 'access':
+      content = renderAccessView();
       break;
-    case 'reports':
-      content = renderReportsView();
+    case 'payments':
+      content = renderPaymentsView();
       break;
-    case 'settings':
-      content = renderSettingsView();
+    case 'notifications':
+      content = renderNotificationsView();
+      break;
+    case 'contracts':
+      content = renderContractsView();
+      break;
+    case 'member_search':
+      content = renderMemberSearchView();
       break;
     case 'check_in':
       content = renderCheckInView();
@@ -700,1662 +1000,1053 @@ function renderDashboard() {
   }
 
   return `
-    <div class="club-shell">
-      <header class="club-topbar">
-        <div class="club-brand">
-          <div class="club-mark">
-            ${state.gym.logoUrl
-              ? `<img src="${escapeAttribute(state.gym.logoUrl)}" alt="${escapeAttribute(state.gym.name)} logo" />`
-              : `<span>${state.gym.name.slice(0, 2).toUpperCase()}</span>`}
-          </div>
-          <div class="club-brand-copy">
-            <strong>${state.gym.name}</strong>
-            <span>${state.gym.slug}</span>
-          </div>
-        </div>
-        <div class="club-topbar-actions">
-          <div class="theme-pill">${state.theme === "dark" ? "Dark mode" : "Light mode"}</div>
-          <button type="button" class="icon-pill" aria-label="Notifications">N</button>
-          <button type="button" class="icon-pill" aria-label="Settings" data-dashboard-view="settings">S</button>
-          <button type="button" class="icon-pill" aria-label="Help">?</button>
-          <div class="club-user">
-            <div class="club-avatar">${userInitials()}</div>
-            <div class="club-user-copy">
-              <strong>${state.me?.user.firstName ?? "User"} ${state.me?.user.lastName ?? ""}</strong>
-              <span>${currentMembership()?.role?.name ?? "Staff"}</span>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <nav class="club-tabs">
-        ${dashboardTab("home", "Club Home")}
-        ${dashboardTab("check_in", "Check In")}
-        ${dashboardTab("customers", "Customers")}
-        ${dashboardTab("leads", "Leads")}
-        ${dashboardTab("staff", "Staff")}
-        ${dashboardTab("pos", "Point Of Sale")}
-        ${dashboardTab("marketing", "Marketing")}
-        ${dashboardTab("reports", "Reporting")}
-        ${dashboardTab("settings", "Settings")}
-      </nav>
-
-      <div class="club-workspace">
-        <main class="club-main">
-          ${content}
-        </main>
-        <aside class="club-rail">
-          ${renderCheckInRail()}
-        </aside>
+    <div class="section-head" style="display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <p class="eyebrow">${state.gym.name}</p>
+        <h2 style="font-size:1.5rem;">${state.gym.slug}</h2>
       </div>
+      <button id="logout-button" class="ghost-button" type="button">Log out</button>
     </div>
-    ${state.checkInReview ? renderCheckInReviewModal(state.checkInReview) : ""}
-  `;
-}
-
-function dashboardTab(key: AppState["dashboardView"], label: string) {
-  const active = dashboardTopLevelView(state.dashboardView) === key ? " active" : "";
-  return `<a href="${dashboardViewToHash(key)}" class="club-tab${active}" data-dashboard-view="${key}"${active ? ' aria-current="page"' : ""}>${label}</a>`;
-}
-
-function userInitials() {
-  const user = state.me?.user;
-  if (!user) {
-    return "U";
-  }
-  return `${user.firstName?.trim().charAt(0) ?? ""}${user.lastName?.trim().charAt(0) ?? ""}`.toUpperCase() || "U";
-}
-
-function renderCheckInRail() {
-  const totalCustomers = state.members.length;
-  const activeCustomers = state.members.filter((member) => member.status === MemberStatus.Active).length;
-  const occupancy = totalCustomers > 0 ? Math.min(100, Math.max(10, Math.round((activeCustomers / totalCustomers) * 100))) : 0;
-  const hasLocation = Boolean(state.selectedLocationId || state.locations[0]?.id);
-  const recentCheckIns = [...state.checkInHistory]
-    .sort((left, right) => Date.parse(right.checkedInAt) - Date.parse(left.checkedInAt));
-
-  return `
-    <section class="rail-card rail-check-in">
-      <div class="rail-head">
-        <h3>Club Check In</h3>
-        <p>Search by last name or barcode</p>
-      </div>
-      <form id="quick-check-in-form" class="rail-search">
-        <input name="barcode" type="text" placeholder="Enter last name or barcode" value="${escapeAttribute(state.checkInBarcode)}" ${hasLocation ? "" : "disabled"} />
-      </form>
-      ${state.checkInDebug ? renderCheckInDebugPanel(state.checkInDebug) : ""}
-      ${!hasLocation
-        ? `<div class="checkin-debug"><strong>Location setup needed</strong><p>Create or reactivate a gym location before check-ins can be submitted.</p><ul><li>Check-in requires a valid location id.</li><li>Once a location exists, this rail will start submitting check-ins again.</li></ul></div>`
-        : ""}
-      <div class="rail-meter">
-        <div class="rail-meter-row">
-          <span>Occupancy</span>
-          <strong>${activeCustomers} of ${totalCustomers || 0}</strong>
-        </div>
-        <div class="rail-progress"><div style="width:${occupancy}%"></div></div>
-      </div>
-      <div class="rail-list">
-        ${recentCheckIns.length === 0
-          ? `<p class="muted">No check-ins yet.</p>`
-          : recentCheckIns.map((checkIn) => renderRailCheckInCard(checkIn)).join("")}
-      </div>
-    </section>
-  `;
-}
-
-function renderRailCheckInCard(checkIn: CheckInRecord) {
-  const member = state.members.find((candidate) => candidate.id === checkIn.memberId);
-  const summary = member ? buildRailMemberSummary(member) : undefined;
-  const statusClass = checkIn.status === "allowed" ? " rail-person-ok" : " rail-person-issue-alert";
-  const displayName = checkIn.memberName ?? `${member?.firstName ?? "Customer"} ${member?.lastName ?? ""}`.trim();
-  const isDuplicate = state.checkInHistory.filter(
-    (entry) => entry.memberId === checkIn.memberId && isSameDay(new Date(entry.checkedInAt), new Date(checkIn.checkedInAt))
-  ).length > 1;
-  return `
-    <button type="button" class="rail-person rail-person-button${statusClass}" data-check-in-record-id="${checkIn.id}" data-check-in-member-id="${checkIn.memberId}">
-      <div class="rail-person-photo">
-        <div class="rail-person-avatar rail-person-avatar-large">
-          ${member?.profileImageUrl
-            ? `<img src="${escapeAttribute(member.profileImageUrl)}" alt="${escapeAttribute(displayName)}" />`
-            : `<span>${initialsFromDisplayName(displayName)}</span>`}
-        </div>
-      </div>
-      <div class="rail-person-body">
-        <div class="rail-person-copy">
-          <strong>${displayName}</strong>
-          <div class="rail-person-badges">
-            ${summary ? `<span class="rail-person-plan-tag">${summary.planLabel}</span>` : ""}
-            ${checkIn.status === "denied" ? `<span class="rail-person-blocked-tag">Blocked</span>` : ""}
-            ${isDuplicate ? `<span class="rail-person-duplicate-tag">Already checked in</span>` : ""}
-          </div>
-        </div>
-        <div class="rail-person-details">
-          <span>${formatRelativeDate(new Date(checkIn.checkedInAt))}</span>
-          <span class="${checkIn.status === "allowed" ? "rail-person-issue-tag" : "rail-person-issue-alert-text"}">
-            ${checkIn.status === "allowed" ? "Checked in" : (checkIn.deniedReason ?? "Denied")}
-          </span>
-        </div>
-      </div>
-    </button>
+    ${tabs}
+    ${content}
   `;
 }
 
 function renderDashboardHome() {
-  const leadCount = state.members.filter((member) => member.status === MemberStatus.Lead).length;
-  const activeCount = state.members.filter((member) => member.status === MemberStatus.Active).length;
-  const spotlight = selectedMember() ?? state.members[0];
-  const recentMembers = [...state.members]
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-    .slice(0, 4);
-  const planCards = state.plans.slice(0, 6);
   return `
-    <div class="club-home-grid">
-      <section class="club-panel club-customers">
-        <div class="card-head">
-          <div>
-            <p class="eyebrow">Customers</p>
-            <h2>${state.gym?.name ?? "Customer Cards"}</h2>
-          </div>
-          <span class="club-kicker">${state.members.length} total · ${activeCount} active · ${leadCount} leads</span>
-        </div>
-        ${spotlight ? `
-          <article class="club-focus-card">
-            <div class="club-focus-photo">
-              ${spotlight.profileImageUrl
-                ? `<img src="${escapeAttribute(spotlight.profileImageUrl)}" alt="${escapeAttribute(`${spotlight.firstName} ${spotlight.lastName}`.trim())}" />`
-                : customerInitials(spotlight)}
-            </div>
-            <div class="club-focus-copy">
-              <p class="eyebrow">Selected</p>
-              <h3>${spotlight.firstName} ${spotlight.lastName}</h3>
-              <p>${spotlight.status}</p>
-              <div class="club-mini-nav">
-                <button type="button" class="ghost-button" data-dashboard-view="customer_profile" data-preserve-context="true">Open Profile</button>
-                <button type="button" class="ghost-button" data-dashboard-view="customer_edit" data-preserve-context="true">Edit Customer</button>
-              </div>
-            </div>
-          </article>
-        ` : `
-          <div class="empty-state"><p>Tap a customer from the check-in list to load their card here.</p></div>
-        `}
-        <div class="club-customer-grid">
-          ${recentMembers.length === 0
-            ? `<div class="empty-state"><p>No customer cards available.</p></div>`
-            : recentMembers.map((member) => `
-                <button type="button" class="club-customer-card" data-action="view-member" data-member-id="${member.id}">
-                  <div class="club-customer-avatar">
-                    ${member.profileImageUrl
-                      ? `<img src="${escapeAttribute(member.profileImageUrl)}" alt="${escapeAttribute(`${member.firstName} ${member.lastName}`.trim())}" />`
-                      : customerInitials(member)}
-                  </div>
-                  <strong>${member.firstName} ${member.lastName}</strong>
-                  <span>${member.status}</span>
-                </button>
-              `).join("")}
-        </div>
-      </section>
-
-      <section class="club-panel club-promo">
-        <div class="card-head">
-          <div>
-            <p class="eyebrow">Notice</p>
-            <h2>New Promotion</h2>
-          </div>
-          <span class="club-kicker">Operations</span>
-        </div>
-        <p class="club-copy">Use the top navigation to jump between customers, leads, staff, POS, marketing, and reporting. Edit a customer from the profile view and adjust barcodes or profile pictures at any time.</p>
-        <div class="club-mini-nav">
-          <button type="button" class="ghost-button" data-dashboard-view="customers">Open Customers</button>
-          <button type="button" class="ghost-button" data-dashboard-view="pos">Open POS</button>
-        </div>
-      </section>
-
-      <section class="club-panel club-events">
-        <div class="card-head">
-          <div>
-            <p class="eyebrow">Upcoming Events</p>
-            <h2>Member Actions</h2>
-          </div>
-        </div>
-        <div class="club-events-list">
-          ${recentMembers.length === 0
-            ? `<div class="empty-state"><p>No customer activity yet.</p></div>`
-            : recentMembers.map((member) => `
-                <article class="club-event">
-                  <div class="club-event-avatar">
-                    ${member.profileImageUrl
-                      ? `<img src="${escapeAttribute(member.profileImageUrl)}" alt="${escapeAttribute(`${member.firstName} ${member.lastName}`.trim())}" />`
-                      : customerInitials(member)}
-                  </div>
-                  <div>
-                    <strong>${member.firstName} ${member.lastName}</strong>
-                    <p>${member.status}${member.barcode ? ` · ${member.barcode}` : ""}</p>
-                  </div>
-                </article>
-              `).join("")}
-        </div>
-      </section>
-
-      <section class="club-panel club-pos">
-        <div class="card-head">
-          <div>
-            <p class="eyebrow">Point Of Sale</p>
-            <h2>Membership Products</h2>
-          </div>
-        </div>
-        <div class="club-product-grid">
-          ${planCards.length === 0
-            ? `<div class="empty-state"><p>No public plans yet.</p></div>`
-            : planCards.map((plan) => `
-                <article class="club-product">
-                  <div class="club-product-art"></div>
-                  <strong>${plan.name}</strong>
-                  <span>${formatCurrency(plan.priceCents)}</span>
-                </article>
-              `).join("")}
-        </div>
-      </section>
-
-      <section class="club-panel club-spotlight">
-        <div class="card-head">
-          <div>
-            <p class="eyebrow">Spotlight Member</p>
-            <h2>${spotlight ? `${spotlight.firstName} ${spotlight.lastName}` : "No customer selected"}</h2>
-          </div>
-          <button type="button" class="ghost-button" data-dashboard-view="customers" data-preserve-context="true">View Customers</button>
-        </div>
-        ${spotlight ? `
-          <div class="spotlight-card">
-            <div class="spotlight-photo">
-              ${spotlight.profileImageUrl
-                ? `<img src="${escapeAttribute(spotlight.profileImageUrl)}" alt="${escapeAttribute(`${spotlight.firstName} ${spotlight.lastName}`.trim())}" />`
-                : customerInitials(spotlight)}
-            </div>
-            <div class="spotlight-copy">
-              <p><strong>Status:</strong> ${spotlight.status}</p>
-              <p><strong>Barcode:</strong> ${spotlight.barcode || "Not set"}</p>
-              <p><strong>Contact:</strong> ${spotlight.email || spotlight.phone || "No contact info"}</p>
-            </div>
-          </div>
-        ` : `
-          <div class="empty-state"><p>Create a customer to see the spotlight card.</p></div>
-        `}
-      </section>
+    <div class="stat-grid">
+      <article class="mini-card">
+        <span>Members</span>
+        <strong>${state.members.length}</strong>
+        <small>Active roster</small>
+      </article>
+      <article class="mini-card">
+        <span>Plans</span>
+        <strong>${state.plans.length}</strong>
+        <small>Membership offers</small>
+      </article>
+      <article class="mini-card">
+        <span>Locations</span>
+        <strong>${state.locations.length}</strong>
+        <small>Physical sites</small>
+      </article>
+      <article class="mini-card">
+        <span>Classes</span>
+        <strong>${state.classSessions.length}</strong>
+        <small>Upcoming sessions</small>
+      </article>
+      <article class="mini-card">
+        <span>Staff</span>
+        <strong>${state.staff.length}</strong>
+        <small>Active access records</small>
+      </article>
+      <article class="mini-card">
+        <span>Access</span>
+        <strong>${state.accessDevices.length}</strong>
+        <small>Door devices</small>
+      </article>
+      <article class="mini-card">
+        <span>Payments</span>
+        <strong>${state.stripePayments.length}</strong>
+        <small>${formatCents(state.stripePayments.reduce((total, payment) => total + payment.amountCents, 0))}</small>
+      </article>
+      <article class="mini-card">
+        <span>Notifications</span>
+        <strong>${state.notifications.filter((notification) => notification.status === "pending").length}</strong>
+        <small>Pending delivery</small>
+      </article>
+      <article class="mini-card">
+        <span>Contracts</span>
+        <strong>${state.contractWaiverDocuments.filter((document) => !document.archivedAt).length}</strong>
+        <small>Active documents</small>
+      </article>
+      <article class="mini-card">
+        <span>Gym slug</span>
+        <strong>${state.gym?.slug ?? ''}</strong>
+        <small>Public site handle</small>
+      </article>
     </div>
-  `;
-}
-
-function renderCustomersView() {
-  const recentMembers = [...state.members]
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-    .slice(0, 6);
-  const spotlight = selectedMember() ?? recentMembers[0];
-  return `
-    <section class="club-panel club-page">
-      <div class="card-head">
-        <div>
-          <p class="eyebrow">Customers</p>
-          <h2>Customer Cards</h2>
-        </div>
-        <span class="club-kicker">${state.members.length} total</span>
-      </div>
-      <div class="club-page-split">
-        <div class="club-customer-grid">
-          ${recentMembers.length === 0
-            ? `<div class="empty-state"><p>No customers yet.</p></div>`
-            : recentMembers.map((member) => `
-                <button type="button" class="club-customer-card" data-action="view-member" data-member-id="${member.id}">
-                  <div class="club-customer-avatar">
-                    ${member.profileImageUrl
-                      ? `<img src="${escapeAttribute(member.profileImageUrl)}" alt="${escapeAttribute(`${member.firstName} ${member.lastName}`.trim())}" />`
-                      : customerInitials(member)}
-                  </div>
-                  <strong>${member.firstName} ${member.lastName}</strong>
-                  <span>${member.status}</span>
-                </button>
-              `).join("")}
-        </div>
-        <div class="club-panel club-focus-panel">
-          ${spotlight
-            ? `
-              <div class="club-focus-card compact">
-                <div class="club-focus-photo">
-                  ${spotlight.profileImageUrl
-                    ? `<img src="${escapeAttribute(spotlight.profileImageUrl)}" alt="${escapeAttribute(`${spotlight.firstName} ${spotlight.lastName}`.trim())}" />`
-                    : customerInitials(spotlight)}
-                </div>
-                <div class="club-focus-copy">
-                  <p class="eyebrow">Selected</p>
-                  <h3>${spotlight.firstName} ${spotlight.lastName}</h3>
-                  <p>${spotlight.status}</p>
-                  <div class="club-mini-nav">
-                    <button type="button" class="ghost-button" data-dashboard-view="customer_profile" data-preserve-context="true">Open Profile</button>
-                    <button type="button" class="ghost-button" data-dashboard-view="customer_edit" data-preserve-context="true">Edit Customer</button>
-                  </div>
-                </div>
-              </div>
-            `
-            : `<div class="empty-state"><p>Select a customer to see details.</p></div>`}
-        </div>
-      </div>
+    <div class="two-up">
+      <form id="create-plan-form" class="form-card">
+        <h3>Create public plan</h3>
+        ${renderInput("name", "Plan name")}
+        ${renderInput("description", "Description")}
+        ${renderInput("price", "Monthly price", "number", "49")}
+        ${renderInput("signupFee", "Signup fee", "number", "0")}
+        ${renderSelect("billingInterval", "Billing interval",
+          Object.values(BillingInterval).map(v => ({ value: v, label: v.replace("_", " ") })),
+          BillingInterval.Monthly
+        )}
+        ${renderInput("trialDays", "Trial days", "number", "0")}
+        ${renderInput("contractLengthMonths", "Contract months", "number", "0")}
+        ${renderInput("classAccessLimit", "Class access limit", "number")}
+        <button type="submit">Create plan</button>
+      </form>
+      <form id="create-member-form" class="form-card">
+        <h3>Create member</h3>
+        ${renderInput("firstName", "First name")}
+        ${renderInput("lastName", "Last name")}
+        ${renderInput("email", "Email", "email")}
+        ${renderInput("phone", "Phone", "tel")}
+        ${renderInput("barcode", "Barcode")}
+        ${renderInput("profileImageUrl", "Profile image URL", "url")}
+        <button type="submit">Create member</button>
+      </form>
+    </div>
+    <section class="data-card" style="margin-top:1rem;">
+      <div class="card-head"><h3>Members</h3></div>
+      ${renderMembersTable(
+        buildMemberListPage({ members: state.members, permissions: currentPermissions() })
+      )}
     </section>
   `;
 }
 
-function renderCustomerProfileView() {
-  const member = selectedMember();
+function renderPlansView() {
+  const editablePlan = state.plans[0];
+  return `
+    <div class="two-up">
+      <form id="create-plan-form" class="form-card">
+        <h3>Create membership plan</h3>
+        ${renderInput("name", "Plan name")}
+        ${renderInput("description", "Description")}
+        ${renderInput("price", "Price", "number", "49")}
+        ${renderInput("signupFee", "Signup fee", "number", "0")}
+        ${renderSelect("billingInterval", "Billing interval",
+          Object.values(BillingInterval).map(v => ({ value: v, label: v.replace("_", " ") })),
+          BillingInterval.Monthly
+        )}
+        ${renderInput("trialDays", "Trial days", "number", "0")}
+        ${renderInput("contractLengthMonths", "Contract months", "number", "0")}
+        ${renderInput("classAccessLimit", "Class access limit", "number")}
+        ${renderSelect("autoRenew", "Auto renew", [{ value: "true", label: "Yes" }, { value: "false", label: "No" }], "true")}
+        ${renderSelect("isPublic", "Public signup", [{ value: "true", label: "Visible" }, { value: "false", label: "Hidden" }], "true")}
+        <button type="submit">Create plan</button>
+      </form>
+
+      <form id="update-plan-form" class="form-card">
+        <h3>Update plan</h3>
+        ${
+          state.plans.length === 0
+            ? `<p class="muted">Create a plan before updating one.</p>`
+            : renderSelect("planId", "Plan", state.plans.map((plan) => ({ value: plan.id, label: plan.name })), editablePlan?.id ?? "")
+        }
+        ${renderInput("name", "New name")}
+        ${renderInput("description", "New description")}
+        ${renderInput("price", "New price", "number")}
+        ${renderInput("signupFee", "New signup fee", "number")}
+        ${renderSelect("billingInterval", "Billing interval", [{ value: "", label: "No change" }, ...Object.values(BillingInterval).map(v => ({ value: v, label: v.replace("_", " ") }))], "")}
+        ${renderInput("trialDays", "Trial days", "number")}
+        ${renderInput("contractLengthMonths", "Contract months", "number")}
+        ${renderInput("classAccessLimit", "Class access limit", "number")}
+        ${renderSelect("autoRenew", "Auto renew", [{ value: "", label: "No change" }, { value: "true", label: "Yes" }, { value: "false", label: "No" }], "")}
+        ${renderSelect("isPublic", "Public signup", [{ value: "", label: "No change" }, { value: "true", label: "Visible" }, { value: "false", label: "Hidden" }], "")}
+        <button type="submit" ${state.plans.length === 0 ? "disabled" : ""}>Update plan</button>
+      </form>
+    </div>
+
+    <section class="data-card" style="margin-top:1rem;">
+      <div class="card-head" style="margin-bottom:1rem;">
+        <h3>Membership plans</h3>
+        <span>${state.plans.length} active</span>
+      </div>
+      ${
+        state.plans.length === 0
+          ? `<p class="muted">No plans yet.</p>`
+          : `<div class="card-grid">
+              ${state.plans.map((plan) => `
+                <article class="mini-card">
+                  <span>${escapeHtml(plan.billingInterval.replaceAll("_", " "))}${plan.isPublic ? " - public" : " - hidden"}</span>
+                  <strong>${escapeHtml(plan.name)}</strong>
+                  <small>${formatCents(plan.priceCents)}${plan.signupFeeCents > 0 ? ` + ${formatCents(plan.signupFeeCents)} signup` : ""}</small>
+                  <small style="display:block;">${plan.trialDays} trial days - ${plan.autoRenew ? "auto-renews" : "no auto-renew"} - ${plan.classAccessLimit === undefined ? "unlimited classes" : `${plan.classAccessLimit} classes`}</small>
+                  ${plan.description ? `<small style="display:block;">${escapeHtml(plan.description)}</small>` : ""}
+                  <button type="button" data-action="archive-plan" data-plan-id="${plan.id}" style="margin-top:8px;">Archive plan</button>
+                </article>
+              `).join("")}
+            </div>`
+      }
+    </section>
+  `;
+}
+
+function renderMembersView() {
+  return `
+    <section class="data-card">
+      <div class="card-head" style="display:flex;justify-content:space-between;align-items:center;">
+        <h3>All Members</h3>
+        <span>${state.members.length} total</span>
+      </div>
+      ${renderMembersTable(
+        buildMemberListPage({ members: state.members, permissions: currentPermissions() })
+      )}
+    </section>
+  `;
+}
+
+function renderMemberProfileView() {
+  const member = state.members.find(m => m.id === state.selectedMemberId);
   if (!member) {
-    return `<div class="empty-state"><h3>Customer not found</h3><p>The selected customer could not be found.</p></div>`;
+    return `<div class="empty-state"><h3>Member not found</h3><p>The selected member could not be found.</p></div>`;
   }
-  const summary = buildCheckInMemberSummary(member);
-  const planOptions = state.plans
-    .filter((plan) => plan.status !== "archived")
-    .map((plan) => ({ value: plan.id, label: `${plan.name} · ${formatCurrency(plan.priceCents)}` }));
-  const photoMarkup = member.profileImageUrl
-    ? `<img src="${escapeAttribute(member.profileImageUrl)}" alt="${escapeAttribute(`${member.firstName} ${member.lastName}`.trim() || "Customer")} profile picture" style="width:112px;height:112px;border-radius:28px;object-fit:cover;border:1px solid var(--line);background:#111;" />`
-    : `<div style="width:112px;height:112px;border-radius:28px;display:grid;place-items:center;background:#262626;border:1px solid var(--line);font-weight:700;">${customerInitials(member)}</div>`;
+  const memberships = state.memberMemberships[member.id] ?? [];
+  const activeMembership = memberships.find((membership) => membership.status === MembershipStatus.Active || membership.status === MembershipStatus.Trialing);
+  const profilePhoto = member.profileImageUrl
+    ? `<img src="${escapeAttribute(member.profileImageUrl)}" alt="${escapeAttribute(`${member.firstName} ${member.lastName}`.trim())}" style="width:112px;height:112px;border-radius:28px;object-fit:cover;border:1px solid var(--border);" />`
+    : `<div style="width:112px;height:112px;border-radius:28px;display:grid;place-items:center;background:var(--surface-muted);border:1px solid var(--border);font-size:2rem;font-weight:700;">${escapeHtml(`${member.firstName.charAt(0)}${member.lastName.charAt(0)}`.toUpperCase() || "M")}</div>`;
   return `
     <div style="margin-bottom:1rem;">
-      <button class="tab-btn active" data-dashboard-view="customers" data-preserve-context="true">← Back to Customers</button>
+      <button class="tab-btn active" data-dashboard-view="members">← Back to Members</button>
     </div>
-    <section class="club-panel profile-sheet">
-      <div class="profile-header">
-        <div class="profile-header-main">
-          <div class="profile-avatar">${photoMarkup}</div>
-          <div class="profile-header-copy">
-            <p class="eyebrow">Customer Profile</p>
-            <h2>${member.firstName} ${member.lastName}</h2>
-            <div class="checkin-sheet-badges">
-              <span class="club-note-label">${summary.planLabel}</span>
-              <span class="club-note-label">${summary.statusLabel}</span>
-              ${summary.paidMember ? `<span class="checkin-paid-tag">Paid member</span>` : `<span class="checkin-due-tag">Payment needed</span>`}
-            </div>
-            <div class="checkin-sheet-meta">
-              <span><strong>Amount due:</strong> ${summary.amountDueLabel}</span>
-              <span><strong>Barcode:</strong> ${member.barcode || "Not set"}</span>
-              <span><strong>Profile image:</strong> ${member.profileImageUrl || "Not set"}</span>
-            </div>
-            ${renderLinkedMemberChips(summary)}
-          </div>
-        </div>
-        <div class="club-mini-nav">
-          <button type="button" class="ghost-button" data-customer-action="edit" data-member-id="${member.id}">Edit customer</button>
-          <button type="button" class="ghost-button" data-dashboard-view="check_in" data-preserve-context="true">Open check-in</button>
-          <button type="button" class="ghost-button" data-sheet-view="pos">POS</button>
-        </div>
-      </div>
-
-      <div class="profile-tools-grid">
-        <form id="member-barcode-form" class="form-card compact-form">
-          <input type="hidden" name="memberId" value="${member.id}" />
-          ${renderInput("barcode", "Barcode", "text", member.barcode ?? "")}
-          <button type="submit">Save barcode</button>
-        </form>
-
-        ${planOptions.length === 0
-          ? `<div class="settings-placeholder"><strong>No plans loaded</strong><p>Create a plan before adding a membership.</p></div>`
-          : `
-            <form id="member-add-membership-form" class="form-card compact-form">
-              <input type="hidden" name="memberId" value="${member.id}" />
-              ${renderSelect("planId", "Add membership", planOptions, summary.primaryPlan?.id ?? planOptions[0]?.value ?? "")}
-              ${renderSelect("status", "Membership status", [
-                { value: MembershipStatus.Active, label: "Active" },
-                { value: MembershipStatus.Trialing, label: "Trialing" },
-                { value: MembershipStatus.PastDue, label: "Past due" },
-                { value: MembershipStatus.Frozen, label: "Frozen" },
-                { value: MembershipStatus.Expired, label: "Expired" }
-              ], MembershipStatus.Active)}
-              <button type="submit">Add membership</button>
-            </form>
-          `}
-      </div>
-
-      <div class="profile-grid">
-        <div class="profile-column">
-          <div class="checkin-sheet-section">
-            <div class="card-head">
-              <h3>Billing history / Invoices</h3>
-              <span>${summary.memberships.length}</span>
-            </div>
-            ${renderBillingHistory(member)}
-          </div>
-
-          <div class="checkin-sheet-section">
-            <div class="card-head">
-              <h3>Notes</h3>
-              <button type="button" class="ghost-button" data-dashboard-view="customer_edit" data-preserve-context="true">Edit notes</button>
-            </div>
-            ${member.notes
-              ? `<div class="club-note"><p>${escapeHtml(member.notes)}</p></div>`
-              : `<div class="settings-placeholder"><strong>No notes</strong><p>Add front-desk notes from the customer editor.</p></div>`}
-          </div>
-        </div>
-
-        <div class="profile-column">
-          <div class="checkin-sheet-section">
-            <div class="card-head">
-              <h3>Contacts</h3>
-              <span>${summary.otherMembers.length ? `${summary.otherMembers.length} linked` : "0 linked"}</span>
-            </div>
-            ${renderMemberContacts(member, summary)}
-          </div>
-
-          <div class="checkin-sheet-section">
-            <div class="card-head">
-              <h3>Alerts</h3>
-              <span>Front desk</span>
-            </div>
-            ${renderMemberAlerts(member)}
-          </div>
-
-          <div class="checkin-sheet-section">
-            <div class="card-head">
-              <h3>Forms and signatures</h3>
-              <span>${getMemberSignatures(member.id).length}</span>
-            </div>
-            ${renderMemberSignatures(member)}
-          </div>
-        </div>
-      </div>
-    </section>
-  `;
-}
-
-function renderCustomerEditView() {
-  const member = selectedMember();
-  if (!member) {
-    return `<div class="empty-state"><h3>Customer not found</h3><p>The selected customer could not be found.</p></div>`;
-  }
-  return `
-    <section class="data-card customer-edit-shell">
-      <div class="card-head customer-edit-head">
+    <div class="data-card">
+      <div class="section-head">
         <div>
-          <p class="eyebrow">Edit Customer</p>
-          <h3>${member.firstName} ${member.lastName}</h3>
+          <p class="eyebrow">Member Profile</p>
+          <h2>${member.firstName} ${member.lastName}</h2>
         </div>
-        <span>${member.id}</span>
       </div>
-      <form id="update-member-form" class="form-card customer-edit-form">
-        <input type="hidden" name="memberId" value="${member.id}" />
-        <div class="customer-edit-toolbar">
-          <div class="customer-edit-toolbar-copy">
-            <strong>Everything saves from here.</strong>
-            <span>Use the sections below to update the member record.</span>
-          </div>
-          <div class="customer-edit-actions">
-            <button type="submit" class="save-button">Save customer</button>
-            <button type="button" class="ghost-button" data-dashboard-view="customers" data-preserve-context="true">Back to customers</button>
-          </div>
+      <div style="display:grid;gap:1rem;">
+        <div class="mini-card">
+          <strong>Profile image</strong>
+          <div style="margin-top:0.75rem;">${profilePhoto}</div>
+          ${member.profileImageUrl ? `<p style="margin:0.75rem 0 0;color:var(--muted);word-break:break-word;">${escapeHtml(member.profileImageUrl)}</p>` : `<p style="margin:0.75rem 0 0;color:var(--muted);">No image URL set</p>`}
         </div>
-
-        <div class="customer-edit-grid">
-          <section class="customer-edit-card">
-            <h4>Identity</h4>
-            ${renderInput("firstName", "First name", "text", member.firstName)}
-            ${renderInput("lastName", "Last name", "text", member.lastName)}
-            ${renderSelect("status", "Status", Object.values(MemberStatus).map((value) => ({ value, label: value })), member.status)}
-          </section>
-
-          <section class="customer-edit-card">
-            <h4>Contact</h4>
-            ${renderInput("email", "Email", "email", member.email ?? "")}
-            ${renderInput("phone", "Phone", "tel", member.phone ?? "")}
-            ${renderInput("profileImageUrl", "Profile image URL", "url", member.profileImageUrl ?? "")}
-          </section>
-
-          <section class="customer-edit-card">
-            <h4>Access</h4>
-            ${renderInput("barcode", "Barcode", "text", member.barcode ?? "")}
-            ${renderInput("tagNames", "Tags, comma separated", "text", member.tagNames.join(", "))}
-          </section>
-
-          <section class="customer-edit-card customer-edit-card-wide">
-            <h4>Notes</h4>
-            <label class="field">
-              <span>Notes</span>
-              <textarea name="notes" rows="5">${escapeAttribute(member.notes ?? "")}</textarea>
-            </label>
-          </section>
-
-          <section class="customer-edit-card customer-edit-card-wide">
-            <h4>Emergency contact</h4>
-            ${renderInput("emergencyContactName", "Contact name", "text", member.emergencyContact?.name ?? "")}
-            ${renderInput("emergencyContactPhone", "Contact phone", "tel", member.emergencyContact?.phone ?? "")}
-            ${renderInput("emergencyContactRelationship", "Relationship", "text", member.emergencyContact?.relationship ?? "")}
-          </section>
+        <div class="mini-card">
+          <strong>Contact</strong>
+          <p style="margin:0.5rem 0;color:var(--muted);">${member.email || 'No email'} · ${member.phone || 'No phone'}</p>
         </div>
-
-        <div class="customer-edit-footer">
-          <button type="submit" class="save-button">Save customer</button>
-          <button type="button" class="ghost-button" data-dashboard-view="customers" data-preserve-context="true">Cancel</button>
+        <div class="mini-card">
+          <strong>Status</strong>
+          <p style="margin:0.5rem 0;color:var(--muted);">${member.status}</p>
         </div>
+        ${member.barcode ? `<div class="mini-card"><strong>Barcode</strong><p style="margin:0.5rem 0;color:var(--muted);">${member.barcode}</p></div>` : ''}
+        <div class="mini-card">
+          <strong>Membership</strong>
+          <p style="margin:0.5rem 0;color:var(--muted);">${activeMembership ? planName(activeMembership.planId) : "No active membership assigned"}</p>
+        </div>
+        ${member.tagNames.length > 0 ? `<div class="mini-card"><strong>Tags</strong><p style="margin:0.5rem 0;color:var(--muted);">${member.tagNames.join(', ')}</p></div>` : ''}
+        ${member.notes ? `<div class="mini-card"><strong>Notes</strong><p style="margin:0.5rem 0;color:var(--muted);">${member.notes}</p></div>` : ''}
+      </div>
+      <form id="assign-membership-form" class="form-card" style="margin-top:1rem;">
+        <h3>Assign membership</h3>
+        ${
+          state.plans.length === 0
+            ? `<p class="muted">Create a membership plan before assigning one.</p>`
+            : renderSelect("planId", "Plan", state.plans.map((plan) => ({ value: plan.id, label: `${plan.name} - ${formatCents(plan.priceCents)}` })), state.plans[0]?.id ?? "")
+        }
+        <button type="submit" ${state.plans.length === 0 ? "disabled" : ""}>Assign plan</button>
       </form>
-    </section>
+    </div>
   `;
 }
 
-function renderLeadsView() {
-  const leadPage = buildMemberListPage({
-    members: state.members.filter((member) => member.status === MemberStatus.Lead),
-    permissions: currentPermissions()
-  });
-  const leadCards = state.members.filter((member) => member.status === MemberStatus.Lead).slice(0, 6);
+function renderLocationsView() {
   return `
-    <section class="club-panel club-page">
-      <div class="card-head">
-        <div>
-          <p class="eyebrow">Leads</p>
-          <h2>Lead Pipeline</h2>
+    <div class="two-up">
+      <section class="data-card">
+        <div class="card-head" style="margin-bottom:1rem;">
+          <h3>Locations</h3>
+          <span>${state.locations.length} total</span>
         </div>
-        <span class="club-kicker">${leadPage.rowCount} leads</span>
+        ${
+          state.locations.length === 0
+            ? `<p class="muted">Create a location before using check-ins, classes, or access control.</p>`
+            : `<div style="display:grid;gap:8px;">
+                ${state.locations.map((location) => `
+                  <article class="mini-card">
+                    <strong>${escapeHtml(location.name)}</strong>
+                    <small>${escapeHtml(location.address.line1)}, ${escapeHtml(location.address.city)}, ${escapeHtml(location.address.region)} ${escapeHtml(location.address.postalCode)}</small>
+                    <small style="display:block;">${escapeHtml(location.timezone)}${location.phone ? ` - ${escapeHtml(location.phone)}` : ""}</small>
+                  </article>
+                `).join("")}
+              </div>`
+        }
+      </section>
+
+      <form id="create-location-form" class="form-card">
+        <h3>Create location</h3>
+        ${renderInput("name", "Location name")}
+        ${renderInput("line1", "Street address")}
+        ${renderInput("line2", "Suite or unit")}
+        ${renderInput("city", "City")}
+        ${renderInput("region", "State or region")}
+        ${renderInput("postalCode", "Postal code")}
+        ${renderInput("country", "Country code", "text", "US")}
+        ${renderInput("phone", "Phone", "tel")}
+        ${renderInput("timezone", "Timezone", "text", state.gym?.timezone ?? "America/New_York")}
+        <button type="submit">Create location</button>
+      </form>
+    </div>
+  `;
+}
+
+function renderClassesView() {
+  const selectedClassType = state.classTypes[0];
+  const defaultEnd = new Date(Date.now() + (selectedClassType?.defaultDurationMinutes ?? 60) * 60_000);
+  return `
+    <div class="two-up">
+      <form id="create-class-type-form" class="form-card">
+        <h3>Create class type</h3>
+        ${renderInput("name", "Class name")}
+        ${renderInput("description", "Description")}
+        ${renderInput("defaultDurationMinutes", "Default duration minutes", "number", "60")}
+        ${renderInput("defaultCapacity", "Default capacity", "number", "12")}
+        ${renderInput("defaultWaitlistCapacity", "Default waitlist capacity", "number", "4")}
+        <button type="submit">Create class type</button>
+      </form>
+
+      <form id="create-class-session-form" class="form-card">
+        <h3>Schedule class</h3>
+        ${
+          state.classTypes.length === 0
+            ? `<p class="muted">Create a class type first.</p>`
+            : renderSelect("classTypeId", "Class type", state.classTypes.map((classType) => ({ value: classType.id, label: classType.name })), selectedClassType?.id ?? "")
+        }
+        ${
+          state.locations.length === 0
+            ? `<p class="muted">Create a location before scheduling.</p>`
+            : renderSelect("locationId", "Location", state.locations.map((location) => ({ value: location.id, label: location.name })), state.locations[0]?.id ?? "")
+        }
+        ${renderInput("roomName", "Room")}
+        ${renderInput("startsAt", "Starts at", "datetime-local", toDateTimeLocal(new Date(Date.now() + 60 * 60_000)))}
+        ${renderInput("endsAt", "Ends at", "datetime-local", toDateTimeLocal(defaultEnd))}
+        ${renderInput("capacity", "Capacity", "number", String(selectedClassType?.defaultCapacity ?? 12))}
+        ${renderInput("waitlistCapacity", "Waitlist capacity", "number", String(selectedClassType?.defaultWaitlistCapacity ?? 4))}
+        <button type="submit" ${state.classTypes.length === 0 || state.locations.length === 0 ? "disabled" : ""}>Schedule class</button>
+      </form>
+    </div>
+
+    <section class="data-card" style="margin-top:1rem;">
+      <div class="card-head" style="margin-bottom:1rem;">
+        <h3>Upcoming classes</h3>
+        <span>${state.classSessions.length} next 30 days</span>
       </div>
-      <div class="club-page-split">
-        <div class="club-customer-grid">
-          ${leadCards.length === 0
-            ? `<div class="empty-state"><p>No leads yet.</p></div>`
-            : leadCards.map((member) => `
-                <button type="button" class="club-customer-card" data-action="view-member" data-member-id="${member.id}">
-                  <div class="club-customer-avatar">
-                    ${member.profileImageUrl
-                      ? `<img src="${escapeAttribute(member.profileImageUrl)}" alt="${escapeAttribute(`${member.firstName} ${member.lastName}`.trim())}" />`
-                      : customerInitials(member)}
-                  </div>
-                  <strong>${member.firstName} ${member.lastName}</strong>
-                  <span>${member.status}</span>
-                </button>
-              `).join("")}
-        </div>
-        <div class="club-panel club-focus-panel">
-          <div class="club-note">
-            <span class="club-note-label">Pipeline</span>
-            <strong>${leadPage.rowCount}</strong>
-            <p>Leads are pulled from the same customer record and can be promoted by changing status.</p>
-          </div>
-        </div>
-      </div>
+      ${
+        state.classSessions.length === 0
+          ? `<p class="muted">No scheduled classes yet.</p>`
+          : `<div class="card-grid">
+              ${state.classSessions.map((session) => renderClassSessionCard(session)).join("")}
+            </div>`
+      }
     </section>
+
+    <form id="book-class-form" class="form-card" style="margin-top:1rem;">
+      <h3>Book member into class</h3>
+      ${
+        state.classSessions.length === 0
+          ? `<p class="muted">Schedule a class before booking.</p>`
+          : renderSelect("sessionId", "Class session", state.classSessions.map((session) => ({ value: session.id, label: `${classTypeName(session.classTypeId)} - ${new Date(session.startsAt).toLocaleString()}` })), state.selectedClassSessionId)
+      }
+      ${
+        state.members.length === 0
+          ? `<p class="muted">Create a member before booking.</p>`
+          : renderSelect("memberId", "Member", state.members.map((member) => ({ value: member.id, label: `${member.firstName} ${member.lastName}` })), state.members[0]?.id ?? "")
+      }
+      <button type="submit" ${state.classSessions.length === 0 || state.members.length === 0 ? "disabled" : ""}>Book member</button>
+    </form>
+  `;
+}
+
+function renderClassSessionCard(session: PublicSessionRecord) {
+  const bookings = state.classBookings[session.id] ?? [];
+  const activeBookings = bookings.filter((booking) => booking.status === "booked");
+  const waitlisted = bookings.filter((booking) => booking.status === "waitlisted");
+  return `
+    <article class="mini-card">
+      <span>${escapeHtml(locationName(session.locationId))}</span>
+      <strong>${escapeHtml(classTypeName(session.classTypeId))}</strong>
+      <small>${new Date(session.startsAt).toLocaleString()} - ${new Date(session.endsAt).toLocaleTimeString()}</small>
+      <small style="display:block;">${escapeHtml(session.roomName ?? "No room")} · ${activeBookings.length}/${session.capacity} booked · ${waitlisted.length}/${session.waitlistCapacity} waitlisted</small>
+    </article>
   `;
 }
 
 function renderStaffView() {
+  const assignableRoles = staffAssignableRoles();
+  const staffOptions = state.staff
+    .filter((staff) => staff.userId !== state.me?.user.id && staff.status === "active")
+    .map((staff) => ({
+      value: staff.userId,
+      label: `${staff.firstName} ${staff.lastName} (${staff.email})`
+    }));
   return `
-    <section class="club-panel club-page">
-      <div class="card-head">
-        <h3>Staff</h3>
-        <span>${state.staff.length} active staff</span>
-      </div>
-      <div class="club-customer-grid">
-        ${state.staff.length === 0
-          ? `<div class="empty-state"><p>No staff loaded.</p></div>`
-          : state.staff.slice(0, 6).map((staff) => `
-              <article class="club-customer-card">
-                <div class="club-customer-avatar">${`${staff.firstName?.charAt(0) ?? ""}${staff.lastName?.charAt(0) ?? ""}`.toUpperCase() || "S"}</div>
-                <strong>${staff.firstName} ${staff.lastName}</strong>
-                <span>${staff.roleName}</span>
-              </article>
-            `).join("")}
-      </div>
-    </section>
-  `;
-}
-
-function renderPosView() {
-  const publicPlanPage = state.publicGym
-    ? buildPublicPlansPage({
-        plans: state.publicPlans,
-        featureFlags: state.publicGym.featureFlags,
-        featuredPlanId: state.selectedPlanId || state.publicPlans[0]?.id
-      })
-    : undefined;
-  return `
-    <section class="club-panel club-page">
-      <div class="card-head">
-        <h3>POS</h3>
-        <span>Sell memberships and packages</span>
-      </div>
-      <div class="club-product-grid compact">
-        ${publicPlanPage?.planCards.slice(0, 6).map((plan) => `
-          <article class="club-product">
-            <div class="club-product-art"></div>
-            <strong>${plan.title}</strong>
-            <span>${plan.priceLabel}</span>
-          </article>
-        `).join("") ?? `<div class="empty-state"><p>No plans loaded.</p></div>`}
-      </div>
-    </section>
-  `;
-}
-
-function renderMarketingView() {
-  return `
-    <section class="club-panel club-page">
-      <div class="card-head">
-        <h3>Marketing</h3>
-        <span>${state.publicPlans.length} public plans</span>
-      </div>
-      <div class="stat-grid compact">
-        <article class="mini-card">
-          <span>Public site</span>
-          <strong>${state.publicSlug || state.gym?.slug || "Not set"}</strong>
-        </article>
-        <article class="mini-card">
-          <span>Leads</span>
-          <strong>${state.members.filter((member) => member.status === MemberStatus.Lead).length}</strong>
-        </article>
-      </div>
-    </section>
-  `;
-}
-
-function renderReportsView() {
-  const statusCounts = Object.values(MemberStatus).map((status) => ({
-    status,
-    count: state.members.filter((member) => member.status === status).length
-  }));
-  return `
-    <section class="club-panel club-page">
-      <div class="card-head">
-        <h3>Reports</h3>
-        <span>${state.members.length} customers</span>
-      </div>
-      <div class="stat-grid compact">
-        ${statusCounts
-          .map(
-            (entry) => `
-              <article class="mini-card">
-                <span>${entry.status}</span>
-                <strong>${entry.count}</strong>
-              </article>
-            `
-          )
-          .join("")}
-      </div>
-    </section>
-  `;
-}
-
-const settingsTabs: Array<{ key: SettingsSectionKey; label: string }> = [
-  { key: "setup", label: "Setup" },
-  { key: "company_information", label: "Company Information" },
-  { key: "roles_staff", label: "Roles and Staff" },
-  { key: "featured_items", label: "Featured Items" },
-  { key: "media", label: "Media" },
-  { key: "resources", label: "Resources" },
-  { key: "promotions", label: "Promotions" },
-  { key: "templates", label: "Templates" },
-  { key: "customized_themes", label: "Customized Themes" },
-  { key: "tags", label: "Tags" },
-  { key: "taxes", label: "Taxes" },
-  { key: "forms", label: "Forms" },
-];
-
-function formatPermissionLabel(permission: string) {
-  return permission
-    .split(":")
-    .map((part) =>
-      part
-        .split("_")
-        .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-        .join(" ")
-    )
-    .join(" ");
-}
-
-function renderPermissionCheckboxes(selectedPermissions: string[] = []) {
-  return ROLE_PERMISSION_OPTIONS.map(
-    (permission) => `
-      <label class="permission-chip${selectedPermissions.includes(permission) ? " active" : ""}">
-        <input type="checkbox" name="permissions" value="${permission}" ${selectedPermissions.includes(permission) ? "checked" : ""} />
-        <span>${escapeHtml(formatPermissionLabel(permission))}</span>
-      </label>
-    `
-  ).join("");
-}
-
-function renderSettingsView() {
-  const activeLocations = state.locations.filter((location) => !location.archivedAt);
-  const content = renderSettingsSectionContent(activeLocations);
-  return `
-    <section class="club-panel club-page settings-page">
-      <div class="card-head">
-        <div>
-          <p class="eyebrow">Settings</p>
-          <h2>Workspace controls</h2>
+    <div class="two-up">
+      <section class="data-card">
+        <div class="card-head" style="margin-bottom:1rem;">
+          <h3>Staff access</h3>
+          <span>${state.staff.length} people</span>
         </div>
-        <span class="club-kicker">Customize your gym operations</span>
-      </div>
-      <div class="settings-shell">
-        <aside class="settings-sidebar">
-          ${settingsTabs
-            .map(
-              (tab) => `
-                <button type="button" class="settings-tab${state.settingsSection === tab.key ? " active" : ""}" data-settings-section="${tab.key}">
-                  ${tab.label}
-                </button>
-              `
-            )
-            .join("")}
-        </aside>
-        <div class="settings-content">
-          ${content}
-        </div>
-      </div>
-    </section>
-  `;
-}
-
-function renderSettingsSectionContent(activeLocations: LocationRecord[]) {
-  const editableRoles = state.roles.filter(
-    (role) => role.name !== RoleName.Owner && role.name !== RoleName.Member
-  );
-  const selectedRole = state.roles.find((role) => role.id === state.selectedRoleId) ?? editableRoles[0] ?? state.roles[0];
-  switch (state.settingsSection) {
-    case "company_information":
-      return `
-        <div class="club-panel">
-          <h3>Company Information</h3>
-          <p class="club-copy">Review the gym identity that appears across the dashboard and check-in flow.</p>
-          <div class="settings-grid">
-            <article class="mini-card"><span>Gym</span><strong>${escapeHtml(state.gym?.name ?? "Gym")}</strong></article>
-            <article class="mini-card"><span>Slug</span><strong>${escapeHtml(state.gym?.slug ?? "n/a")}</strong></article>
-            <article class="mini-card"><span>Timezone</span><strong>${escapeHtml(state.gym?.timezone ?? "America/New_York")}</strong></article>
-            <article class="mini-card"><span>Locations</span><strong>${state.locations.length}</strong></article>
-          </div>
-        </div>
-      `;
-    case "roles_staff":
-      return `
-        <div class="settings-grid settings-grid-wide">
-          <div class="club-panel">
-            <h3>Roles and Staff</h3>
-            <p class="club-copy">Manage access, front desk staff, and operational roles.</p>
-            <div class="settings-grid">
-              ${state.roles.length === 0
-                ? `<div class="settings-placeholder"><strong>No roles loaded</strong><p>Open the gym again after the backend finishes loading roles.</p></div>`
-                : state.roles.map((role) => `
-                    <button type="button" class="settings-role-card${role.id === state.selectedRoleId ? " active" : ""}" data-role-select="${role.id}">
-                      <strong>${escapeHtml(role.name)}</strong>
-                      <span>${role.permissions.length} permissions</span>
-                    </button>
-                  `).join("")}
-            </div>
-          </div>
-          <div class="club-panel">
-            <h3>Role details</h3>
-            ${selectedRole
-              ? `
-                <div class="role-detail-head">
-                  <div>
-                    <strong>${escapeHtml(selectedRole.name)}</strong>
-                    <p>${selectedRole.isSystem ? "System role" : "Custom role"}</p>
-                  </div>
-                  <span class="club-note-label">${selectedRole.permissions.length} permissions</span>
-                </div>
-                <div class="settings-placeholder" style="margin-bottom: 14px;">
-                  <strong>Permissions</strong>
-                  <p>${selectedRole.permissions.map((permission) => escapeHtml(formatPermissionLabel(permission))).join(", ") || "No permissions"}</p>
-                </div>
-                ${selectedRole.isSystem
-                  ? `<p class="muted">System roles cannot be edited from the UI.</p>`
-                  : `
-                    <form id="edit-role-form" class="form-card">
-                      ${renderInput("roleName", "Role name", "text", selectedRole.name)}
-                      <div class="permissions-grid">
-                        ${renderPermissionCheckboxes(selectedRole.permissions)}
-                      </div>
-                      <button type="submit">Save role</button>
-                    </form>
-                  `}
-              `
-              : `<p class="muted">Select a role to inspect its permissions.</p>`}
-          </div>
-          <div class="club-panel">
-            <h3>Staff assignments</h3>
-            <p class="club-copy">Assign a staff member to one of the editable staff roles.</p>
-            <div class="staff-role-list">
-              ${state.staff.length === 0
-                ? `<div class="settings-placeholder"><strong>No staff loaded</strong><p>Staff access will appear here once the gym has active staff members.</p></div>`
-                : state.staff.map((staff) => `
-                    <article class="staff-role-row">
-                      <div>
-                        <strong>${escapeHtml(`${staff.firstName} ${staff.lastName}`.trim())}</strong>
-                        <p>${escapeHtml(staff.email)} · ${escapeHtml(staff.roleName)}</p>
-                      </div>
-                      <div class="staff-role-actions">
-                        <select data-staff-role-select="${staff.userId}">
-                          ${editableRoles
-                            .map(
-                              (role) =>
-                                `<option value="${role.id}" ${role.id === staff.roleId ? "selected" : ""}>${escapeHtml(role.name)}</option>`
-                            )
-                            .join("")}
-                        </select>
-                        <button type="button" class="ghost-button" data-staff-role-assign="${staff.userId}">Assign</button>
-                      </div>
-                    </article>
-                  `).join("")}
-            </div>
-          </div>
-          <div class="club-panel">
-            <h3>Create custom role</h3>
-            <p class="club-copy">Build a new custom access role from the permission set below.</p>
-            <form id="create-role-form" class="form-card">
-              ${renderInput("newRoleName", "Role name")}
-              <div class="permissions-grid">
-                ${renderPermissionCheckboxes()}
-              </div>
-              <button type="submit">Create role</button>
-            </form>
-          </div>
-        </div>
-      `;
-    case "featured_items":
-      return `
-        <div class="club-panel">
-          <h3>Featured Items</h3>
-          <p class="club-copy">Highlight products, offers, or services for the front desk and POS.</p>
-          <div class="settings-placeholder">
-            <strong>${state.plans.length} plans available</strong>
-            <p>Use this section for pinned items and quick-sale highlights.</p>
-          </div>
-        </div>
-      `;
-    case "media":
-      return `
-        <div class="club-panel">
-          <h3>Media</h3>
-          <p class="club-copy">Upload logos, profile art, banners, and other visual assets.</p>
-          <div class="settings-placeholder">
-            <strong>Brand assets</strong>
-            <p>Media uploads and asset libraries can be managed here.</p>
-          </div>
-        </div>
-      `;
-    case "resources":
-      return `
-        <div class="club-panel">
-          <h3>Resources</h3>
-          <p class="club-copy">Store internal files, SOPs, and support references.</p>
-          <div class="settings-placeholder">
-            <strong>Operational resources</strong>
-            <p>Links, documents, and help content can live here.</p>
-          </div>
-        </div>
-      `;
-    case "promotions":
-      return `
-        <div class="club-panel">
-          <h3>Promotions</h3>
-          <p class="club-copy">Manage discounts, campaigns, and referral offers.</p>
-          <div class="settings-placeholder">
-            <strong>${state.plans.length} plan entries</strong>
-            <p>Promotional rules and special offers can be organized here.</p>
-          </div>
-        </div>
-      `;
-    case "templates":
-      return `
-        <div class="club-panel">
-          <h3>Templates</h3>
-          <p class="club-copy">Build reusable templates for recurring gym operations.</p>
-          <div class="settings-placeholder">
-            <strong>Reusable templates</strong>
-            <p>Templates for messages, workflows, and admin tasks can be added here.</p>
-          </div>
-        </div>
-      `;
-    case "customized_themes":
-      return `
-        <div class="club-panel">
-          <h3>Customized Themes</h3>
-          <p class="club-copy">Tune the UI style and brand feel for your workspace.</p>
-          <div class="club-mini-nav">
-            <button type="button" class="ghost-button${state.theme === "light" ? " active" : ""}" data-theme-choice="light">Light mode</button>
-            <button type="button" class="ghost-button${state.theme === "dark" ? " active" : ""}" data-theme-choice="dark">Dark mode</button>
-          </div>
-        </div>
-      `;
-    case "tags":
-      return `
-        <div class="club-panel">
-          <h3>Tags</h3>
-          <p class="club-copy">Tag customers, leads, and staff for quick filtering.</p>
-          <div class="settings-placeholder">
-            <strong>Label system</strong>
-            <p>Customer and staff tags can be created and reused here.</p>
-          </div>
-        </div>
-      `;
-    case "taxes":
-      return `
-        <div class="club-panel">
-          <h3>Taxes</h3>
-          <p class="club-copy">Set tax rates and billing rules for sales and memberships.</p>
-          <div class="settings-placeholder">
-            <strong>Tax configuration</strong>
-            <p>Sales tax and billing rules can be controlled from this area.</p>
-          </div>
-        </div>
-      `;
-    case "forms":
-      return `
-        <div class="club-panel">
-          <h3>Forms</h3>
-          <p class="club-copy">Manage waivers, intake forms, and custom workflows.</p>
-          <div class="settings-placeholder">
-            <strong>Form builder</strong>
-            <p>Digital forms and onboarding workflows can be organized here.</p>
-          </div>
-        </div>
-      `;
-    case "setup":
-    default:
-      return `
-        <div class="settings-grid settings-grid-wide">
-          <div class="club-panel">
-            <h3>Appearance</h3>
-            <p class="club-copy">Choose whether the dashboard should use a light or dark presentation.</p>
-            <div class="club-mini-nav">
-              <button type="button" class="ghost-button${state.theme === "light" ? " active" : ""}" data-theme-choice="light">Light mode</button>
-              <button type="button" class="ghost-button${state.theme === "dark" ? " active" : ""}" data-theme-choice="dark">Dark mode</button>
-            </div>
-          </div>
-          <div class="club-panel">
-            <h3>Locations</h3>
-            <p class="club-copy">Create at least one active location so check-ins can be submitted from the kiosk and sidebar.</p>
-            <div class="stat-grid compact" style="margin-bottom: 14px;">
-              <article class="mini-card">
-                <span>Active</span>
-                <strong>${activeLocations.length}</strong>
-              </article>
-              <article class="mini-card">
-                <span>Total</span>
-                <strong>${state.locations.length}</strong>
-              </article>
-            </div>
-            <form id="create-location-form" class="form-card">
-              <h4 style="margin:0;">Add location</h4>
-              ${renderInput("name", "Location name")}
-              <div class="two-up stacked-mobile">
-                ${renderInput("line1", "Address line 1")}
-                ${renderInput("line2", "Address line 2")}
-              </div>
-              <div class="three-up stacked-mobile">
-                ${renderInput("city", "City")}
-                ${renderInput("region", "State / Region")}
-                ${renderInput("postalCode", "Postal code")}
-              </div>
-              <div class="two-up stacked-mobile">
-                ${renderInput("country", "Country", "text", "US")}
-                ${renderInput("timezone", "Timezone", "text", state.gym?.timezone ?? "America/New_York")}
-              </div>
-              ${renderInput("phone", "Phone", "tel")}
-              <button type="submit">Create location</button>
-            </form>
-            <div class="club-note" style="margin-top: 16px;">
-              <span class="club-note-label">Existing locations</span>
-              <div class="club-location-list">
-                ${state.locations.length === 0
-                  ? `<p class="muted">No locations configured yet.</p>`
-                  : state.locations.map((location) => `
-                      <article class="club-location-row${location.id === state.selectedLocationId ? " selected" : ""}">
-                        <div>
-                          <strong>${location.name}</strong>
-                          <p>${location.address.line1}, ${location.address.city}, ${location.address.region}</p>
-                        </div>
-                        <div class="club-location-actions">
-                          <span>${location.status}</span>
-                          <button type="button" class="ghost-button" data-location-select="${location.id}">Use for check-ins</button>
-                        </div>
-                      </article>
+        ${
+          state.staff.length === 0
+            ? `<p class="muted">No staff records yet.</p>`
+            : `<div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th></tr>
+                  </thead>
+                  <tbody>
+                    ${state.staff.map((staff) => `
+                      <tr>
+                        <td>${escapeHtml(`${staff.firstName} ${staff.lastName}`)}</td>
+                        <td>${escapeHtml(staff.email)}</td>
+                        <td>${escapeHtml(staff.roleName)}</td>
+                        <td>${escapeHtml(staff.status)}</td>
+                      </tr>
                     `).join("")}
-              </div>
-            </div>
+                  </tbody>
+                </table>
+              </div>`
+        }
+      </section>
+
+      <form id="create-staff-invite-form" class="form-card">
+        <h3>Invite staff</h3>
+        ${renderInput("email", "Email", "email")}
+        ${
+          assignableRoles.length === 0
+            ? `<p class="muted">Create or enable a staff role before inviting.</p>`
+            : renderSelect("roleId", "Role", assignableRoles.map((role) => ({ value: role.id, label: roleLabel(role) })), assignableRoles[0]?.id ?? "")
+        }
+        ${renderInput("message", "Message")}
+        <button type="submit" ${assignableRoles.length === 0 ? "disabled" : ""}>Create invite</button>
+      </form>
+    </div>
+
+    ${
+      state.latestInviteToken
+        ? `<section class="data-card" style="margin-top:1rem;">
+            <div class="card-head"><h3>Latest invite token</h3></div>
+            <p class="muted">Give this token to the staff member so they can accept the invite.</p>
+            <code style="display:block;white-space:normal;word-break:break-all;">${escapeHtml(state.latestInviteToken)}</code>
+          </section>`
+        : ""
+    }
+
+    <div class="two-up" style="margin-top:1rem;">
+      <form id="create-custom-role-form" class="form-card">
+        <h3>Create custom role</h3>
+        ${renderInput("name", "Role name")}
+        <div class="field">
+          <span>Permissions</span>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;">
+            ${Object.values(Permission)
+              .filter((permission) => permission !== Permission.PlatformAdmin)
+              .map((permission) => `
+                <label style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:0.9rem;">
+                  <input name="permissions" type="checkbox" value="${permission}" ${defaultCustomRolePermissions().includes(permission) ? "checked" : ""} />
+                  ${escapeHtml(permissionLabel(permission))}
+                </label>
+              `)
+              .join("")}
           </div>
         </div>
-      `;
-  }
-}
+        <button type="submit">Create role</button>
+      </form>
 
-function selectedMember() {
-  return state.members.find((member) => member.id === (state.editingMemberId ?? state.selectedMemberId));
-}
+      <section class="data-card">
+        <div class="card-head" style="margin-bottom:1rem;">
+          <h3>Roles</h3>
+          <span>${state.roles.length} total</span>
+        </div>
+        <div style="display:grid;gap:8px;">
+          ${state.roles.map((role) => `
+            <article class="mini-card">
+              <strong>${escapeHtml(roleLabel(role))}</strong>
+              <small>${role.permissions.length} permissions</small>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+    </div>
 
-function loadMemberDeskStore(): MemberDeskStore {
-  try {
-    const raw = localStorage.getItem(MEMBER_DESK_STORAGE_KEY);
-    if (!raw) {
-      return { alertsByMemberId: {}, signaturesByMemberId: {} };
-    }
-    const parsed = JSON.parse(raw) as Partial<MemberDeskStore>;
-    return {
-      alertsByMemberId: parsed.alertsByMemberId ?? {},
-      signaturesByMemberId: parsed.signaturesByMemberId ?? {}
-    };
-  } catch {
-    return { alertsByMemberId: {}, signaturesByMemberId: {} };
-  }
-}
-
-function saveMemberDeskStore() {
-  localStorage.setItem(MEMBER_DESK_STORAGE_KEY, JSON.stringify(state.memberDesk));
-}
-
-function getMemberAlerts(memberId: string) {
-  return [...(state.memberDesk.alertsByMemberId[memberId] ?? [])].sort(
-    (left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt)
-  );
-}
-
-function getMemberSignatures(memberId: string) {
-  const existing = state.memberDesk.signaturesByMemberId[memberId];
-  if (existing && existing.length > 0) {
-    return existing;
-  }
-  const seeded = DEFAULT_SIGNATURE_REQUIREMENTS.map((label) => ({
-    id: `${memberId}-${label.toLowerCase().replace(/\s+/g, "-")}`,
-    label,
-    required: true
-  }));
-  state.memberDesk = {
-    ...state.memberDesk,
-    signaturesByMemberId: {
-      ...state.memberDesk.signaturesByMemberId,
-      [memberId]: seeded
-    }
-  };
-  saveMemberDeskStore();
-  return seeded;
-}
-
-function addMemberAlert(memberId: string, title: string, message: string) {
-  const alert: MemberDeskAlertRecord = {
-    id: `${memberId}-${Date.now()}`,
-    title,
-    message,
-    createdAt: new Date().toISOString()
-  };
-  state.memberDesk = {
-    alertsByMemberId: {
-      ...state.memberDesk.alertsByMemberId,
-      [memberId]: [alert, ...(state.memberDesk.alertsByMemberId[memberId] ?? [])]
-    },
-    signaturesByMemberId: state.memberDesk.signaturesByMemberId
-  };
-  saveMemberDeskStore();
-}
-
-function resolveMemberAlert(memberId: string, alertId: string) {
-  const alerts = state.memberDesk.alertsByMemberId[memberId] ?? [];
-  state.memberDesk = {
-    ...state.memberDesk,
-    alertsByMemberId: {
-      ...state.memberDesk.alertsByMemberId,
-      [memberId]: alerts.map((alert) =>
-        alert.id === alertId
-          ? {
-              ...alert,
-              resolvedAt: alert.resolvedAt ?? new Date().toISOString()
-            }
-          : alert
-      )
-    }
-  };
-  saveMemberDeskStore();
-}
-
-function toggleMemberSignature(memberId: string, signatureId: string) {
-  const current = getMemberSignatures(memberId);
-  const updated = current.map((signature) =>
-    signature.id === signatureId
-      ? {
-          ...signature,
-          signedAt: signature.signedAt ? undefined : new Date().toISOString()
+    <div class="two-up" style="margin-top:1rem;">
+      <form id="assign-staff-role-form" class="form-card">
+        <h3>Change staff role</h3>
+        ${
+          staffOptions.length === 0
+            ? `<p class="muted">There are no other active staff users to update.</p>`
+            : renderSelect("userId", "Staff member", staffOptions, staffOptions[0]?.value ?? "")
         }
-      : signature
-  );
-  state.memberDesk = {
-    ...state.memberDesk,
-    signaturesByMemberId: {
-      ...state.memberDesk.signaturesByMemberId,
-      [memberId]: updated
+        ${
+          assignableRoles.length === 0
+            ? `<p class="muted">No assignable roles are available.</p>`
+            : renderSelect("roleId", "New role", assignableRoles.map((role) => ({ value: role.id, label: roleLabel(role) })), assignableRoles[0]?.id ?? "")
+        }
+        <button type="submit" ${staffOptions.length === 0 || assignableRoles.length === 0 ? "disabled" : ""}>Update role</button>
+      </form>
+
+      <form id="remove-staff-access-form" class="form-card">
+        <h3>Remove staff access</h3>
+        ${
+          staffOptions.length === 0
+            ? `<p class="muted">There are no other active staff users to remove.</p>`
+            : renderSelect("userId", "Staff member", staffOptions, staffOptions[0]?.value ?? "")
+        }
+        ${renderInput("reason", "Reason")}
+        <button type="submit" ${staffOptions.length === 0 ? "disabled" : ""}>Remove access</button>
+      </form>
+    </div>
+
+    <section class="data-card" style="margin-top:1rem;">
+      <div class="card-head" style="margin-bottom:1rem;">
+        <h3>Pending invites</h3>
+        <span>${state.staffInvites.length} total</span>
+      </div>
+      ${
+        state.staffInvites.length === 0
+          ? `<p class="muted">No invites yet.</p>`
+          : `<div class="table-wrap">
+              <table>
+                <thead><tr><th>Email</th><th>Role</th><th>Status</th><th>Expires</th></tr></thead>
+                <tbody>
+                  ${state.staffInvites.map((invite) => `
+                    <tr>
+                      <td>${escapeHtml(invite.email)}</td>
+                      <td>${escapeHtml(roleName(invite.roleId))}</td>
+                      <td>${escapeHtml(invite.status)}</td>
+                      <td>${new Date(invite.expiresAt).toLocaleString()}</td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            </div>`
+      }
+    </section>
+
+    <section class="data-card" style="margin-top:1rem;">
+      <div class="card-head" style="margin-bottom:1rem;">
+        <h3>Recent staff audit</h3>
+        <span>${state.staffAudit.length} events</span>
+      </div>
+      ${
+        state.staffAudit.length === 0
+          ? `<p class="muted">No staff audit events yet.</p>`
+          : `<div style="display:grid;gap:8px;">
+              ${state.staffAudit.slice(0, 8).map((entry) => `
+                <article class="mini-card">
+                  <strong>${escapeHtml(entry.action)}</strong>
+                  <small>${new Date(entry.createdAt).toLocaleString()}${entry.reason ? ` - ${escapeHtml(entry.reason)}` : ""}</small>
+                </article>
+              `).join("")}
+            </div>`
+      }
+    </section>
+  `;
+}
+
+function renderSecurityView() {
+  const enabled = Boolean(state.me?.user.twoFactorEnabled);
+  return `
+    <div class="two-up">
+      <section class="data-card">
+        <div class="card-head" style="margin-bottom:1rem;">
+          <h3>Account security</h3>
+          <span>${enabled ? "2FA enabled" : "2FA off"}</span>
+        </div>
+        <div class="mini-card">
+          <strong>${escapeHtml(state.me?.user.email ?? "")}</strong>
+          <small>${enabled ? "This account requires an authenticator code when logging in." : "Add an authenticator app code to protect this account."}</small>
+        </div>
+      </section>
+
+      <form id="setup-2fa-form" class="form-card">
+        <h3>Set up two-factor auth</h3>
+        <p class="muted">${enabled ? "Two-factor auth is already enabled. You can still regenerate recovery codes." : "Start setup to get an authenticator secret."}</p>
+        <button type="submit" ${enabled ? "disabled" : ""}>Start setup</button>
+      </form>
+    </div>
+
+    ${
+      state.twoFactorSetup
+        ? `<section class="data-card" style="margin-top:1rem;">
+            <div class="card-head"><h3>Authenticator setup</h3></div>
+            <p class="muted">Add this secret to an authenticator app, then verify the six-digit code.</p>
+            <div class="mini-card">
+              <strong>Secret</strong>
+              <code style="display:block;white-space:normal;word-break:break-all;">${escapeHtml(state.twoFactorSetup.secret)}</code>
+              <small style="display:block;margin-top:8px;">${escapeHtml(state.twoFactorSetup.otpauthUrl)}</small>
+            </div>
+            <form id="verify-2fa-setup-form" class="form-card" style="margin-top:1rem;">
+              ${renderInput("code", "Authenticator code")}
+              <button type="submit">Enable two-factor auth</button>
+            </form>
+          </section>`
+        : ""
     }
-  };
-  saveMemberDeskStore();
+
+    <div class="two-up" style="margin-top:1rem;">
+      <form id="regenerate-recovery-codes-form" class="form-card">
+        <h3>Recovery codes</h3>
+        <p class="muted">Generate new recovery codes if the old ones were lost or exposed.</p>
+        <button type="submit" ${enabled ? "" : "disabled"}>Regenerate codes</button>
+      </form>
+
+      <section class="data-card">
+        <div class="card-head" style="margin-bottom:1rem;">
+          <h3>Latest recovery codes</h3>
+          <span>${state.twoFactorRecoveryCodes.length} codes</span>
+        </div>
+        ${
+          state.twoFactorRecoveryCodes.length === 0
+            ? `<p class="muted">Recovery codes appear here after enabling 2FA or regenerating codes.</p>`
+            : `<div style="display:grid;gap:8px;">
+                ${state.twoFactorRecoveryCodes.map((code) => `<code class="mini-card">${escapeHtml(code)}</code>`).join("")}
+              </div>`
+        }
+      </section>
+    </div>
+  `;
 }
 
-function buildRailMemberSummary(member: MemberRecord) {
-  const cache = state.memberCache[member.id];
-  const memberships = Array.isArray(cache?.memberships) ? cache.memberships : [];
-  const checkIns = Array.isArray(cache?.checkIns) ? cache.checkIns : [];
-  const planId = memberships.find((membership) => membership.status === "active" || membership.status === "trialing")?.planId ?? memberships[0]?.planId;
-  const planName = planId ? state.plans.find((plan) => plan.id === planId)?.name ?? "Unknown plan" : "No plan on file";
-  const lastCheckIn = checkIns
-    .slice()
-    .sort((left, right) => Date.parse(right.checkedInAt) - Date.parse(left.checkedInAt))[0];
-  const lastCheckInDate = lastCheckIn ? new Date(lastCheckIn.checkedInAt) : undefined;
-  const daysSinceCheckIn = lastCheckInDate ? Math.floor((Date.now() - lastCheckInDate.getTime()) / 86400000) : undefined;
-  const activeMembership = memberships.find((membership) => membership.status === "active" || membership.status === "trialing");
-  const membershipEndsAt = activeMembership?.endsAt ? new Date(activeMembership.endsAt) : undefined;
-  const daysUntilMembershipEnd = membershipEndsAt
-    ? Math.ceil((membershipEndsAt.getTime() - Date.now()) / 86400000)
-    : undefined;
+function renderAccessView() {
+  const apiKeyValue = state.latestAccessApiKey ?? "";
+  return `
+    <div class="two-up">
+      <section class="data-card">
+        <div class="card-head" style="margin-bottom:1rem;">
+          <h3>Access devices</h3>
+          <span>${state.accessDevices.length} total</span>
+        </div>
+        ${
+          state.accessDevices.length === 0
+            ? `<p class="muted">Register a door device to test access decisions.</p>`
+            : `<div style="display:grid;gap:8px;">
+                ${state.accessDevices.map((device) => `
+                  <article class="mini-card">
+                    <span>${escapeHtml(locationName(device.locationId))}</span>
+                    <strong>${escapeHtml(device.name)}</strong>
+                    <small>${escapeHtml(device.status)} - ${escapeHtml(device.deviceType.replaceAll("_", " "))} - key ${escapeHtml(device.apiKeyPreview)}</small>
+                    <small style="display:block;">${device.lastHeartbeatAt ? `Last heartbeat ${new Date(device.lastHeartbeatAt).toLocaleString()}` : "No heartbeat yet"}</small>
+                    <button type="button" data-action="rotate-access-key" data-device-id="${device.id}" style="margin-top:8px;">Rotate key</button>
+                  </article>
+                `).join("")}
+              </div>`
+        }
+      </section>
 
-  let issueLabel = "No issues";
-  if (member.status === MemberStatus.Frozen || memberships.some((membership) => membership.status === "paused")) {
-    issueLabel = "Freeze";
-  } else if (member.status === MemberStatus.PastDue || memberships.some((membership) => membership.status === "past_due")) {
-    issueLabel = "Payment overdue";
-  } else if (member.status === MemberStatus.Expired || memberships.some((membership) => membership.status === "expired" || membership.status === "canceled")) {
-    issueLabel = "Membership expired";
-  } else if (daysUntilMembershipEnd !== undefined && daysUntilMembershipEnd <= 30 && daysUntilMembershipEnd >= 0) {
-    issueLabel = `Renewal due in ${daysUntilMembershipEnd} days`;
-  } else if (daysSinceCheckIn >= 60) {
-    issueLabel = "No check-in for 60+ days";
-  }
+      <form id="create-access-device-form" class="form-card">
+        <h3>Register device</h3>
+        ${renderInput("name", "Device name", "text", "Front Door")}
+        ${
+          state.locations.length === 0
+            ? `<p class="muted">Create a location before adding access devices.</p>`
+            : renderSelect("locationId", "Location", state.locations.map((location) => ({ value: location.id, label: location.name })), state.locations[0]?.id ?? "")
+        }
+        ${renderSelect("deviceType", "Device type", Object.values(AccessDeviceType).map((type) => ({ value: type, label: type.replaceAll("_", " ") })), AccessDeviceType.DoorController)}
+        <button type="submit" ${state.locations.length === 0 ? "disabled" : ""}>Register device</button>
+      </form>
+    </div>
 
-  if (issueLabel === "Payment overdue" && daysUntilMembershipEnd !== undefined && daysUntilMembershipEnd <= 30) {
-    issueLabel = `Card issue, renew in ${daysUntilMembershipEnd} days`;
-  }
+    ${
+      state.latestAccessApiKey
+        ? `<section class="data-card" style="margin-top:1rem;">
+            <div class="card-head"><h3>Latest device API key</h3></div>
+            <p class="muted">Store this key now. The API only shows the full value immediately after registration or rotation.</p>
+            <code style="display:block;white-space:normal;word-break:break-all;">${escapeHtml(state.latestAccessApiKey)}</code>
+          </section>`
+        : ""
+    }
 
-  const lastCheckInLabel = lastCheckInDate
-    ? `Last check-in ${formatRelativeDate(lastCheckInDate)}`
-    : undefined;
-  const todaysCheckIns = lastCheckInDate
-    ? checkIns.filter((checkIn) => isSameDay(new Date(checkIn.checkedInAt), lastCheckInDate))
-    : [];
+    <div class="two-up" style="margin-top:1rem;">
+      <form id="create-access-rule-form" class="form-card">
+        <h3>Create access rule</h3>
+        ${renderInput("name", "Rule name", "text", "Front door members")}
+        ${
+          state.locations.length === 0
+            ? `<p class="muted">Create a location first.</p>`
+            : renderSelect("locationId", "Location", state.locations.map((location) => ({ value: location.id, label: location.name })), state.locations[0]?.id ?? "")
+        }
+        ${
+          state.plans.length === 0
+            ? `<p class="muted">Create a plan first, or allow all active members.</p>`
+            : renderSelect("planId", "Plan", [{ value: "", label: "All active members" }, ...state.plans.map((plan) => ({ value: plan.id, label: plan.name }))], "")
+        }
+        ${renderInput("startsAt", "Starts at", "datetime-local")}
+        ${renderInput("endsAt", "Ends at", "datetime-local")}
+        <button type="submit" ${state.locations.length === 0 ? "disabled" : ""}>Create rule</button>
+      </form>
 
-  return {
-    planLabel: `Plan: ${planName}`,
-    lastCheckInLabel,
-    issueLabel,
-    duplicateLabel: todaysCheckIns.length > 1 ? "Already checked in" : undefined
-  };
+      <section class="data-card">
+        <div class="card-head" style="margin-bottom:1rem;">
+          <h3>Access rules</h3>
+          <span>${state.accessRules.length} total</span>
+        </div>
+        ${
+          state.accessRules.length === 0
+            ? `<p class="muted">No access rules yet.</p>`
+            : `<div style="display:grid;gap:8px;">
+                ${state.accessRules.map((rule) => `
+                  <article class="mini-card">
+                    <span>${escapeHtml(locationName(rule.locationId))}</span>
+                    <strong>${escapeHtml(rule.name)}</strong>
+                    <small>${rule.allowAllActiveMembers ? "All active members" : escapeHtml(planName(rule.planId ?? ""))}</small>
+                  </article>
+                `).join("")}
+              </div>`
+        }
+      </section>
+    </div>
+
+    <div class="two-up" style="margin-top:1rem;">
+      <form id="simulate-access-event-form" class="form-card">
+        <h3>Test door access</h3>
+        ${renderInput("apiKey", "Device API key", "text", apiKeyValue)}
+        ${renderInput("barcode", "Member barcode")}
+        <button type="submit">Run access check</button>
+      </form>
+
+      <form id="access-heartbeat-form" class="form-card">
+        <h3>Send heartbeat</h3>
+        ${renderInput("apiKey", "Device API key", "text", apiKeyValue)}
+        <button type="submit">Send heartbeat</button>
+      </form>
+    </div>
+
+    ${
+      state.latestAccessDecision
+        ? `<section class="data-card" style="margin-top:1rem;">
+            <div class="card-head"><h3>Latest access decision</h3></div>
+            <article class="mini-card">
+              <strong>${state.latestAccessDecision.unlock ? "Unlocked" : "Denied"}</strong>
+              <small>${escapeHtml(state.latestAccessDecision.reason)}${state.latestAccessDecision.memberId ? ` - ${escapeHtml(memberName(state.latestAccessDecision.memberId))}` : ""}</small>
+            </article>
+          </section>`
+        : ""
+    }
+
+    <section class="data-card" style="margin-top:1rem;">
+      <div class="card-head" style="margin-bottom:1rem;">
+        <h3>Access events</h3>
+        <span>${state.accessEvents.length} total</span>
+      </div>
+      ${
+        state.accessEvents.length === 0
+          ? `<p class="muted">No access events yet.</p>`
+          : `<div class="table-wrap">
+              <table>
+                <thead><tr><th>Decision</th><th>Reason</th><th>Member</th><th>Location</th><th>Time</th></tr></thead>
+                <tbody>
+                  ${state.accessEvents.slice(0, 12).map((event) => `
+                    <tr>
+                      <td>${escapeHtml(event.decision)}</td>
+                      <td>${escapeHtml(event.reason)}</td>
+                      <td>${event.memberId ? escapeHtml(memberName(event.memberId)) : "Unknown"}</td>
+                      <td>${escapeHtml(locationName(event.locationId))}</td>
+                      <td>${new Date(event.occurredAt).toLocaleString()}</td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            </div>`
+      }
+    </section>
+  `;
 }
 
-function isSameDay(left: Date, right: Date) {
-  return (
-    left.getFullYear() === right.getFullYear() &&
-    left.getMonth() === right.getMonth() &&
-    left.getDate() === right.getDate()
-  );
+function renderPaymentsView() {
+  const pointOfSaleEnabled = Boolean(state.gym?.featureFlags.includes(FeatureFlag.PointOfSale));
+  const account = state.stripeAccount;
+  return `
+    <div class="two-up">
+      <section class="data-card">
+        <div class="card-head" style="margin-bottom:1rem;">
+          <h3>Stripe connection</h3>
+          <span>${account ? (account.chargesEnabled ? "ready" : "needs onboarding") : "not connected"}</span>
+        </div>
+        ${
+          account
+            ? `<div class="mini-card">
+                <strong>${escapeHtml(account.stripeAccountId)}</strong>
+                <small>${account.onboardingComplete ? "Onboarding complete" : "Onboarding required"} - ${account.chargesEnabled ? "charges enabled" : "charges disabled"}</small>
+                ${account.requirementsCurrentlyDue.length > 0 ? `<small style="display:block;">Due: ${escapeHtml(account.requirementsCurrentlyDue.join(", "))}</small>` : ""}
+                ${account.dashboardUrl ? `<small style="display:block;">${escapeHtml(account.dashboardUrl)}</small>` : ""}
+              </div>`
+            : `<p class="muted">Connect Stripe before collecting payments.</p>`
+        }
+        ${state.latestStripeOnboardingUrl ? `<p class="muted">Onboarding URL: ${escapeHtml(state.latestStripeOnboardingUrl)}</p>` : ""}
+      </section>
+
+      <form id="connect-stripe-form" class="form-card">
+        <h3>${account ? "Refresh Stripe connection" : "Connect Stripe"}</h3>
+        <p class="muted">Local development uses mock Stripe unless STRIPE_SECRET_KEY is configured.</p>
+        <button type="submit">${account ? "Refresh connection" : "Connect Stripe"}</button>
+      </form>
+    </div>
+
+    <div class="two-up" style="margin-top:1rem;">
+      <form id="enable-pos-form" class="form-card">
+        <h3>Point of sale</h3>
+        <p class="muted">${pointOfSaleEnabled ? "Point of sale is enabled for this gym." : "Enable point of sale before collecting payments."}</p>
+        <button type="submit" ${pointOfSaleEnabled ? "disabled" : ""}>Enable point of sale</button>
+      </form>
+
+      <form id="collect-payment-form" class="form-card">
+        <h3>Collect payment</h3>
+        ${
+          state.members.length === 0
+            ? `<p class="muted">Create a member before collecting a member payment.</p>`
+            : renderSelect("memberId", "Member", [{ value: "", label: "Walk-in / no member" }, ...state.members.map((member) => ({ value: member.id, label: `${member.firstName} ${member.lastName}` }))], "")
+        }
+        ${renderInput("amount", "Amount", "number", "49")}
+        ${renderSelect("paymentMethod", "Payment method", [{ value: "manual_entry", label: "Manual entry" }, { value: "card_reader", label: "Card reader" }], "manual_entry")}
+        ${renderInput("receiptEmail", "Receipt email", "email")}
+        ${renderInput("note", "Note")}
+        <button type="submit" ${!pointOfSaleEnabled || !account?.chargesEnabled ? "disabled" : ""}>Collect payment</button>
+      </form>
+    </div>
+
+    <section class="data-card" style="margin-top:1rem;">
+      <div class="card-head" style="margin-bottom:1rem;">
+        <h3>Payment history</h3>
+        <span>${state.stripePayments.length} payments</span>
+      </div>
+      ${
+        state.stripePayments.length === 0
+          ? `<p class="muted">No payments recorded yet.</p>`
+          : `<div class="table-wrap">
+              <table>
+                <thead><tr><th>Member</th><th>Amount</th><th>Status</th><th>Method</th><th>Refunded</th><th>Time</th><th></th></tr></thead>
+                <tbody>
+                  ${state.stripePayments.map((payment) => `
+                    <tr>
+                      <td>${payment.memberId ? escapeHtml(memberName(payment.memberId)) : "Walk-in"}</td>
+                      <td>${formatCents(payment.amountCents)}</td>
+                      <td>${escapeHtml(payment.status)}</td>
+                      <td>${escapeHtml(payment.paymentMethod.replaceAll("_", " "))}</td>
+                      <td>${formatCents(payment.refundedAmountCents)}</td>
+                      <td>${new Date(payment.createdAt).toLocaleString()}</td>
+                      <td><button type="button" data-action="refund-payment" data-payment-id="${payment.id}" ${payment.status === "failed" || payment.status === "refunded" ? "disabled" : ""}>Refund</button></td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            </div>`
+      }
+    </section>
+  `;
 }
 
-function formatRelativeDate(value: Date) {
-  const diffDays = Math.floor((Date.now() - value.getTime()) / 86400000);
-  if (diffDays <= 0) {
-    return `today at ${value.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
-  }
-  if (diffDays === 1) {
-    return `yesterday at ${value.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
-  }
-  if (diffDays < 7) {
-    return `${diffDays} days ago`;
-  }
-  return value.toLocaleDateString([], { month: "short", day: "numeric" });
+function renderNotificationsView() {
+  const pending = state.notifications.filter((notification) => notification.status === "pending").length;
+  const failed = state.notifications.filter((notification) => notification.status === "failed").length;
+  return `
+    <div class="stat-grid">
+      <article class="mini-card">
+        <span>Pending</span>
+        <strong>${pending}</strong>
+        <small>Awaiting delivery</small>
+      </article>
+      <article class="mini-card">
+        <span>Failed</span>
+        <strong>${failed}</strong>
+        <small>Needs retry</small>
+      </article>
+      <article class="mini-card">
+        <span>Total</span>
+        <strong>${state.notifications.length}</strong>
+        <small>Notification events</small>
+      </article>
+    </div>
+
+    <section class="data-card" style="margin-top:1rem;">
+      <div class="card-head" style="margin-bottom:1rem;">
+        <h3>Notification outbox</h3>
+        <span>${state.notifications.length} events</span>
+      </div>
+      ${
+        state.notifications.length === 0
+          ? `<p class="muted">No notification events yet. Waitlist promotions will appear here.</p>`
+          : `<div class="table-wrap">
+              <table>
+                <thead><tr><th>Type</th><th>Member</th><th>Status</th><th>Payload</th><th>Created</th><th></th></tr></thead>
+                <tbody>
+                  ${state.notifications.map((notification) => `
+                    <tr>
+                      <td>${escapeHtml(notification.type.replaceAll("_", " "))}</td>
+                      <td>${escapeHtml(memberName(notification.recipientMemberId))}</td>
+                      <td>${escapeHtml(notification.status)}${notification.failureReason ? ` - ${escapeHtml(notification.failureReason)}` : ""}</td>
+                      <td>${escapeHtml(notificationSummary(notification))}</td>
+                      <td>${new Date(notification.createdAt).toLocaleString()}</td>
+                      <td>
+                        ${
+                          notification.status === "failed"
+                            ? `<button type="button" data-action="retry-notification" data-notification-id="${notification.id}">Retry</button>`
+                            : `<button type="button" data-action="process-notification" data-notification-id="${notification.id}" ${notification.status === "sent" ? "disabled" : ""}>Mark sent</button>`
+                        }
+                      </td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            </div>`
+      }
+    </section>
+  `;
 }
 
-function formatCurrency(cents: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0
-  }).format(cents / 100);
+function renderContractsView() {
+  const activeDocuments = state.contractWaiverDocuments.filter((document) => !document.archivedAt);
+  const editableDocument = activeDocuments[0];
+  return `
+    <div class="stat-grid">
+      <article class="mini-card">
+        <span>Active</span>
+        <strong>${activeDocuments.length}</strong>
+        <small>Contracts and waivers</small>
+      </article>
+      <article class="mini-card">
+        <span>Published</span>
+        <strong>${activeDocuments.filter((document) => document.publishedAt).length}</strong>
+        <small>Visible to members</small>
+      </article>
+      <article class="mini-card">
+        <span>Required</span>
+        <strong>${activeDocuments.filter((document) => document.requiresSignature).length}</strong>
+        <small>Need signatures</small>
+      </article>
+    </div>
+
+    <div class="two-up" style="margin-top:1rem;">
+      <form id="create-contract-waiver-form" class="form-card">
+        <h3>Create document</h3>
+        ${renderInput("title", "Title", "text", "Liability Waiver")}
+        ${renderSelect("type", "Type", [{ value: "contract", label: "Contract" }, { value: "waiver", label: "Waiver" }], "waiver")}
+        ${renderInput("version", "Version", "number", "1")}
+        ${renderSelect("requiresSignature", "Signature", [{ value: "true", label: "Required" }, { value: "false", label: "Optional" }], "true")}
+        ${renderSelect("publish", "Status", [{ value: "true", label: "Publish now" }, { value: "false", label: "Save draft" }], "true")}
+        <button type="submit">Create document</button>
+      </form>
+
+      <form id="update-contract-waiver-form" class="form-card">
+        <h3>Update document</h3>
+        ${
+          activeDocuments.length === 0
+            ? `<p class="muted">Create a document before editing one.</p>`
+            : renderSelect("documentId", "Document", activeDocuments.map((document) => ({ value: document.id, label: `${document.title} v${document.version}` })), editableDocument?.id ?? "")
+        }
+        ${renderInput("title", "New title")}
+        ${renderSelect("type", "Type", [{ value: "", label: "No change" }, { value: "contract", label: "Contract" }, { value: "waiver", label: "Waiver" }], "")}
+        ${renderInput("version", "New version", "number")}
+        ${renderSelect("requiresSignature", "Signature", [{ value: "", label: "No change" }, { value: "true", label: "Required" }, { value: "false", label: "Optional" }], "")}
+        ${renderSelect("publish", "Status", [{ value: "", label: "No change" }, { value: "true", label: "Published" }, { value: "false", label: "Draft" }], "")}
+        <button type="submit" ${activeDocuments.length === 0 ? "disabled" : ""}>Update document</button>
+      </form>
+    </div>
+
+    <section class="data-card" style="margin-top:1rem;">
+      <div class="card-head" style="margin-bottom:1rem;">
+        <h3>Contracts and waivers</h3>
+        <span>${activeDocuments.length} active</span>
+      </div>
+      ${
+        activeDocuments.length === 0
+          ? `<p class="muted">No contracts or waivers yet.</p>`
+          : `<div class="table-wrap">
+              <table>
+                <thead><tr><th>Title</th><th>Type</th><th>Status</th><th>Signatures</th><th>Updated</th><th></th></tr></thead>
+                <tbody>
+                  ${activeDocuments.map((document) => `
+                    <tr>
+                      <td>${escapeHtml(document.title)} v${document.version}</td>
+                      <td>${escapeHtml(document.type)}</td>
+                      <td>${document.publishedAt ? "Published" : "Draft"} - ${document.requiresSignature ? "required" : "optional"}</td>
+                      <td>${document.signedMemberCount}</td>
+                      <td>${new Date(document.updatedAt).toLocaleString()}</td>
+                      <td><button type="button" data-action="archive-contract-waiver" data-document-id="${document.id}">Archive</button></td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            </div>`
+      }
+    </section>
+  `;
 }
 
-function customerInitials(member: MemberRecord) {
-  return [member.firstName, member.lastName]
-    .map((part) => part.trim().charAt(0))
-    .filter(Boolean)
-    .join("")
-    .toUpperCase()
-    .slice(0, 2) || "C";
-}
-
-function initialsFromDisplayName(name: string) {
-  return name
-    .split(/\s+/)
-    .map((part) => part.trim().charAt(0))
-    .filter(Boolean)
-    .join("")
-    .toUpperCase()
-    .slice(0, 2) || "C";
+function renderMemberSearchView() {
+  const query = state.memberSearchQuery.toLowerCase();
+  const filtered = state.members.filter(m => {
+    if (!query) return true;
+    return (m.firstName + ' ' + m.lastName).toLowerCase().includes(query) ||
+      (m.email || '').toLowerCase().includes(query) ||
+      (m.phone || '').includes(query) ||
+      (m.barcode || '').includes(query);
+  });
+  return `
+    <section class="data-card">
+      <div class="card-head" style="margin-bottom:1rem;">
+        <h3>Member Search</h3>
+        <span>${filtered.length} results</span>
+      </div>
+      <form id="member-search-form" style="display:flex;gap:8px;margin-bottom:1rem;">
+        <input name="query" type="text" placeholder="Search by name, email, phone, or barcode..." value="${escapeAttribute(state.memberSearchQuery)}"
+          style="flex:1;border-radius:8px;border:1px solid var(--line);padding:12px 14px;background:#18181b;color:var(--ink);" />
+        <button type="submit">Search</button>
+      </form>
+      ${filtered.length === 0
+        ? `<p class="muted">No members match your search.</p>`
+        : `<div style="display:grid;gap:8px;">
+          ${filtered.map(m => `
+            <div class="mini-card" style="cursor:pointer;" data-member-id="${m.id}" data-action="view-member">
+              <strong>${m.firstName} ${m.lastName}</strong>
+              <small>${m.email || m.phone || 'No contact'} · ${m.status}</small>
+              ${m.barcode ? `<small style="display:block;">Barcode: ${m.barcode}</small>` : ''}
+            </div>
+          `).join('')}
+        </div>`
+      }
+    </section>
+  `;
 }
 
 function renderCheckInView() {
-  const member = selectedCheckInMember();
-  return `
-    <section class="club-panel checkin-sheet">
-      ${member ? renderCheckInMemberSheet(member) : `
-        <div class="empty-state checkin-sheet-empty">
-          <p class="eyebrow">Check-In</p>
-          <h3>Select a customer from the rail</h3>
-          <p>When a member is checked in or selected from the right-side list, their front-desk sheet opens here.</p>
+  if (state.locations.length === 0) {
+    return `
+      <section class="data-card">
+        <div class="empty-state">
+          <h3>No location available</h3>
+          <p>Create a location before recording barcode check-ins.</p>
+          <button type="button" data-dashboard-view="locations">Create location</button>
         </div>
-      `}
-      ${state.checkInDebug ? renderCheckInDebugPanel(state.checkInDebug) : ""}
-      ${state.checkInResult ? renderCheckInResultCard(state.checkInResult) : ""}
-    </section>
-  `;
-}
-
-function selectedCheckInMember() {
-  const selected = selectedMember();
-  if (selected) {
-    return selected;
-  }
-  if (state.checkInResult?.memberId) {
-    return state.members.find((member) => member.id === state.checkInResult?.memberId);
-  }
-  return undefined;
-}
-
-function normalizeAccountKey(value?: string) {
-  return value?.trim().toLowerCase() ?? "";
-}
-
-function normalizePhone(value?: string) {
-  return value ? value.replace(/\D+/g, "") : "";
-}
-
-function buildCheckInMemberSummary(member: MemberRecord) {
-  const cache = state.memberCache[member.id];
-  const memberships = Array.isArray(cache?.memberships) ? cache.memberships : [];
-  const activeMembership = memberships.find(
-    (membership) => membership.status === MembershipStatus.Active || membership.status === MembershipStatus.Trialing
-  );
-  const primaryPlanId = activeMembership?.planId ?? memberships[0]?.planId;
-  const primaryPlan = primaryPlanId ? state.plans.find((plan) => plan.id === primaryPlanId) : undefined;
-  const amountDueCents = activeMembership ? 0 : primaryPlan?.priceCents ?? 0;
-  const otherMembers = state.members.filter((candidate) => {
-    if (candidate.id === member.id) {
-      return false;
-    }
-    const sameEmail = normalizeAccountKey(candidate.email) && normalizeAccountKey(candidate.email) === normalizeAccountKey(member.email);
-    const samePhone = normalizePhone(candidate.phone) && normalizePhone(candidate.phone) === normalizePhone(member.phone);
-    return sameEmail || samePhone;
-  });
-  const paidMember = Boolean(activeMembership);
-  const statusLabel = paidMember ? "Paid member" : member.status === MemberStatus.Lead ? "Lead" : "Not paid";
-  const checkInSummary = buildRailMemberSummary(member);
-  return {
-    amountDueLabel: formatCurrency(amountDueCents),
-    paidMember,
-    statusLabel,
-    planLabel: primaryPlan ? `Plan: ${primaryPlan.name}` : "Plan: No plan on file",
-    barcodeLabel: member.barcode || "No barcode on file",
-    memberships,
-    primaryPlan,
-    otherMembers,
-    checkInSummary
-  };
-}
-
-function renderLinkedMemberChips(summary: ReturnType<typeof buildCheckInMemberSummary>) {
-  if (summary.otherMembers.length === 0) {
-    return `<span class="club-note-label">No secondary members linked</span>`;
+      </section>
+    `;
   }
   return `
-    <div class="linked-member-chips">
-      ${summary.otherMembers.map((other) => `
-        <button type="button" class="club-note-label linked-member-chip" data-check-in-member-id="${other.id}">
-          ${other.firstName} ${other.lastName}
-        </button>
-      `).join("")}
-    </div>
-  `;
-}
-
-function renderBillingHistory(member: MemberRecord) {
-  const memberships = [...(state.memberCache[member.id]?.memberships ?? [])]
-    .sort((left, right) => Date.parse(right.startsAt) - Date.parse(left.startsAt));
-  if (memberships.length === 0) {
-    return `<div class="settings-placeholder"><strong>No billing history</strong><p>Enroll this customer to begin tracking membership invoices.</p></div>`;
-  }
-  return `
-    <div class="invoice-list">
-      ${memberships.map((membership) => {
-        const plan = state.plans.find((candidate) => candidate.id === membership.planId);
-        const statusLabel = membership.status.replace(/_/g, " ");
-        const amountLabel = plan ? formatCurrency(plan.priceCents) : "Unknown plan";
-        const endsAtLabel = membership.endsAt ? `Ends ${new Date(membership.endsAt).toLocaleDateString()}` : "No end date";
-        return `
-          <article class="invoice-card">
-            <div class="invoice-card-head">
-              <strong>${plan?.name ?? "Membership"}</strong>
-              <span>${statusLabel}</span>
-            </div>
-            <p>${amountLabel}</p>
-            <small>Starts ${new Date(membership.startsAt).toLocaleDateString()} · ${endsAtLabel}</small>
-          </article>
-        `;
-      }).join("")}
-    </div>
-  `;
-}
-
-function renderMemberAlerts(member: MemberRecord) {
-  const alerts = getMemberAlerts(member.id);
-  return `
-    <div class="section-stack">
-      <form id="member-alert-form" class="form-card compact-form">
-        <input type="hidden" name="memberId" value="${member.id}" />
-        ${renderInput("title", "Alert title", "text")}
-        <label class="field">
-          <span>Alert message</span>
-          <textarea name="message" rows="3"></textarea>
-        </label>
-        <button type="submit">Add alert</button>
+    <section class="data-card">
+      <div class="card-head" style="margin-bottom:1rem;">
+        <h3>Check-In Kiosk</h3>
+        <span>Scan barcode to check in a member</span>
+      </div>
+      <form id="check-in-form" style="display:flex;gap:8px;margin-bottom:1rem;">
+        <select name="locationId" style="border-radius:8px;border:1px solid var(--line);padding:12px 14px;background:#18181b;color:var(--ink);">
+          ${state.locations.map((location) => `<option value="${location.id}" ${location.id === state.selectedCheckInLocationId ? "selected" : ""}>${escapeHtml(location.name)}</option>`).join("")}
+        </select>
+        <input name="barcode" type="text" placeholder="Enter member barcode..." value="${escapeAttribute(state.checkInBarcode)}"
+          style="flex:1;border-radius:8px;border:1px solid var(--line);padding:12px 14px;background:#18181b;color:var(--ink);" autofocus />
+        <button type="submit">Check In</button>
       </form>
-      ${alerts.length === 0
-        ? `<div class="settings-placeholder"><strong>No alerts</strong><p>Create front-desk alerts for this member here.</p></div>`
-        : `<div class="alert-list">
-            ${alerts.map((alert) => `
-              <article class="alert-card${alert.resolvedAt ? " resolved" : ""}">
-                <div class="card-head">
-                  <strong>${escapeHtml(alert.title)}</strong>
-                  <span>${new Date(alert.createdAt).toLocaleDateString()}</span>
-                </div>
-                <p>${escapeHtml(alert.message)}</p>
-                ${alert.resolvedAt
-                  ? `<small>Resolved ${new Date(alert.resolvedAt).toLocaleDateString()}</small>`
-                  : `<small>Open alert</small><button type="button" class="ghost-button" data-member-alert-resolve="${alert.id}" data-member-id="${member.id}">Resolve</button>`}
-              </article>
-            `).join("")}
-          </div>`}
-    </div>
-  `;
-}
-
-function renderMemberSignatures(member: MemberRecord) {
-  const signatures = getMemberSignatures(member.id);
-  return `
-    <div class="signature-list">
-      ${signatures.map((signature) => `
-        <button
-          type="button"
-          class="signature-row${signature.signedAt ? " signed" : ""}"
-          data-signature-toggle="${signature.id}"
-          data-member-id="${member.id}"
-        >
-          <span>
-            <strong>${escapeHtml(signature.label)}</strong>
-            <small>${signature.required ? "Required" : "Optional"}</small>
-          </span>
-          <span class="signature-state">${signature.signedAt ? `Signed ${new Date(signature.signedAt).toLocaleDateString()}` : "Needs signature"}</span>
-        </button>
-      `).join("")}
-    </div>
-  `;
-}
-
-function renderMemberContacts(member: MemberRecord, summary: ReturnType<typeof buildCheckInMemberSummary>) {
-  const emergencyContact = member.emergencyContact;
-  return `
-    <div class="contact-stack">
-      <article class="mini-card">
-        <strong>Primary contact</strong>
-        <p style="margin:0.5rem 0 0;color:var(--muted);">${member.email || "No email"} · ${member.phone || "No phone"}</p>
-      </article>
-      <article class="mini-card">
-        <strong>Emergency contact</strong>
-        ${emergencyContact
-          ? `<p style="margin:0.5rem 0 0;color:var(--muted);">${escapeHtml(emergencyContact.name)} · ${escapeHtml(emergencyContact.phone)}${emergencyContact.relationship ? ` · ${escapeHtml(emergencyContact.relationship)}` : ""}</p>`
-          : `<p style="margin:0.5rem 0 0;color:var(--muted);">No emergency contact on file.</p>`}
-      </article>
-      <article class="mini-card">
-        <strong>Account links</strong>
-        <div class="linked-member-stack">
-          ${summary.otherMembers.length === 0
-            ? `<span class="muted">No secondary members linked.</span>`
-            : summary.otherMembers.map((other) => `<button type="button" class="linked-member-card" data-check-in-member-id="${other.id}">${other.firstName} ${other.lastName}</button>`).join("")}
+      ${state.checkInResult ? `
+        <div class="banner ${state.checkInResult.status === 'allowed' ? 'success' : 'error'}">
+          <strong>${state.checkInResult.memberName}</strong> — ${state.checkInResult.status === 'allowed' ? '✓ Allowed' : '✗ Denied'}
+          ${state.checkInResult.deniedReason ? `<p style="margin:0.5rem 0 0;">${state.checkInResult.deniedReason}</p>` : ''}
         </div>
-      </article>
-    </div>
-  `;
-}
-
-function renderCheckInMemberSheet(member: MemberRecord) {
-  const summary = buildCheckInMemberSummary(member);
-  const avatarMarkup = member.profileImageUrl
-    ? `<img src="${escapeAttribute(member.profileImageUrl)}" alt="${escapeAttribute(`${member.firstName} ${member.lastName}`.trim())}" />`
-    : `<span>${customerInitials(member)}</span>`;
-  const planOptions = state.plans
-    .filter((plan) => plan.status !== "archived")
-    .map((plan) => ({ value: plan.id, label: `${plan.name} · ${formatCurrency(plan.priceCents)}` }));
-  return `
-    <div class="checkin-sheet-grid">
-      <div class="checkin-sheet-hero">
-        <div class="checkin-sheet-avatar">${avatarMarkup}</div>
-        <div class="checkin-sheet-copy">
-          <p class="eyebrow">Check-In Member</p>
-          <h2>${member.firstName} ${member.lastName}</h2>
-          <div class="checkin-sheet-badges">
-            <span class="club-note-label">${summary.planLabel}</span>
-            <span class="club-note-label">${summary.statusLabel}</span>
-            ${summary.paidMember ? `<span class="checkin-paid-tag">Paid member</span>` : `<span class="checkin-due-tag">Payment needed</span>`}
-          </div>
-          <div class="checkin-sheet-meta">
-            <span><strong>Amount due:</strong> ${summary.amountDueLabel}</span>
-            <span><strong>Last check-in:</strong> ${summary.checkInSummary.lastCheckInLabel ?? "No check-in yet"}</span>
-            <span><strong>Check-in status:</strong> ${summary.checkInSummary.issueLabel}</span>
-          </div>
-          ${renderLinkedMemberChips(summary)}
-          <div class="checkin-sheet-actions">
-            <button type="button" class="ghost-button" data-sheet-view="pos" data-preserve-context="true">POS</button>
-            <button type="button" class="ghost-button" data-sheet-view="customer_profile" data-preserve-context="true">Profile</button>
-            <button type="button" class="ghost-button" data-sheet-view="customer_edit" data-preserve-context="true">Notes</button>
-            <button type="button" class="ghost-button" data-sheet-view="customer_edit" data-preserve-context="true">Create alert</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="checkin-sheet-stats">
-        <article class="mini-card">
-          <span>Amount due</span>
-          <strong>${summary.amountDueLabel}</strong>
-        </article>
-        <article class="mini-card">
-          <span>Barcode</span>
-          <strong>${summary.barcodeLabel}</strong>
-        </article>
-        <article class="mini-card">
-          <span>Memberships</span>
-          <strong>${summary.memberships.length}</strong>
-        </article>
-        <article class="mini-card">
-          <span>Other members</span>
-          <strong>${summary.otherMembers.length}</strong>
-        </article>
-      </div>
-
-      <div class="checkin-sheet-section">
-        <div class="card-head">
-          <h3>Enrollment</h3>
-          <span>${state.plans.length} plans</span>
-        </div>
-        ${planOptions.length === 0
-          ? `<div class="settings-placeholder"><strong>No plans loaded</strong><p>Create a plan before trying to enroll this member.</p></div>`
-          : `
-            <form id="check-in-enroll-form" class="form-card">
-              <input type="hidden" name="memberId" value="${member.id}" />
-              ${renderSelect("planId", "Plan", planOptions, summary.primaryPlan?.id ?? planOptions[0]?.value ?? "")}
-              <label class="field">
-                <span>Membership status</span>
-                <input name="status" type="text" value="active" disabled />
-              </label>
-              <button type="submit">Enroll member</button>
-            </form>
-          `}
-      </div>
-
-      <div class="checkin-sheet-section">
-        <div class="card-head">
-          <h3>Notes</h3>
-          <button type="button" class="ghost-button" data-dashboard-view="customer_edit" data-preserve-context="true">Edit notes</button>
-        </div>
-        ${member.notes
-          ? `<div class="club-note"><p>${escapeHtml(member.notes)}</p></div>`
-          : `<div class="settings-placeholder"><strong>No notes</strong><p>Add front-desk notes from the customer editor.</p></div>`}
-      </div>
-
-      <div class="checkin-sheet-section">
-        <div class="card-head">
-          <h3>Billing history / Invoices</h3>
-          <span>${summary.memberships.length}</span>
-        </div>
-        ${renderBillingHistory(member)}
-      </div>
-
-      <div class="checkin-sheet-section">
-        <div class="card-head">
-          <h3>Contacts and signatures</h3>
-          <span>${summary.otherMembers.length ? `${summary.otherMembers.length} linked` : "0 linked"}</span>
-        </div>
-        ${renderMemberContacts(member, summary)}
-        ${renderMemberSignatures(member)}
-      </div>
-
-      <div class="checkin-sheet-section">
-        <div class="card-head">
-          <h3>Alerts</h3>
-          <button type="button" class="ghost-button" data-dashboard-view="customer_profile" data-preserve-context="true">Open profile</button>
-        </div>
-        ${renderMemberAlerts(member)}
-      </div>
-    </div>
-  `;
-}
-
-function renderCheckInResultCard(result: CheckInRecord) {
-  const allowed = result.status === "allowed";
-  const member = result.memberId ? state.members.find((candidate) => candidate.id === result.memberId) : undefined;
-  const displayName = result.memberName ?? member?.firstName ?? "Customer";
-  const avatarMarkup = member?.profileImageUrl
-    ? `<img src="${escapeAttribute(member.profileImageUrl)}" alt="${escapeAttribute(displayName)}" />`
-    : `<span>${initialsFromDisplayName(displayName)}</span>`;
-  return `
-    <div class="checkin-result-card ${allowed ? "allowed" : "blocked"}">
-      <div class="checkin-result-avatar">${avatarMarkup}</div>
-      <div class="checkin-result-copy">
-        <strong>${displayName}</strong>
-        <span>${allowed ? "Entry allowed" : "Entry blocked"}</span>
-        ${result.deniedReason ? `<p>${result.deniedReason}</p>` : ""}
-      </div>
-    </div>
-  `;
-}
-
-function renderCheckInReviewModal(review: NonNullable<AppState["checkInReview"]>) {
-  const allowed = review.status === "allowed";
-  const displayName = review.memberName;
-  return `
-    <div class="checkin-modal-backdrop">
-      <div class="checkin-modal ${allowed ? "allowed" : "blocked"}">
-        <div class="checkin-modal-avatar">
-          ${review.profileImageUrl
-            ? `<img src="${escapeAttribute(review.profileImageUrl)}" alt="${escapeAttribute(displayName)}" />`
-            : `<span>${initialsFromDisplayName(displayName)}</span>`}
-        </div>
-        <div class="checkin-modal-copy">
-          <p class="eyebrow">Check-in review</p>
-          <h3>${displayName}</h3>
-          <p>${allowed ? "This entry was allowed." : review.deniedReason ?? "This entry was blocked."}</p>
-        </div>
-        <div class="checkin-modal-actions">
-          ${allowed
-            ? `<button type="button" class="ghost-button" data-checkin-review-close>Close</button>`
-            : `
-              <button type="button" class="ghost-button" data-checkin-review-deny>Keep denied</button>
-              <button type="button" class="module-nav-button active" data-checkin-review-allow>Allow entry</button>
-            `}
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function enrichCheckInRecord(
-  record: CheckInRecord,
-  memberName: string,
-  locationId: string,
-  locationName?: string
-): CheckInRecord {
-  return {
-    ...record,
-    memberName: record.memberName ?? memberName,
-    locationId: record.locationId || locationId,
-    locationName: record.locationName ?? locationName
-  };
-}
-
-function pushCheckInToMemberCache(memberId: string, checkIn: CheckInRecord) {
-  const current = state.memberCache[memberId];
-  if (!current) {
-    return;
-  }
-  state.memberCache = {
-    ...state.memberCache,
-    [memberId]: {
-      memberships: Array.isArray(current.memberships) ? current.memberships : [],
-      checkIns: [checkIn, ...(Array.isArray(current.checkIns) ? current.checkIns : []).filter((entry) => entry.id !== checkIn.id)]
-    }
-  };
-}
-
-function removeCheckInLocally(checkInId: string, record?: CheckInRecord) {
-  state.checkInHistory = state.checkInHistory.filter((entry) => entry.id !== checkInId);
-  if (record?.memberId && state.memberCache[record.memberId]) {
-    state.memberCache = {
-      ...state.memberCache,
-      [record.memberId]: {
-        ...state.memberCache[record.memberId],
-        checkIns: state.memberCache[record.memberId].checkIns.filter((entry) => entry.id !== checkInId)
-      }
-    };
-  }
-  if (state.checkInResult?.id === checkInId) {
-    state.checkInResult = undefined;
-  }
-  if (record?.memberId && (state.checkInReview?.payload.memberId === record.memberId || state.checkInReview?.memberId === record.memberId)) {
-    state.checkInReview = undefined;
-  }
-  state.checkInDebug = undefined;
-}
-
-function mergeCheckInHistory(records: CheckInRecord[]) {
-  const unique = new Map<string, CheckInRecord>();
-  for (const record of records) {
-    if (!unique.has(record.id)) {
-      unique.set(record.id, record);
-    }
-  }
-  return [...unique.values()].sort((left, right) => Date.parse(right.checkedInAt) - Date.parse(left.checkedInAt));
-}
-
-function renderCheckInDebugPanel(debug: { title: string; message: string; details: string[] }) {
-  return `
-    <div class="checkin-debug">
-      <strong>${debug.title}</strong>
-      <p>${debug.message}</p>
-      ${debug.details.length > 0 ? `<ul>${debug.details.map((detail) => `<li>${detail}</li>`).join("")}</ul>` : ""}
-    </div>
+      ` : ''}
+    </section>
   `;
 }
 
 function renderCheckInHistoryView() {
-  const history = state.checkInHistory.slice(0, 5);
   return `
     <section class="data-card">
       <div class="card-head" style="margin-bottom:1rem;">
         <h3>Check-In History</h3>
         <span>${state.checkInHistory.length} records</span>
       </div>
-      ${history.length === 0
+      ${state.checkInHistory.length === 0
         ? `<p class="muted">No check-in records yet.</p>`
         : `<div class="table-wrap"><table>
           <thead><tr><th>Time</th><th>Member</th><th>Status</th><th>Method</th><th>Location</th></tr></thead>
-          <tbody>${history.map(c => `
+          <tbody>${state.checkInHistory.map(c => `
             <tr>
               <td>${new Date(c.checkedInAt).toLocaleString()}</td>
               <td>${c.memberName}</td>
@@ -2381,6 +2072,14 @@ function renderPlatformDashboard() {
       </div>
       <button id="logout-button" class="ghost-button" type="button">Log out</button>
     </div>
+
+    ${state.createdGym ? `
+      <section class="banner success">
+        <strong>${escapeHtml(state.createdGym.name)} is ready.</strong>
+        <p style="margin:0.5rem 0 0;">Use the new owner email and password you just entered, or open the dashboard now.</p>
+        <a href="?gymSlug=${state.createdGym.slug}#/dashboard" class="ghost-button" style="display:inline-block;margin-top:12px;text-decoration:none;">Open dashboard</a>
+      </section>
+    ` : ""}
 
     <div class="list-grid">
       <section class="data-card">
@@ -2444,6 +2143,8 @@ function renderPublic(
             <p>${state.publicGym.businessInfo?.phone ?? state.publicGym.businessInfo?.email ?? "Memberships available online"}</p>
           </section>
 
+          ${state.publicSuccess ? `<div class="banner success">${state.publicSuccess}</div>` : ""}
+
           <div class="two-up stacked-mobile">
             <section class="data-card">
               <div class="card-head">
@@ -2480,433 +2181,161 @@ function renderPublic(
 
 function bindEvents() {
   // Dashboard tab navigation
-  app.querySelectorAll<HTMLElement>("[data-dashboard-view]").forEach((btn) => {
-    btn.addEventListener("click", (event) => {
-      event.preventDefault();
+  app.querySelectorAll<HTMLButtonElement>("[data-dashboard-view]").forEach((btn) => {
+    btn.addEventListener("click", () => {
       const view = btn.dataset.dashboardView as AppState["dashboardView"];
       if (view) {
-        navigateDashboardView(view, { preserveContext: btn.dataset.preserveContext === "true" });
+        state.dashboardView = view;
+        state.selectedMemberId = undefined;
+        state.checkInResult = undefined;
+        render();
       }
     });
   });
 
-  app.querySelectorAll<HTMLElement>("[data-settings-section]").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      const section = button.dataset.settingsSection as SettingsSectionKey | undefined;
-      if (!section) {
-        return;
-      }
-      navigateSettingsSection(section);
-    });
-  });
-
-  app.querySelectorAll<HTMLElement>("[data-sheet-view]").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      const view = button.dataset.sheetView as AppState["dashboardView"] | undefined;
-      if (!view) return;
-      navigateDashboardView(view, { preserveContext: button.dataset.preserveContext === "true" });
-    });
-  });
-
-  app.querySelectorAll<HTMLButtonElement>("[data-role-select]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const roleId = button.dataset.roleSelect;
-      if (!roleId) return;
-      state.selectedRoleId = roleId;
-      render();
-    });
-  });
-
-  // Customer actions
-  app.querySelectorAll<HTMLButtonElement>("[data-customer-action='edit']").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.editingMemberId = button.dataset.memberId;
-      navigateDashboardView("customer_edit", { preserveContext: true });
-    });
-  });
-  app.querySelectorAll<HTMLButtonElement>("[data-action='view-member']").forEach((el) => {
+  // Member search results click
+  app.querySelectorAll<HTMLDivElement>("[data-action='view-member']").forEach((el) => {
     el.addEventListener("click", () => {
       state.selectedMemberId = el.dataset.memberId;
-      navigateDashboardView(el.dataset.viewTarget === "check_in" ? "check_in" : "customer_profile", { preserveContext: true });
-    });
-  });
-  app.querySelectorAll<HTMLButtonElement>("[data-check-in-member-id]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.selectedMemberId = button.dataset.checkInMemberId;
-      navigateDashboardView("check_in", { preserveContext: true });
-    });
-  });
-  app.querySelectorAll<HTMLButtonElement>("[data-check-in-record-id]").forEach((button) => {
-    button.addEventListener("contextmenu", async (event) => {
-      event.preventDefault();
-      const checkInId = button.dataset.checkInRecordId;
-      if (!state.gym || !checkInId) return;
-      const record = state.checkInHistory.find((entry) => entry.id === checkInId);
-      const label = record?.memberName ?? "this check-in";
-      if (!window.confirm(`Remove ${label} from the check-in list?`)) {
-        return;
-      }
-      try {
-        await client.deleteCheckIn(state.gym.id, checkInId);
-        removeCheckInLocally(checkInId, record);
-        setBanner("success", `Removed ${label} from check-ins.`);
-        render();
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 404 && error.code === "not_found") {
-          removeCheckInLocally(checkInId, record);
-          setBanner("info", `Check-in for ${label} was already removed on the server, so it was cleared from the screen.`);
-          await refreshDashboard();
-          render();
-          return;
-        }
-        const debug = buildCheckInDebug(error, label, state.selectedLocationId || state.locations[0]?.id || "", record ? state.members.find((member) => member.id === record.memberId) : undefined);
-        state.checkInDebug = debug;
-        setBanner("error", debug.message);
-        render();
-      }
-    });
-  });
-  app.querySelectorAll<HTMLButtonElement>("[data-theme-choice]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const choice = button.dataset.themeChoice as ThemeName | undefined;
-      if (!choice) return;
-      state.theme = choice;
-      localStorage.setItem(THEME_STORAGE_KEY, choice);
+      state.dashboardView = "member_profile";
       render();
     });
   });
-  app.querySelectorAll<HTMLButtonElement>("[data-location-select]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const locationId = button.dataset.locationSelect;
-    if (!locationId) return;
-    state.selectedLocationId = locationId;
-    render();
-  });
-  });
 
-  app.querySelectorAll<HTMLButtonElement>("[data-staff-role-assign]").forEach((button) => {
+  app.querySelectorAll<HTMLButtonElement>("[data-action='rotate-access-key']").forEach((button) => {
     button.addEventListener("click", async () => {
-      if (!state.gym) return;
-      const userId = button.dataset.staffRoleAssign;
-      const roleSelect = userId ? app.querySelector<HTMLSelectElement>(`[data-staff-role-select="${userId}"]`) : null;
-      const roleId = roleSelect?.value;
-      if (!userId || !roleId) return;
+      if (!state.gym || !button.dataset.deviceId) {
+        return;
+      }
       try {
-        await client.assignStaffRole(state.gym.id, { userId, roleId });
-        setBanner("success", "Staff role updated.");
+        const response = (await client.rotateAccessDeviceKey(
+          state.gym.id,
+          button.dataset.deviceId
+        )) as AccessDeviceCreateResponse;
+        state.latestAccessApiKey = response.apiKey;
+        setBanner("success", `Rotated key for ${response.device.name}.`);
         await refreshDashboard();
       } catch (error) {
         setBanner("error", describeError(error));
+        render();
       }
     });
   });
-  app.querySelectorAll<HTMLButtonElement>("[data-checkin-review-close]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.checkInReview = undefined;
-      render();
-    });
-  });
-  app.querySelectorAll<HTMLButtonElement>("[data-checkin-review-deny]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.checkInReview = undefined;
-      setBanner("info", "Entry remains denied.");
-      render();
-    });
-  });
-  app.querySelectorAll<HTMLButtonElement>("[data-checkin-review-allow]").forEach((button) => {
+
+  app.querySelectorAll<HTMLButtonElement>("[data-action='archive-plan']").forEach((button) => {
     button.addEventListener("click", async () => {
-      if (!state.gym || !state.checkInReview) return;
-      const review = state.checkInReview;
+      if (!state.gym || !button.dataset.planId) {
+        return;
+      }
       try {
-        const result = await client.createCheckIn(state.gym.id, {
-          ...review.payload,
-          overrideEligibility: true,
-          overrideReason: "Staff approved entry."
-        }) as CheckInRecord;
-        const approveName = review.memberName;
-        const locationName = state.locations.find((location) => location.id === review.locationId)?.name;
-        const enrichedResult = enrichCheckInRecord(result, approveName, review.locationId, locationName);
-        state.checkInResult = enrichedResult;
-        state.selectedMemberId = review.memberId ?? enrichedResult.memberId ?? state.selectedMemberId;
-        state.checkInHistory = [enrichedResult, ...state.checkInHistory.filter((entry) => entry.id !== enrichedResult.id)];
-        if (review.memberId) {
-          pushCheckInToMemberCache(review.memberId, enrichedResult);
-        }
-        state.checkInReview = undefined;
-        navigateDashboardView("check_in", { preserveContext: true });
-        setBanner("success", `Entry approved for ${approveName}.`);
-        render();
+        await client.archiveMembershipPlan(state.gym.id, button.dataset.planId);
+        setBanner("success", "Membership plan archived.");
+        await refreshDashboard();
       } catch (error) {
-        const debug = buildCheckInDebug(error, review.payload.barcode ?? review.memberName, review.locationId, review.memberId ? state.members.find((member) => member.id === review.memberId) : undefined);
-        state.checkInDebug = debug;
-        setBanner("error", debug.message);
+        setBanner("error", describeError(error));
         render();
       }
     });
   });
 
-  bindForm("check-in-enroll-form", async (form) => {
-    if (!state.gym) {
-      return;
-    }
-    const data = formData(form);
-    const memberId = data.memberId;
-    const planId = data.planId;
-    if (!memberId || !planId) {
-      throw new Error("Choose a member and a plan before enrolling.");
-    }
-    await client.assignMemberMembership(state.gym.id, memberId, {
-      planId,
-      status: MembershipStatus.Active,
-      startsAt: new Date().toISOString()
+  app.querySelectorAll<HTMLButtonElement>("[data-action='refund-payment']").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!state.gym || !button.dataset.paymentId) {
+        return;
+      }
+      try {
+        await client.refundPayment(state.gym.id, button.dataset.paymentId, {});
+        setBanner("success", "Payment refunded.");
+        await refreshDashboard();
+      } catch (error) {
+        setBanner("error", describeError(error));
+        render();
+      }
     });
-    state.selectedMemberId = memberId;
-    navigateDashboardView("check_in", { preserveContext: true });
-    await refreshDashboard();
   });
 
-  bindForm("create-role-form", async (form) => {
-    if (!state.gym) {
-      return;
-    }
-    const data = formData(form);
-    const permissions = Array.from(form.querySelectorAll<HTMLInputElement>('input[name="permissions"]:checked')).map(
-      (input) => input.value
-    );
-    if (permissions.length === 0) {
-      throw new Error("Choose at least one permission for the new role.");
-    }
-    await client.createCustomRole(state.gym.id, {
-      name: data.newRoleName,
-      permissions
+  app.querySelectorAll<HTMLButtonElement>("[data-action='process-notification']").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!state.gym || !button.dataset.notificationId) {
+        return;
+      }
+      try {
+        await client.processNotification(state.gym.id, button.dataset.notificationId, {});
+        setBanner("success", "Notification marked sent.");
+        await refreshDashboard();
+      } catch (error) {
+        setBanner("error", describeError(error));
+        render();
+      }
     });
-    setBanner("success", "Custom role created.");
-    await refreshDashboard();
   });
 
-  bindForm("edit-role-form", async (form) => {
-    if (!state.gym || !state.selectedRoleId) {
-      return;
-    }
-    const data = formData(form);
-    const permissions = Array.from(form.querySelectorAll<HTMLInputElement>('input[name="permissions"]:checked')).map(
-      (input) => input.value
-    );
-    if (permissions.length === 0) {
-      throw new Error("Choose at least one permission for the role.");
-    }
-    await client.updateCustomRole(state.gym.id, state.selectedRoleId, {
-      name: data.roleName,
-      permissions
+  app.querySelectorAll<HTMLButtonElement>("[data-action='retry-notification']").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!state.gym || !button.dataset.notificationId) {
+        return;
+      }
+      try {
+        await client.retryNotification(state.gym.id, button.dataset.notificationId);
+        setBanner("success", "Notification queued for retry.");
+        await refreshDashboard();
+      } catch (error) {
+        setBanner("error", describeError(error));
+        render();
+      }
     });
-    setBanner("success", "Role updated.");
-    await refreshDashboard();
   });
 
-  // Check-in forms
-  const handleCheckIn = async (form: HTMLFormElement) => {
+  app.querySelectorAll<HTMLButtonElement>("[data-action='archive-contract-waiver']").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!state.gym || !button.dataset.documentId) {
+        return;
+      }
+      try {
+        await client.archiveContractWaiverDocument(state.gym.id, button.dataset.documentId);
+        setBanner("success", "Document archived.");
+        await refreshDashboard();
+      } catch (error) {
+        setBanner("error", describeError(error));
+        render();
+      }
+    });
+  });
+
+  // Check-in form
+  bindForm("check-in-form", async (form) => {
     if (!state.gym) return;
     const data = formData(form);
-    const lookup = data.barcode.trim();
-    if (!lookup) return;
-    state.checkInDebug = undefined;
-    const locationId = state.selectedLocationId || state.locations[0]?.id;
-    if (!locationId) {
-      const debug = {
-        title: "Check-in blocked",
-        message: "No active location is available for this gym, so the app cannot submit a check-in.",
-        details: [
-          `Gym: ${state.gym.name}`,
-          "Create or reactivate a location before trying again.",
-          "If you are the admin, open the Locations area and make one active."
-        ]
-      };
-      state.checkInDebug = debug;
-      setBanner("error", debug.message);
-      return;
-    }
-    const normalizedLookup = lookup.toLowerCase();
-    const memberMatch =
-      state.members.find((member) => member.barcode?.toLowerCase() === normalizedLookup) ??
-      state.members.find((member) => member.lastName.toLowerCase() === normalizedLookup) ??
-      state.members.find((member) => `${member.firstName} ${member.lastName}`.trim().toLowerCase() === normalizedLookup) ??
-      state.members.find((member) => `${member.firstName} ${member.lastName}`.trim().toLowerCase().includes(normalizedLookup)) ??
-      state.members.find((member) => member.lastName.toLowerCase().includes(normalizedLookup));
+    const barcode = data.barcode.trim();
+    if (!barcode) return;
+    state.selectedCheckInLocationId = data.locationId || state.selectedCheckInLocationId;
     try {
-      const payload: CheckInPayload = memberMatch
-        ? { memberId: memberMatch.id, locationId, method: CheckInMethod.Barcode }
-        : { barcode: lookup, locationId, method: CheckInMethod.Barcode };
       const result = await client.createCheckIn(state.gym.id, {
-        ...payload
+        barcode,
+        locationId: state.selectedCheckInLocationId,
+        method: CheckInMethod.Barcode
       }) as CheckInRecord;
-      const locationName = state.locations.find((location) => location.id === locationId)?.name;
-      const enrichedResult = enrichCheckInRecord(
-        result,
-        result.memberName ?? (memberMatch ? `${memberMatch.firstName} ${memberMatch.lastName}`.trim() : lookup),
-        locationId,
-        locationName
-      );
-      state.checkInResult = enrichedResult;
-      state.selectedMemberId = enrichedResult.memberId ?? memberMatch?.id ?? state.selectedMemberId;
-      state.checkInHistory = [enrichedResult, ...state.checkInHistory.filter((entry) => entry.id !== enrichedResult.id)];
-      if (enrichedResult.memberId) {
-        pushCheckInToMemberCache(enrichedResult.memberId, enrichedResult);
-      }
+      state.checkInResult = result;
+      state.checkInHistory = [result, ...state.checkInHistory];
       state.checkInBarcode = "";
-      state.checkInDebug = undefined;
-      const displayName =
-        enrichedResult.memberName ??
-        (memberMatch ? `${memberMatch.firstName} ${memberMatch.lastName}`.trim() : lookup);
-      state.checkInReview = enrichedResult.status === "denied"
-        ? {
-            memberId: memberMatch?.id ?? result.memberId,
-            memberName: displayName,
-            profileImageUrl: memberMatch?.profileImageUrl,
-            status: enrichedResult.status,
-            deniedReason: enrichedResult.deniedReason,
-            locationId,
-            payload
-          }
-        : undefined;
-      navigateDashboardView("check_in", { preserveContext: true });
-      setBanner(
-        enrichedResult.status === "allowed" ? "success" : "error",
-        enrichedResult.status === "allowed"
-          ? `Checked in ${displayName}.`
-          : `Check-in denied for ${displayName}${enrichedResult.deniedReason ? `: ${enrichedResult.deniedReason}` : "."} Review the popup to allow entry.`
-      );
       render();
     } catch (error) {
-      const debug = buildCheckInDebug(error, lookup, locationId, memberMatch);
-      state.checkInDebug = debug;
-      setBanner("error", debug.message);
+      setBanner("error", describeError(error));
       render();
     }
-  };
-  bindForm("check-in-form", handleCheckIn);
-  bindForm("quick-check-in-form", handleCheckIn);
-
-  bindForm("update-member-form", async (form) => {
-    const data = formData(form);
-    if (!state.gym) return;
-    const memberId = data.memberId;
-    if (!memberId) return;
-    await client.updateMember(state.gym.id, memberId, {
-      firstName: data.firstName,
-      lastName: data.lastName,
-      email: data.email || undefined,
-      phone: data.phone || undefined,
-      barcode: data.barcode || undefined,
-      profileImageUrl: data.profileImageUrl || "",
-      status: data.status as MemberStatus,
-      tagNames: splitTags(data.tagNames),
-      emergencyContact:
-        data.emergencyContactName || data.emergencyContactPhone
-          ? {
-              name: data.emergencyContactName || "",
-              phone: data.emergencyContactPhone || "",
-              ...(data.emergencyContactRelationship
-                ? { relationship: data.emergencyContactRelationship }
-                : {})
-            }
-          : undefined,
-      notes: data.notes || undefined
-    });
-    state.selectedMemberId = memberId;
-    state.editingMemberId = memberId;
-    await refreshDashboard();
-    navigateDashboardView("customer_profile", { preserveContext: true });
   });
 
-  bindForm("member-barcode-form", async (form) => {
-    if (!state.gym) {
-      return;
-    }
+  // Member search form
+  bindForm("member-search-form", async (form) => {
     const data = formData(form);
-    const memberId = data.memberId;
-    if (!memberId) {
-      return;
-    }
-    await client.updateMember(state.gym.id, memberId, {
-      barcode: data.barcode || undefined
-    });
-    await refreshDashboard();
-    navigateDashboardView("customer_profile", { preserveContext: true });
-  });
-
-  bindForm("member-add-membership-form", async (form) => {
-    if (!state.gym) {
-      return;
-    }
-    const data = formData(form);
-    const memberId = data.memberId;
-    const planId = data.planId;
-    if (!memberId || !planId) {
-      throw new Error("Choose a customer and plan before adding membership.");
-    }
-    await client.assignMemberMembership(state.gym.id, memberId, {
-      planId,
-      status: (data.status as MembershipStatus) || MembershipStatus.Active,
-      startsAt: new Date().toISOString()
-    });
-    await refreshDashboard();
-    navigateDashboardView("customer_profile", { preserveContext: true });
-  });
-
-  bindForm("member-alert-form", async (form) => {
-    const data = formData(form);
-    const memberId = data.memberId;
-    if (!memberId) {
-      return;
-    }
-    const title = data.title.trim();
-    const message = data.message.trim();
-    if (!title || !message) {
-      throw new Error("Enter both an alert title and message.");
-    }
-    addMemberAlert(memberId, title, message);
-    navigateDashboardView("customer_profile", { preserveContext: true });
+    state.memberSearchQuery = data.query || "";
     render();
-  });
-
-  app.querySelectorAll<HTMLButtonElement>("[data-signature-toggle]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const memberId = button.dataset.memberId;
-      const signatureId = button.dataset.signatureToggle;
-      if (!memberId || !signatureId) {
-        return;
-      }
-      toggleMemberSignature(memberId, signatureId);
-      render();
-    });
-  });
-
-  app.querySelectorAll<HTMLButtonElement>("[data-member-alert-resolve]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const memberId = button.dataset.memberId;
-      const alertId = button.dataset.memberAlertResolve;
-      if (!memberId || !alertId) {
-        return;
-      }
-      resolveMemberAlert(memberId, alertId);
-      render();
-    });
   });
 
   bindForm("platform-create-gym-form", async (form) => {
     const data = formData(form);
-    console.log("[platform-create-gym-form] submitting", {
-      email: data.email,
-      password: data.password,
-      passwordLength: data.password.length,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      gymName: data.gymName,
-    });
     try {
-      const response = await client.register({
+      const response = (await client.register({
         email: data.email,
         password: data.password,
         firstName: data.firstName,
@@ -2914,14 +2343,23 @@ function bindEvents() {
         gymName: data.gymName,
         timezone: "America/New_York",
         locale: "en-US"
-      });
-      console.log("[platform-create-gym-form] success", response);
-      setBanner("success", "Gym and owner created successfully.");
+      })) as AuthResponse;
+      if (response.accessToken && response.refreshToken) {
+        tokenStore.setTokens({
+          accessToken: response.accessToken,
+          refreshToken: response.refreshToken
+        });
+      }
+      if (response.gym) {
+        state.createdGym = response.gym;
+        state.publicSlug = response.gym.slug;
+        localStorage.setItem(PUBLIC_SLUG_STORAGE_KEY, response.gym.slug);
+      }
+      setBanner("success", response.gym ? `Gym created: ${response.gym.name}.` : "Gym and owner created successfully.");
       const gymsData = await client.listGyms() as { gyms: GymRecord[] };
       state.platformGyms = gymsData.gyms || [];
       await refreshDashboard();
     } catch (error) {
-      console.error("[platform-create-gym-form] error", error);
       setBanner("error", describeError(error));
       render();
     }
@@ -2960,7 +2398,10 @@ function bindEvents() {
       password: data.password
     })) as AuthResponse;
     if (response.twoFactorRequired) {
-      throw new Error("This account requires two-factor login, which is not wired into the browser app yet.");
+      state.twoFactorLogin = { email: data.email, password: data.password };
+      setBanner("info", "Enter your two-factor code to finish logging in.");
+      render();
+      return;
     }
     if (!response.accessToken || !response.refreshToken) {
       throw new Error("Login did not return a session.");
@@ -2970,6 +2411,53 @@ function bindEvents() {
       refreshToken: response.refreshToken
     });
     setBanner("success", "Logged in successfully.");
+    await refreshDashboard();
+  });
+
+  bindForm("two-factor-login-form", async (form) => {
+    if (!state.twoFactorLogin) {
+      throw new Error("Start login again before entering a two-factor code.");
+    }
+    const data = formData(form);
+    const response = (await client.login({
+      email: state.twoFactorLogin.email,
+      password: state.twoFactorLogin.password,
+      twoFactorCode: data.twoFactorCode || undefined,
+      recoveryCode: data.recoveryCode || undefined
+    })) as AuthResponse;
+    if (response.twoFactorRequired || !response.accessToken || !response.refreshToken) {
+      throw new Error("Two-factor verification failed.");
+    }
+    tokenStore.setTokens({
+      accessToken: response.accessToken,
+      refreshToken: response.refreshToken
+    });
+    state.twoFactorLogin = undefined;
+    setBanner("success", "Logged in successfully.");
+    await refreshDashboard();
+  });
+
+  bindForm("accept-staff-invite-form", async (form) => {
+    const data = formData(form);
+    const response = (await client.acceptStaffInvite({
+      token: data.token,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      password: data.password
+    })) as AuthResponse;
+    if (!response.accessToken || !response.refreshToken) {
+      throw new Error("Staff invite acceptance did not return a session.");
+    }
+    tokenStore.setTokens({
+      accessToken: response.accessToken,
+      refreshToken: response.refreshToken
+    });
+    if (response.gym?.slug) {
+      state.publicSlug = response.gym.slug;
+      localStorage.setItem(PUBLIC_SLUG_STORAGE_KEY, state.publicSlug);
+      window.history.replaceState({}, "", `?gymSlug=${response.gym.slug}#/dashboard`);
+    }
+    setBanner("success", "Staff invite accepted.");
     await refreshDashboard();
   });
 
@@ -2985,6 +2473,30 @@ function bindEvents() {
     await refreshDashboard();
   });
 
+  bindForm("setup-2fa-form", async () => {
+    const response = (await client.setupTwoFactor()) as TwoFactorSetupResponse;
+    state.twoFactorSetup = response;
+    state.twoFactorRecoveryCodes = [];
+    setBanner("info", "Add the secret to your authenticator app, then verify the code.");
+    render();
+  });
+
+  bindForm("verify-2fa-setup-form", async (form) => {
+    const data = formData(form);
+    const response = (await client.verifyTwoFactor(data.code)) as TwoFactorVerifyResponse;
+    state.twoFactorSetup = undefined;
+    state.twoFactorRecoveryCodes = response.recoveryCodes;
+    setBanner("success", "Two-factor auth enabled. Save your recovery codes.");
+    await refreshDashboard();
+  });
+
+  bindForm("regenerate-recovery-codes-form", async () => {
+    const response = (await client.regenerateTwoFactorRecoveryCodes()) as TwoFactorRecoveryCodesResponse;
+    state.twoFactorRecoveryCodes = response.recoveryCodes;
+    setBanner("success", "New recovery codes generated.");
+    render();
+  });
+
   bindForm("create-plan-form", async (form) => {
     if (!state.gym) {
       return;
@@ -2997,10 +2509,47 @@ function bindEvents() {
       priceCents: dollarsToCents(data.price),
       signupFeeCents: dollarsToCents(data.signupFee || "0"),
       trialDays: safeInteger(data.trialDays, 0),
-      autoRenew: true,
-      isPublic: true
+      autoRenew: data.autoRenew ? data.autoRenew === "true" : true,
+      contractLengthMonths: optionalInteger(data.contractLengthMonths),
+      classAccessLimit: optionalInteger(data.classAccessLimit),
+      isPublic: data.isPublic ? data.isPublic === "true" : true
     });
     setBanner("success", "Public plan created.");
+    await refreshDashboard();
+  });
+
+  bindForm("update-plan-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const data = formData(form);
+    const input: {
+      name?: string;
+      description?: string;
+      billingInterval?: BillingInterval;
+      priceCents?: number;
+      signupFeeCents?: number;
+      trialDays?: number;
+      autoRenew?: boolean;
+      contractLengthMonths?: number;
+      classAccessLimit?: number;
+      isPublic?: boolean;
+    } = {};
+    if (data.name) input.name = data.name;
+    if (data.description) input.description = data.description;
+    if (data.billingInterval) input.billingInterval = data.billingInterval as BillingInterval;
+    if (data.price) input.priceCents = dollarsToCents(data.price);
+    if (data.signupFee) input.signupFeeCents = dollarsToCents(data.signupFee);
+    if (data.trialDays) input.trialDays = safeInteger(data.trialDays, 0);
+    if (data.contractLengthMonths) input.contractLengthMonths = safeInteger(data.contractLengthMonths, 0);
+    if (data.classAccessLimit) input.classAccessLimit = safeInteger(data.classAccessLimit, 0);
+    if (data.autoRenew) input.autoRenew = data.autoRenew === "true";
+    if (data.isPublic) input.isPublic = data.isPublic === "true";
+    if (Object.keys(input).length === 0) {
+      throw new Error("Enter at least one plan field to update.");
+    }
+    await client.updateMembershipPlan(state.gym.id, data.planId, input);
+    setBanner("success", "Membership plan updated.");
     await refreshDashboard();
   });
 
@@ -3009,33 +2558,260 @@ function bindEvents() {
       return;
     }
     const data = formData(form);
-    const name = data.name.trim();
-    const line1 = data.line1.trim();
-    const city = data.city.trim();
-    const region = data.region.trim();
-    const postalCode = data.postalCode.trim();
-    const country = (data.country.trim() || "US").toUpperCase();
-    const timezone = data.timezone.trim() || state.gym.timezone || "America/New_York";
-    if (!name || !line1 || !city || !region || !postalCode || !timezone) {
-      throw new Error("Location name, address, and timezone are required.");
-    }
     await client.createLocation(state.gym.id, {
-      name,
+      name: data.name,
+      timezone: data.timezone || state.gym.timezone || "America/New_York",
+      phone: data.phone || undefined,
       address: {
-        line1,
-        line2: data.line2.trim() || undefined,
-        city,
-        region,
-        postalCode,
-        country
+        line1: data.line1,
+        line2: data.line2 || undefined,
+        city: data.city,
+        region: data.region,
+        postalCode: data.postalCode,
+        country: data.country || "US"
       },
-      timezone,
-      phone: data.phone.trim() || undefined,
       operatingHours: {}
     });
     setBanner("success", "Location created.");
     await refreshDashboard();
-    navigateDashboardView("settings", { preserveContext: true });
+  });
+
+  bindForm("create-class-type-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const data = formData(form);
+    await client.createClassType(state.gym.id, {
+      name: data.name,
+      description: data.description || undefined,
+      defaultDurationMinutes: safeInteger(data.defaultDurationMinutes, 60),
+      defaultCapacity: safeInteger(data.defaultCapacity, 12),
+      defaultWaitlistCapacity: safeInteger(data.defaultWaitlistCapacity, 4),
+      isPublic: true
+    });
+    setBanner("success", "Class type created.");
+    await refreshDashboard();
+  });
+
+  bindForm("create-class-session-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const data = formData(form);
+    await client.createClassSession(state.gym.id, {
+      classTypeId: data.classTypeId,
+      locationId: data.locationId,
+      roomName: data.roomName || undefined,
+      startsAt: new Date(data.startsAt).toISOString(),
+      endsAt: new Date(data.endsAt).toISOString(),
+      capacity: safeInteger(data.capacity, 12),
+      waitlistCapacity: safeInteger(data.waitlistCapacity, 4),
+      cancellationCutoffMinutes: 0,
+      lateCancellationFeeCents: 0
+    });
+    setBanner("success", "Class scheduled.");
+    await refreshDashboard();
+  });
+
+  bindForm("book-class-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const data = formData(form);
+    state.selectedClassSessionId = data.sessionId;
+    await client.createClassBooking(state.gym.id, data.sessionId, {
+      memberId: data.memberId
+    });
+    setBanner("success", "Member booked into class.");
+    await refreshDashboard();
+  });
+
+  bindForm("create-staff-invite-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const data = formData(form);
+    const response = (await client.createStaffInvite(state.gym.id, {
+      email: data.email,
+      roleId: data.roleId,
+      message: data.message || undefined
+    })) as StaffInviteCreateResponse;
+    state.latestInviteToken = response.inviteToken;
+    setBanner("success", `Invite created for ${response.invite.email}.`);
+    await refreshDashboard();
+  });
+
+  bindForm("create-custom-role-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const data = formData(form);
+    const permissions = new FormData(form).getAll("permissions").map(String) as Permission[];
+    await client.createCustomRole(state.gym.id, {
+      name: data.name,
+      permissions
+    });
+    setBanner("success", "Custom role created.");
+    await refreshDashboard();
+  });
+
+  bindForm("assign-staff-role-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const data = formData(form);
+    await client.assignStaffRole(state.gym.id, {
+      userId: data.userId,
+      roleId: data.roleId
+    });
+    setBanner("success", "Staff role updated.");
+    await refreshDashboard();
+  });
+
+  bindForm("remove-staff-access-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const data = formData(form);
+    await client.removeStaffAccess(state.gym.id, data.userId, {
+      reason: data.reason || undefined
+    });
+    setBanner("success", "Staff access removed.");
+    await refreshDashboard();
+  });
+
+  bindForm("create-access-device-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const data = formData(form);
+    const response = (await client.createAccessDevice(state.gym.id, {
+      name: data.name,
+      locationId: data.locationId,
+      deviceType: data.deviceType as AccessDeviceType
+    })) as AccessDeviceCreateResponse;
+    state.latestAccessApiKey = response.apiKey;
+    setBanner("success", `Access device registered: ${response.device.name}.`);
+    await refreshDashboard();
+  });
+
+  bindForm("create-access-rule-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const data = formData(form);
+    await client.createAccessRule(state.gym.id, {
+      name: data.name,
+      locationId: data.locationId,
+      planId: data.planId || undefined,
+      allowAllActiveMembers: !data.planId,
+      startsAt: data.startsAt ? new Date(data.startsAt).toISOString() : undefined,
+      endsAt: data.endsAt ? new Date(data.endsAt).toISOString() : undefined
+    });
+    setBanner("success", "Access rule created.");
+    await refreshDashboard();
+  });
+
+  bindForm("simulate-access-event-form", async (form) => {
+    const data = formData(form);
+    state.latestAccessApiKey = data.apiKey;
+    const response = (await client.createAccessDeviceEvent({
+      apiKey: data.apiKey,
+      barcode: data.barcode
+    })) as AccessDeviceEventResponse;
+    state.latestAccessDecision = response;
+    setBanner(response.unlock ? "success" : "info", response.unlock ? "Access granted." : `Access denied: ${response.reason}.`);
+    await refreshDashboard();
+  });
+
+  bindForm("access-heartbeat-form", async (form) => {
+    const data = formData(form);
+    state.latestAccessApiKey = data.apiKey;
+    await client.createAccessDeviceHeartbeat({
+      apiKey: data.apiKey
+    });
+    setBanner("success", "Device heartbeat recorded.");
+    await refreshDashboard();
+  });
+
+  bindForm("connect-stripe-form", async () => {
+    if (!state.gym) {
+      return;
+    }
+    const response = (await client.connectStripePaymentAccount(state.gym.id)) as StripePaymentAccountResponse;
+    state.stripeAccount = response.account;
+    state.latestStripeOnboardingUrl = response.onboardingUrl;
+    setBanner("success", "Stripe connection initialized.");
+    await refreshDashboard();
+  });
+
+  bindForm("enable-pos-form", async () => {
+    if (!state.gym) {
+      return;
+    }
+    await client.updateGym(state.gym.id, {
+      featureFlags: Array.from(new Set([...state.gym.featureFlags, FeatureFlag.PointOfSale]))
+    });
+    setBanner("success", "Point of sale enabled.");
+    await refreshDashboard();
+  });
+
+  bindForm("collect-payment-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const data = formData(form);
+    await client.collectPayment(state.gym.id, {
+      memberId: data.memberId || undefined,
+      amountCents: dollarsToCents(data.amount),
+      currency: "usd",
+      paymentMethod: data.paymentMethod as "card_reader" | "manual_entry",
+      receiptEmail: data.receiptEmail || undefined,
+      note: data.note || undefined
+    });
+    setBanner("success", "Payment recorded.");
+    await refreshDashboard();
+  });
+
+  bindForm("create-contract-waiver-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const data = formData(form);
+    await client.createContractWaiverDocument(state.gym.id, {
+      title: data.title,
+      type: data.type as "contract" | "waiver",
+      version: safeInteger(data.version, 1),
+      requiresSignature: data.requiresSignature === "true",
+      publish: data.publish === "true"
+    });
+    setBanner("success", "Document created.");
+    await refreshDashboard();
+  });
+
+  bindForm("update-contract-waiver-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const data = formData(form);
+    const input: {
+      title?: string;
+      type?: "contract" | "waiver";
+      version?: number;
+      requiresSignature?: boolean;
+      publish?: boolean;
+    } = {};
+    if (data.title) input.title = data.title;
+    if (data.type) input.type = data.type as "contract" | "waiver";
+    if (data.version) input.version = safeInteger(data.version, 1);
+    if (data.requiresSignature) input.requiresSignature = data.requiresSignature === "true";
+    if (data.publish) input.publish = data.publish === "true";
+    if (Object.keys(input).length === 0) {
+      throw new Error("Enter at least one document field to update.");
+    }
+    await client.updateContractWaiverDocument(state.gym.id, data.documentId, input);
+    setBanner("success", "Document updated.");
+    await refreshDashboard();
   });
 
   bindForm("create-member-form", async (form) => {
@@ -3048,12 +2824,25 @@ function bindEvents() {
       lastName: data.lastName,
       email: data.email || undefined,
       phone: data.phone || undefined,
-      status: (data.status as MemberStatus) || MemberStatus.Active,
       barcode: data.barcode || undefined,
       profileImageUrl: data.profileImageUrl || undefined,
+      status: MemberStatus.Active,
       tagNames: []
     });
-    setBanner("success", "Customer created.");
+    setBanner("success", "Member created.");
+    await refreshDashboard();
+  });
+
+  bindForm("assign-membership-form", async (form) => {
+    if (!state.gym || !state.selectedMemberId) {
+      return;
+    }
+    const data = formData(form);
+    await client.assignMemberMembership(state.gym.id, state.selectedMemberId, {
+      planId: data.planId,
+      status: MembershipStatus.Active
+    });
+    setBanner("success", "Membership assigned.");
     await refreshDashboard();
   });
 
@@ -3117,11 +2906,22 @@ function bindForm(id: string, handler: (form: HTMLFormElement) => Promise<void>)
   }
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const submitButton = form.querySelector<HTMLButtonElement>("button[type='submit']");
+    const originalLabel = submitButton?.textContent;
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = "Working...";
+    }
     try {
       await handler(form);
     } catch (error) {
       setBanner("error", describeError(error));
       render();
+    } finally {
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = originalLabel;
+      }
     }
   });
 }
@@ -3158,6 +2958,35 @@ function renderSelect(
           .join("")}
       </select>
     </label>
+  `;
+}
+
+function renderMembersTable(memberPage: ReturnType<typeof buildMemberListPage>) {
+  if (memberPage.rows.length === 0) {
+    return `<p class="muted">${memberPage.empty?.body ?? "No members yet."}</p>`;
+  }
+  return `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>${memberPage.table.columns.map((column) => `<th>${column.label}</th>`).join("")}</tr>
+        </thead>
+        <tbody>
+          ${memberPage.rows
+            .map(
+              (row) => `
+                <tr>
+                  <td>${row.fullName}</td>
+                  <td>${row.contactLabel}</td>
+                  <td>${row.statusLabel}</td>
+                  <td>${row.tagLabel}</td>
+                </tr>
+              `
+            )
+            .join("")}
+        </tbody>
+      </table>
+    </div>
   `;
 }
 
@@ -3235,241 +3064,48 @@ function clearDashboardState() {
   state.me = null;
   state.gym = null;
   state.members = [];
-  state.roles = [];
   state.plans = [];
-  state.memberCache = {};
-  state.checkInDebug = undefined;
-  state.checkInReview = undefined;
-  state.selectedRoleId = "";
+  state.locations = [];
+  state.classTypes = [];
+  state.classSessions = [];
+  state.classBookings = {};
+  state.memberMemberships = {};
+  state.roles = [];
+  state.staff = [];
+  state.staffInvites = [];
+  state.staffAudit = [];
+  state.latestInviteToken = undefined;
+  state.accessDevices = [];
+  state.accessRules = [];
+  state.accessEvents = [];
+  state.latestAccessApiKey = undefined;
+  state.latestAccessDecision = undefined;
+  state.stripeAccount = undefined;
+  state.stripePayments = [];
+  state.latestStripeOnboardingUrl = undefined;
+  state.notifications = [];
+  state.contractWaiverDocuments = [];
+  state.twoFactorLogin = undefined;
+  state.twoFactorSetup = undefined;
+  state.twoFactorRecoveryCodes = [];
+  state.selectedCheckInLocationId = "";
+  state.selectedClassSessionId = "";
+  state.createdGym = undefined;
 }
 
 function setBanner(tone: BannerTone, text: string) {
   state.banner = { tone, text };
 }
 
-function readRoute(): { view: ViewName; dashboardView: AppState["dashboardView"]; settingsSection?: SettingsSectionKey } {
-  const segments = getHashSegments();
-  if (segments[0] === "public") {
-    return { view: "public", dashboardView: "home" };
+function renderBanner() {
+  if (!state.banner) {
+    return "";
   }
-  if (segments[0] === "dashboard") {
-    return { view: "dashboard", ...parseDashboardRoute(segments.slice(1)) };
-  }
-  return { view: "dashboard", dashboardView: "home" };
+  return `<div class="banner ${state.banner.tone}">${escapeHtml(state.banner.text)}</div>`;
 }
 
-function syncRouteFromHash() {
-  const route = readRoute();
-  state.view = route.view;
-  if (route.view === "dashboard") {
-    const previousTopLevel = dashboardTopLevelView(state.dashboardView);
-    const nextTopLevel = dashboardTopLevelView(route.dashboardView);
-    if (previousTopLevel !== nextTopLevel) {
-      resetDashboardTransientState();
-    }
-    state.dashboardView = route.dashboardView;
-    if (route.dashboardView === "settings") {
-      state.settingsSection = route.settingsSection ?? "setup";
-    }
-  }
-}
-
-function getHashSegments() {
-  return window.location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
-}
-
-function parseDashboardRoute(segments: string[]) {
-  const [section, subsection] = segments;
-  switch (section) {
-    case undefined:
-    case "":
-    case "home":
-      return { dashboardView: "home" as const };
-    case "check-in":
-      return { dashboardView: subsection === "history" ? "check_in_history" as const : "check_in" as const };
-    case "customers":
-      if (subsection === "profile") {
-        return { dashboardView: "customer_profile" as const };
-      }
-      if (subsection === "edit") {
-        return { dashboardView: "customer_edit" as const };
-      }
-      return { dashboardView: "customers" as const };
-    case "leads":
-      return { dashboardView: "leads" as const };
-    case "staff":
-      return { dashboardView: "staff" as const };
-    case "point-of-sale":
-    case "pos":
-      return { dashboardView: "pos" as const };
-    case "marketing":
-      return { dashboardView: "marketing" as const };
-    case "reporting":
-    case "reports":
-      return { dashboardView: "reports" as const };
-    case "settings":
-      return {
-        dashboardView: "settings" as const,
-        settingsSection: parseSettingsSectionRoute(subsection)
-      };
-    default:
-      return { dashboardView: "home" as const };
-  }
-}
-
-function parseSettingsSectionRoute(section?: string): SettingsSectionKey | undefined {
-  switch (section) {
-    case "setup":
-      return "setup";
-    case "company-information":
-      return "company_information";
-    case "roles-and-staff":
-      return "roles_staff";
-    case "featured-items":
-      return "featured_items";
-    case "media":
-      return "media";
-    case "resources":
-      return "resources";
-    case "promotions":
-      return "promotions";
-    case "templates":
-      return "templates";
-    case "customized-themes":
-      return "customized_themes";
-    case "tags":
-      return "tags";
-    case "taxes":
-      return "taxes";
-    case "forms":
-      return "forms";
-    default:
-      return undefined;
-  }
-}
-
-function dashboardTopLevelView(view: AppState["dashboardView"]) {
-  switch (view) {
-    case "customer_profile":
-    case "customer_edit":
-      return "customers";
-    case "check_in_history":
-      return "check_in";
-    default:
-      return view;
-  }
-}
-
-function dashboardViewToHash(view: AppState["dashboardView"]) {
-  switch (view) {
-    case "home":
-      return "#/dashboard/home";
-    case "check_in":
-      return "#/dashboard/check-in";
-    case "check_in_history":
-      return "#/dashboard/check-in/history";
-    case "customers":
-      return "#/dashboard/customers";
-    case "customer_profile":
-      return "#/dashboard/customers/profile";
-    case "customer_edit":
-      return "#/dashboard/customers/edit";
-    case "leads":
-      return "#/dashboard/leads";
-    case "staff":
-      return "#/dashboard/staff";
-    case "pos":
-      return "#/dashboard/point-of-sale";
-    case "marketing":
-      return "#/dashboard/marketing";
-    case "reports":
-      return "#/dashboard/reporting";
-    case "settings":
-      return `#/dashboard/settings/${settingsSectionToRoute(state.settingsSection)}`;
-    default:
-      return "#/dashboard/home";
-  }
-}
-
-function settingsSectionToRoute(section: SettingsSectionKey) {
-  switch (section) {
-    case "setup":
-      return "setup";
-    case "company_information":
-      return "company-information";
-    case "roles_staff":
-      return "roles-and-staff";
-    case "featured_items":
-      return "featured-items";
-    case "media":
-      return "media";
-    case "resources":
-      return "resources";
-    case "promotions":
-      return "promotions";
-    case "templates":
-      return "templates";
-    case "customized_themes":
-      return "customized-themes";
-    case "tags":
-      return "tags";
-    case "taxes":
-      return "taxes";
-    case "forms":
-      return "forms";
-  }
-}
-
-function resetDashboardTransientState() {
-  state.selectedMemberId = undefined;
-  state.editingMemberId = undefined;
-  state.checkInResult = undefined;
-  state.checkInReview = undefined;
-}
-
-function navigateDashboardView(view: AppState["dashboardView"], options?: { preserveContext?: boolean }) {
-  const previousTopLevel = dashboardTopLevelView(state.dashboardView);
-  const nextTopLevel = dashboardTopLevelView(view);
-  if (!options?.preserveContext && previousTopLevel !== nextTopLevel) {
-    resetDashboardTransientState();
-  }
-  state.dashboardView = view;
-  const targetHash = dashboardViewToHash(view);
-  if (window.location.hash !== targetHash) {
-    window.location.hash = targetHash;
-    return;
-  }
-  render();
-}
-
-function navigateSettingsSection(section: SettingsSectionKey) {
-  state.settingsSection = section;
-  const targetHash = `#/dashboard/settings/${settingsSectionToRoute(section)}`;
-  if (window.location.hash !== targetHash) {
-    window.location.hash = targetHash;
-    return;
-  }
-  render();
-}
-
-function ensureDashboardRouteHash() {
-  if (state.view !== "dashboard") {
-    return;
-  }
-  const targetHash = dashboardViewToHash(state.dashboardView);
-  if (window.location.hash === targetHash) {
-    return;
-  }
-  history.replaceState(null, "", `${window.location.pathname}${window.location.search}${targetHash}`);
-}
-
-function loadTheme(): ThemeName {
-  const raw = localStorage.getItem(THEME_STORAGE_KEY);
-  return raw === "dark" ? "dark" : "light";
-}
-
-function applyTheme() {
-  document.documentElement.dataset.theme = state.theme;
+function readView(): ViewName {
+  return window.location.hash.includes("/public") ? "public" : "dashboard";
 }
 
 function loadSession() {
@@ -3499,46 +3135,6 @@ function describeError(error: unknown) {
   return "Something went wrong.";
 }
 
-function buildCheckInDebug(
-  error: unknown,
-  lookup: string,
-  locationId: string,
-  memberMatch?: MemberRecord
-) {
-  const details = [
-    `Lookup entered: ${lookup}`,
-    `Resolved member: ${memberMatch ? `${memberMatch.firstName} ${memberMatch.lastName} (${memberMatch.id})` : "none"}`,
-    `Location id: ${locationId}`,
-    `Gym id: ${state.gym?.id ?? "unknown"}`
-  ];
-  if (error instanceof ApiError) {
-    details.push(`API status: ${error.status}`);
-    details.push(`API code: ${error.code}`);
-    if (error.issues && error.issues.length > 0) {
-      details.push(`Validation issues: ${error.issues.map((issue) => `${issue.path}: ${issue.message}`).join("; ")}`);
-    }
-    return {
-      title: "Check-in failed",
-      message: error.message,
-      details
-    };
-  }
-  if (error instanceof Error) {
-    details.push(`Error: ${error.message}`);
-    return {
-      title: "Check-in failed",
-      message: error.message,
-      details
-    };
-  }
-  details.push("Unknown error type returned by the runtime.");
-  return {
-    title: "Check-in failed",
-    message: "Something went wrong while checking in.",
-    details
-  };
-}
-
 function dollarsToCents(value: string) {
   return Math.round(Number(value || "0") * 100);
 }
@@ -3548,17 +3144,86 @@ function safeInteger(value: string, fallback: number) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function optionalInteger(value: string) {
+  if (!value) {
+    return undefined;
+  }
+  return safeInteger(value, 0);
+}
+
+function planName(planId: string) {
+  return state.plans.find((plan) => plan.id === planId)?.name ?? "Unknown plan";
+}
+
+function classTypeName(classTypeId: string) {
+  return state.classTypes.find((classType) => classType.id === classTypeId)?.name ?? classTypeId;
+}
+
+function locationName(locationId: string) {
+  return state.locations.find((location) => location.id === locationId)?.name ?? locationId;
+}
+
+function memberName(memberId: string) {
+  const member = state.members.find((candidate) => candidate.id === memberId);
+  return member ? `${member.firstName} ${member.lastName}` : memberId;
+}
+
+function notificationSummary(notification: NotificationRecord) {
+  const classSessionId = notification.payload.classSessionId;
+  const startsAt = notification.payload.startsAt;
+  return [
+    typeof classSessionId === "string" ? classTypeName(state.classSessions.find((session) => session.id === classSessionId)?.classTypeId ?? "") : "",
+    typeof startsAt === "string" ? new Date(startsAt).toLocaleString() : ""
+  ].filter(Boolean).join(" - ") || JSON.stringify(notification.payload);
+}
+
+function roleName(roleId: string) {
+  return state.roles.find((role) => role.id === roleId)?.name ?? roleId;
+}
+
+function roleLabel(role: RoleRecord) {
+  return role.name.replaceAll("_", " ");
+}
+
+function staffAssignableRoles() {
+  return state.roles.filter((role) => role.name !== "owner" && role.name !== "member");
+}
+
+function defaultCustomRolePermissions() {
+  return [
+    Permission.GymRead,
+    Permission.LocationRead,
+    Permission.StaffRead,
+    Permission.MemberRead,
+    Permission.PlanRead,
+    Permission.ClassRead,
+    Permission.BookingRead,
+    Permission.AccessRead,
+    Permission.ReportRead
+  ];
+}
+
+function permissionLabel(permission: string) {
+  return permission.replace(":", " / ").replaceAll("_", " ");
+}
+
+function formatCents(value: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value / 100);
+}
+
+function toDateTimeLocal(value: Date) {
+  const local = new Date(value.getTime() - value.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
 function escapeAttribute(value: string) {
   return value.replaceAll("&", "&amp;").replaceAll("\"", "&quot;");
 }
 
 function escapeHtml(value: string) {
-  return escapeAttribute(value);
-}
-
-function splitTags(value: string) {
   return value
-    .split(",")
-    .map((tag) => tag.trim())
-    .filter(Boolean);
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;");
 }

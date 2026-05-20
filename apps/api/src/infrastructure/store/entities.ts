@@ -284,6 +284,9 @@ export interface NotificationEvent {
   recipientMemberId: string;
   relatedBookingId?: string;
   payload: Record<string, unknown>;
+  sentAt?: Date;
+  failedAt?: Date;
+  failureReason?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -346,6 +349,51 @@ export interface AccessEvent {
   createdAt: Date;
 }
 
+export interface StripePaymentAccount {
+  id: string;
+  gymId: string;
+  stripeAccountId: string;
+  onboardingComplete: boolean;
+  chargesEnabled: boolean;
+  payoutsEnabled: boolean;
+  requirementsCurrentlyDue: string[];
+  dashboardUrl?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface StripePaymentTransaction {
+  id: string;
+  gymId: string;
+  memberId?: string;
+  stripeAccountId?: string;
+  stripePaymentIntentId?: string;
+  amountCents: number;
+  currency: string;
+  applicationFeeCents: number;
+  paymentMethod: "card_reader" | "manual_entry";
+  status: "pending" | "succeeded" | "failed" | "refunded";
+  note?: string;
+  receiptEmail?: string;
+  refundedAmountCents: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ContractWaiverDocument {
+  id: string;
+  gymId: string;
+  title: string;
+  type: "contract" | "waiver";
+  version: number;
+  requiresSignature: boolean;
+  signedMemberCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+  publishedAt?: Date;
+  archivedAt?: Date;
+}
+
 export interface RefreshToken {
   id: string;
   userId: string;
@@ -387,6 +435,9 @@ export interface StoreSnapshot {
   accessDevices: AccessDevice[];
   accessRules: AccessRule[];
   accessEvents: AccessEvent[];
+  stripePaymentAccounts: StripePaymentAccount[];
+  stripePaymentTransactions: StripePaymentTransaction[];
+  contractWaiverDocuments: ContractWaiverDocument[];
   refreshTokens: RefreshToken[];
   purposeTokens: PurposeToken[];
 }

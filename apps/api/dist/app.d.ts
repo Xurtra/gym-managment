@@ -8,10 +8,13 @@ import { AuthService } from "./modules/auth/auth.service.js";
 import { BookingService } from "./modules/bookings/booking.service.js";
 import { CheckInService } from "./modules/checkIns/checkIn.service.js";
 import { ClassScheduleService } from "./modules/classes/classSchedule.service.js";
+import { ContractWaiverService } from "./modules/contractsWaivers/contractWaiver.service.js";
 import { MemberMembershipService } from "./modules/memberMemberships/memberMembership.service.js";
 import { LocationService } from "./modules/locations/location.service.js";
 import { MemberService } from "./modules/members/member.service.js";
 import { MembershipPlanService } from "./modules/membershipPlans/membershipPlan.service.js";
+import { NotificationService } from "./modules/notifications/notification.service.js";
+import { PaymentService } from "./modules/payments/payment.service.js";
 import { RoleService } from "./modules/roles/role.service.js";
 import { StaffScheduleService } from "./modules/staffSchedule/staffSchedule.service.js";
 import { TenancyService } from "./modules/tenancy/tenancy.service.js";
@@ -32,6 +35,9 @@ export interface Services {
     bookingService: BookingService;
     checkInService: CheckInService;
     accessControlService: AccessControlService;
+    notificationService: NotificationService;
+    paymentService: PaymentService;
+    contractWaiverService: ContractWaiverService;
 }
 export declare function createServices(config: ApiConfig, clock?: Clock, repositories?: Repositories): Services;
 export declare function createPostgresServices(config: ApiConfig, clock?: Clock, pool?: Pool): {
@@ -51,6 +57,9 @@ export declare function createPostgresServices(config: ApiConfig, clock?: Clock,
     bookingService: BookingService;
     checkInService: CheckInService;
     accessControlService: AccessControlService;
+    notificationService: NotificationService;
+    paymentService: PaymentService;
+    contractWaiverService: ContractWaiverService;
 };
 export declare function createApp(config: ApiConfig, services?: Services): (req: IncomingMessage, res: ServerResponse) => Promise<void>;
 //# sourceMappingURL=app.d.ts.map

@@ -1,12 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 const workbook = "gym_platform_development_only_tracker.xlsx";
 const checkbox = {
-  checked: "☑",
-  unchecked: "☐"
+  checked: "&#9745;",
+  unchecked: "&#9744;"
 };
 
 const args = parseArgs(process.argv.slice(2));
@@ -16,7 +16,7 @@ const state = statusState(args.status);
 const tempDir = mkdtempSync(join(tmpdir(), "gym-tracker-"));
 
 try {
-  run("unzip", ["-q", workbookPath, "-d", tempDir]);
+  extractWorkbook(workbookPath, tempDir);
   const sheetPath = join(tempDir, "xl", "worksheets", "sheet1.xml");
   let sheet = readFileSync(sheetPath, "utf8");
 
@@ -27,7 +27,7 @@ try {
   }
 
   writeFileSync(sheetPath, sheet);
-  run("zip", ["-qr", workbookPath, "."], tempDir);
+  archiveWorkbook(tempDir, workbookPath);
   console.log(`Updated ${rows.length} tracker row(s) to ${args.status}: ${formatRows(rows)}`);
 } finally {
   rmSync(tempDir, { recursive: true, force: true });
@@ -107,13 +107,53 @@ function setCell(sheet, cellRef, value) {
   return sheet.replace(pattern, `<c r="${cellRef}" s="40" t="str"><v>${value}</v></c>`);
 }
 
-function run(command, args, cwd) {
-  const result = spawnSync(command, args, {
-    cwd,
+function extractWorkbook(workbookPath, destination) {
+  const result = spawnSync("unzip", ["-q", workbookPath, "-d", destination], {
+    encoding: "utf8"
+  });
+  if (result.status === 0) {
+    return;
+  }
+  const zipPath = join(destination, "tracker.zip");
+  copyFileSync(workbookPath, zipPath);
+  runPowerShell(
+    "Expand-Archive -LiteralPath {0} -DestinationPath {1} -Force",
+    zipPath,
+    destination
+  );
+  rmSync(zipPath, { force: true });
+}
+
+function archiveWorkbook(sourceDir, workbookPath) {
+  const result = spawnSync("zip", ["-qr", workbookPath, "."], {
+    cwd: sourceDir,
+    encoding: "utf8"
+  });
+  if (result.status === 0) {
+    return;
+  }
+  runPowerShell(
+    [
+      "if (Test-Path -LiteralPath {1}) { Remove-Item -LiteralPath {1} -Force }",
+      "Compress-Archive -Path (Join-Path {0} '*') -DestinationPath {2} -Force",
+      "Move-Item -LiteralPath {2} -Destination {1} -Force"
+    ].join("; "),
+    sourceDir,
+    workbookPath,
+    `${workbookPath}.zip`
+  );
+}
+
+function runPowerShell(command, ...args) {
+  const script = args.reduce(
+    (next, arg, index) => next.replaceAll(`{${index}}`, `'${String(arg).replaceAll("'", "''")}'`),
+    command
+  );
+  const result = spawnSync("powershell", ["-NoProfile", "-Command", script], {
     encoding: "utf8"
   });
   if (result.status !== 0) {
-    throw new Error(result.stderr || `${command} failed with status ${result.status}`);
+    throw new Error(result.stderr || `PowerShell archive command failed with status ${result.status}`);
   }
 }
 

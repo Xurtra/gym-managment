@@ -205,6 +205,42 @@ export class GymApiClient {
     createAccessDeviceHeartbeat(input) {
         return this.request("POST", "/access/device-heartbeats", input);
     }
+    getStripePaymentAccount(gymId) {
+        return this.request("GET", `/gyms/${gymId}/payments/stripe-account`);
+    }
+    connectStripePaymentAccount(gymId) {
+        return this.request("POST", `/gyms/${gymId}/payments/stripe-account/connect`);
+    }
+    listPayments(gymId) {
+        return this.request("GET", `/gyms/${gymId}/payments`);
+    }
+    collectPayment(gymId, input) {
+        return this.request("POST", `/gyms/${gymId}/payments`, input);
+    }
+    refundPayment(gymId, paymentId, input = {}) {
+        return this.request("POST", `/gyms/${gymId}/payments/${paymentId}/refund`, input);
+    }
+    listNotifications(gymId) {
+        return this.request("GET", `/gyms/${gymId}/notifications`);
+    }
+    processNotification(gymId, notificationId, input = {}) {
+        return this.request("POST", `/gyms/${gymId}/notifications/${notificationId}/process`, input);
+    }
+    retryNotification(gymId, notificationId) {
+        return this.request("POST", `/gyms/${gymId}/notifications/${notificationId}/retry`);
+    }
+    listContractWaiverDocuments(gymId) {
+        return this.request("GET", `/gyms/${gymId}/contracts-waivers`);
+    }
+    createContractWaiverDocument(gymId, input) {
+        return this.request("POST", `/gyms/${gymId}/contracts-waivers`, input);
+    }
+    updateContractWaiverDocument(gymId, documentId, input) {
+        return this.request("PATCH", `/gyms/${gymId}/contracts-waivers/${documentId}`, input);
+    }
+    archiveContractWaiverDocument(gymId, documentId) {
+        return this.request("DELETE", `/gyms/${gymId}/contracts-waivers/${documentId}`);
+    }
     publicSchedule(gymSlug, from, to, locationId) {
         const params = new URLSearchParams();
         if (from) {

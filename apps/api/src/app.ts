@@ -6,6 +6,8 @@ import {
   accessRuleCreateSchema,
   classBookingCreateSchema,
   checkInCreateSchema,
+  contractWaiverCreateSchema,
+  contractWaiverUpdateSchema,
   forgotPasswordSchema,
   gymCreateSchema,
   gymUpdateSchema,
@@ -21,6 +23,7 @@ import {
   memberUpdateSchema,
   membershipPlanCreateSchema,
   membershipPlanUpdateSchema,
+  notificationProcessSchema,
   logoutSchema,
   publicSignupSchema,
   refreshTokenSchema,
@@ -33,6 +36,8 @@ import {
   staffInviteCreateSchema,
   staffShiftCreateSchema,
   staffManualBookingSchema,
+  stripePaymentCollectSchema,
+  stripePaymentRefundSchema,
   twoFactorVerifySchema,
   waitlistJoinSchema,
   verifyEmailSchema
@@ -52,10 +57,13 @@ import { AuthService } from "./modules/auth/auth.service.js";
 import { BookingService } from "./modules/bookings/booking.service.js";
 import { CheckInService } from "./modules/checkIns/checkIn.service.js";
 import { ClassScheduleService } from "./modules/classes/classSchedule.service.js";
+import { ContractWaiverService } from "./modules/contractsWaivers/contractWaiver.service.js";
 import { MemberMembershipService } from "./modules/memberMemberships/memberMembership.service.js";
 import { LocationService } from "./modules/locations/location.service.js";
 import { MemberService } from "./modules/members/member.service.js";
 import { MembershipPlanService } from "./modules/membershipPlans/membershipPlan.service.js";
+import { NotificationService } from "./modules/notifications/notification.service.js";
+import { PaymentService } from "./modules/payments/payment.service.js";
 import { RoleService } from "./modules/roles/role.service.js";
 import { StaffScheduleService } from "./modules/staffSchedule/staffSchedule.service.js";
 import { TenancyService } from "./modules/tenancy/tenancy.service.js";
@@ -98,6 +106,9 @@ export interface Services {
   bookingService: BookingService;
   checkInService: CheckInService;
   accessControlService: AccessControlService;
+  notificationService: NotificationService;
+  paymentService: PaymentService;
+  contractWaiverService: ContractWaiverService;
 }
 
 export function createServices(
@@ -123,6 +134,9 @@ export function createServices(
   const bookingService = new BookingService(repositories, clock);
   const checkInService = new CheckInService(repositories, clock);
   const accessControlService = new AccessControlService(repositories, clock);
+  const notificationService = new NotificationService(repositories, clock);
+  const paymentService = new PaymentService(repositories, clock, config);
+  const contractWaiverService = new ContractWaiverService(repositories, clock);
   const services: Services = {
     repositories,
     clock,
@@ -137,7 +151,10 @@ export function createServices(
     classScheduleService,
     bookingService,
     checkInService,
-    accessControlService
+    accessControlService,
+    notificationService,
+    paymentService,
+    contractWaiverService
   };
   if (repositories instanceof InMemoryStore) {
     services.store = repositories;
@@ -791,6 +808,125 @@ function createRoutes() {
   add("POST", "/access/device-heartbeats", async (context) => {
     const input = parseWith(accessDeviceHeartbeatSchema, context.body);
     return context.services.accessControlService.heartbeat(input);
+  });
+
+  add("GET", "/gyms/:gymId/payments/stripe-account", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PaymentRead);
+    return { account: await context.services.paymentService.getStripeAccount(gymId) };
+  });
+
+  add("POST", "/gyms/:gymId/payments/stripe-account/connect", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PaymentWrite);
+    return context.services.paymentService.connectStripeAccount(gymId);
+  });
+
+  add("GET", "/gyms/:gymId/payments", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PaymentRead);
+    return { payments: await context.services.paymentService.listPayments(gymId) };
+  });
+
+  add("POST", "/gyms/:gymId/payments", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PaymentWrite);
+    const input = parseWith(stripePaymentCollectSchema, context.body);
+    return context.services.paymentService.collectPayment(gymId, input);
+  });
+
+  add("POST", "/gyms/:gymId/payments/:paymentId/refund", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PaymentWrite);
+    const input = parseWith(stripePaymentRefundSchema, context.body ?? {});
+    return context.services.paymentService.refundPayment(
+      gymId,
+      requiredParam(context, "paymentId"),
+      input
+    );
+  });
+
+  add("GET", "/gyms/:gymId/notifications", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.BookingRead);
+    return { notifications: await context.services.notificationService.list(gymId) };
+  });
+
+  add("POST", "/gyms/:gymId/notifications/:notificationId/process", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.BookingWrite);
+    const input = parseWith(notificationProcessSchema, context.body ?? {});
+    return context.services.notificationService.process(
+      gymId,
+      requiredParam(context, "notificationId"),
+      input
+    );
+  });
+
+  add("POST", "/gyms/:gymId/notifications/:notificationId/retry", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.BookingWrite);
+    return context.services.notificationService.retry(
+      gymId,
+      requiredParam(context, "notificationId")
+    );
+  });
+
+  add("GET", "/gyms/:gymId/contracts-waivers", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymRead);
+    return { documents: await context.services.contractWaiverService.list(gymId) };
+  });
+
+  add("POST", "/gyms/:gymId/contracts-waivers", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymUpdate);
+    const input = parseWith(contractWaiverCreateSchema, context.body);
+    return context.services.contractWaiverService.create(gymId, input);
+  });
+
+  add("PATCH", "/gyms/:gymId/contracts-waivers/:documentId", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymUpdate);
+    const input = parseWith(contractWaiverUpdateSchema, context.body);
+    return context.services.contractWaiverService.update(
+      gymId,
+      requiredParam(context, "documentId"),
+      input
+    );
+  });
+
+  add("DELETE", "/gyms/:gymId/contracts-waivers/:documentId", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymUpdate);
+    return context.services.contractWaiverService.archive(
+      gymId,
+      requiredParam(context, "documentId")
+    );
   });
 
   add("GET", "/public/gyms/:gymSlug/schedule", async (context) => {

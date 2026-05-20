@@ -1,4 +1,4 @@
-import type { AccessDeviceCreateInput, AccessDeviceEventInput, AccessDeviceHeartbeatInput, AccessRuleCreateInput, ClassBookingCreateInput, CheckInCreateInput, ClassSessionCreateInput, ClassTypeCreateInput, CustomRoleCreateInput, CustomRoleUpdateInput, GymCreateInput, GymUpdateInput, LocationCreateInput, LocationUpdateInput, LoginInput, MemberCreateInput, MemberMembershipAssignInput, MemberUpdateInput, MembershipPlanCreateInput, MembershipPlanUpdateInput, PublicSignupInput, RegisterInput, ResetPasswordInput, RoleAssignmentInput, StaffAccessRemoveInput, StaffInviteAcceptInput, StaffInviteCreateInput, StaffShiftCreateInput, StaffManualBookingInput } from "@gym-platform/validation";
+import type { AccessDeviceCreateInput, AccessDeviceEventInput, AccessDeviceHeartbeatInput, AccessRuleCreateInput, ClassBookingCreateInput, CheckInCreateInput, ClassSessionCreateInput, ClassTypeCreateInput, ContractWaiverCreateInput, ContractWaiverUpdateInput, CustomRoleCreateInput, CustomRoleUpdateInput, GymCreateInput, GymUpdateInput, LocationCreateInput, LocationUpdateInput, LoginInput, MemberCreateInput, MemberMembershipAssignInput, MemberUpdateInput, MembershipPlanCreateInput, MembershipPlanUpdateInput, PublicSignupInput, RegisterInput, ResetPasswordInput, RoleAssignmentInput, StaffAccessRemoveInput, StaffInviteAcceptInput, StaffInviteCreateInput, StaffShiftCreateInput, StaffManualBookingInput, StripePaymentCollectInput, StripePaymentRefundInput, NotificationProcessInput } from "@gym-platform/validation";
 export interface ApiClientOptions {
     baseUrl: string;
     accessToken?: string;
@@ -94,6 +94,18 @@ export declare class GymApiClient {
     listAccessEvents(gymId: string): Promise<unknown>;
     createAccessDeviceEvent(input: AccessDeviceEventInput): Promise<unknown>;
     createAccessDeviceHeartbeat(input: AccessDeviceHeartbeatInput): Promise<unknown>;
+    getStripePaymentAccount(gymId: string): Promise<unknown>;
+    connectStripePaymentAccount(gymId: string): Promise<unknown>;
+    listPayments(gymId: string): Promise<unknown>;
+    collectPayment(gymId: string, input: StripePaymentCollectInput): Promise<unknown>;
+    refundPayment(gymId: string, paymentId: string, input?: StripePaymentRefundInput): Promise<unknown>;
+    listNotifications(gymId: string): Promise<unknown>;
+    processNotification(gymId: string, notificationId: string, input?: NotificationProcessInput): Promise<unknown>;
+    retryNotification(gymId: string, notificationId: string): Promise<unknown>;
+    listContractWaiverDocuments(gymId: string): Promise<unknown>;
+    createContractWaiverDocument(gymId: string, input: ContractWaiverCreateInput): Promise<unknown>;
+    updateContractWaiverDocument(gymId: string, documentId: string, input: ContractWaiverUpdateInput): Promise<unknown>;
+    archiveContractWaiverDocument(gymId: string, documentId: string): Promise<unknown>;
     publicSchedule(gymSlug: string, from?: string, to?: string, locationId?: string): Promise<unknown>;
     publicGym(gymSlug: string): Promise<unknown>;
     publicPlans(gymSlug: string): Promise<unknown>;

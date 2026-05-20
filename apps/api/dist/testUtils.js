@@ -7,7 +7,8 @@ export const testConfig = {
     accessTokenTtlSeconds: 900,
     refreshTokenTtlDays: 30,
     passwordResetTokenTtlMinutes: 30,
-    emailVerificationTokenTtlHours: 24
+    emailVerificationTokenTtlHours: 24,
+    stripeMockMode: true
 };
 export const fixedClock = {
     now: () => new Date("2026-05-16T12:00:00.000Z")

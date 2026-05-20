@@ -73,7 +73,7 @@ try {
   run("npx", [
     "vitest",
     "run",
-    "apps/api/src/modules/system/postgres-system-flow.integration.test.ts"
+    "apps/api/src/modules/system/*.integration.test.ts"
   ], { env });
 } finally {
   run("docker", ["rm", "-f", containerName], { stdio: "pipe", allowFailure: true });

@@ -1359,6 +1359,100 @@ export declare const accessDeviceHeartbeatSchema: z.ZodObject<{
     apiKey: string;
     occurredAt?: string | undefined;
 }>;
+export declare const stripePaymentMethodSchema: z.ZodEnum<["card_reader", "manual_entry"]>;
+export declare const stripePaymentCollectSchema: z.ZodObject<{
+    memberId: z.ZodOptional<z.ZodString>;
+    amountCents: z.ZodNumber;
+    currency: z.ZodEffects<z.ZodDefault<z.ZodString>, string, string | undefined>;
+    paymentMethod: z.ZodEnum<["card_reader", "manual_entry"]>;
+    note: z.ZodOptional<z.ZodString>;
+    receiptEmail: z.ZodOptional<z.ZodEffects<z.ZodString, string, string>>;
+}, "strip", z.ZodTypeAny, {
+    amountCents: number;
+    currency: string;
+    paymentMethod: "card_reader" | "manual_entry";
+    memberId?: string | undefined;
+    note?: string | undefined;
+    receiptEmail?: string | undefined;
+}, {
+    amountCents: number;
+    paymentMethod: "card_reader" | "manual_entry";
+    memberId?: string | undefined;
+    currency?: string | undefined;
+    note?: string | undefined;
+    receiptEmail?: string | undefined;
+}>;
+export declare const stripePaymentRefundSchema: z.ZodObject<{
+    amountCents: z.ZodOptional<z.ZodNumber>;
+    reason: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    reason?: string | undefined;
+    amountCents?: number | undefined;
+}, {
+    reason?: string | undefined;
+    amountCents?: number | undefined;
+}>;
+export declare const notificationProcessSchema: z.ZodObject<{
+    markFailed: z.ZodDefault<z.ZodBoolean>;
+    failureReason: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    markFailed: boolean;
+    failureReason?: string | undefined;
+}, {
+    markFailed?: boolean | undefined;
+    failureReason?: string | undefined;
+}>;
+export declare const contractWaiverTypeSchema: z.ZodEnum<["contract", "waiver"]>;
+export declare const contractWaiverCreateSchema: z.ZodObject<{
+    title: z.ZodString;
+    type: z.ZodEnum<["contract", "waiver"]>;
+    version: z.ZodDefault<z.ZodNumber>;
+    requiresSignature: z.ZodDefault<z.ZodBoolean>;
+    publish: z.ZodDefault<z.ZodBoolean>;
+}, "strip", z.ZodTypeAny, {
+    type: "contract" | "waiver";
+    title: string;
+    version: number;
+    requiresSignature: boolean;
+    publish: boolean;
+}, {
+    type: "contract" | "waiver";
+    title: string;
+    version?: number | undefined;
+    requiresSignature?: boolean | undefined;
+    publish?: boolean | undefined;
+}>;
+export declare const contractWaiverUpdateSchema: z.ZodEffects<z.ZodObject<{
+    title: z.ZodOptional<z.ZodString>;
+    type: z.ZodOptional<z.ZodEnum<["contract", "waiver"]>>;
+    version: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    requiresSignature: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+    publish: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+}, "strip", z.ZodTypeAny, {
+    type?: "contract" | "waiver" | undefined;
+    title?: string | undefined;
+    version?: number | undefined;
+    requiresSignature?: boolean | undefined;
+    publish?: boolean | undefined;
+}, {
+    type?: "contract" | "waiver" | undefined;
+    title?: string | undefined;
+    version?: number | undefined;
+    requiresSignature?: boolean | undefined;
+    publish?: boolean | undefined;
+}>, {
+    type?: "contract" | "waiver" | undefined;
+    title?: string | undefined;
+    version?: number | undefined;
+    requiresSignature?: boolean | undefined;
+    publish?: boolean | undefined;
+}, {
+    type?: "contract" | "waiver" | undefined;
+    title?: string | undefined;
+    version?: number | undefined;
+    requiresSignature?: boolean | undefined;
+    publish?: boolean | undefined;
+}>;
 export declare const permissionSchema: z.ZodNativeEnum<{
     readonly GymRead: "gym:read";
     readonly GymUpdate: "gym:update";
@@ -1428,4 +1522,9 @@ export type AccessDeviceCreateInput = z.input<typeof accessDeviceCreateSchema>;
 export type AccessRuleCreateInput = z.input<typeof accessRuleCreateSchema>;
 export type AccessDeviceEventInput = z.input<typeof accessDeviceEventSchema>;
 export type AccessDeviceHeartbeatInput = z.input<typeof accessDeviceHeartbeatSchema>;
+export type StripePaymentCollectInput = z.infer<typeof stripePaymentCollectSchema>;
+export type StripePaymentRefundInput = z.infer<typeof stripePaymentRefundSchema>;
+export type NotificationProcessInput = z.input<typeof notificationProcessSchema>;
+export type ContractWaiverCreateInput = z.infer<typeof contractWaiverCreateSchema>;
+export type ContractWaiverUpdateInput = z.infer<typeof contractWaiverUpdateSchema>;
 //# sourceMappingURL=index.d.ts.map

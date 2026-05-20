@@ -86,7 +86,9 @@ export class PostgresRepositories {
     };
     notifications = {
         createNotificationEvent: (event) => this.createNotificationEvent(event),
-        listNotificationEventsForGym: (gymId) => this.listNotificationEventsForGym(gymId)
+        getNotificationEvent: (eventId) => this.getNotificationEvent(eventId),
+        listNotificationEventsForGym: (gymId) => this.listNotificationEventsForGym(gymId),
+        updateNotificationEvent: (event) => this.updateNotificationEvent(event)
     };
     checkIns = {
         createCheckIn: (checkIn) => this.createCheckIn(checkIn),
@@ -104,6 +106,20 @@ export class PostgresRepositories {
         listAccessRulesForGym: (gymId) => this.listAccessRulesForGym(gymId),
         createAccessEvent: (event) => this.createAccessEvent(event),
         listAccessEventsForGym: (gymId) => this.listAccessEventsForGym(gymId)
+    };
+    payments = {
+        upsertStripeAccount: (account) => this.upsertStripeAccount(account),
+        getStripeAccountForGym: (gymId) => this.getStripeAccountForGym(gymId),
+        createPaymentTransaction: (transaction) => this.createPaymentTransaction(transaction),
+        getPaymentTransaction: (paymentId) => this.getPaymentTransaction(paymentId),
+        listPaymentTransactionsForGym: (gymId) => this.listPaymentTransactionsForGym(gymId),
+        updatePaymentTransaction: (transaction) => this.updatePaymentTransaction(transaction)
+    };
+    contractWaivers = {
+        createDocument: (document) => this.createContractWaiverDocument(document),
+        getDocument: (documentId) => this.getContractWaiverDocument(documentId),
+        listDocumentsForGym: (gymId) => this.listContractWaiverDocumentsForGym(gymId),
+        updateDocument: (document) => this.updateContractWaiverDocument(document)
     };
     tokens = {
         createRefreshToken: (refreshToken) => this.createRefreshToken(refreshToken),
@@ -851,8 +867,8 @@ export class PostgresRepositories {
     async createNotificationEvent(event) {
         const result = await this.executor.query(`INSERT INTO notification_events (
         id, gym_id, type, status, recipient_member_id, related_booking_id,
-        payload, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
+        payload, sent_at, failed_at, failure_reason, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12)
       RETURNING *`, [
             event.id,
             event.gymId,
@@ -861,14 +877,41 @@ export class PostgresRepositories {
             event.recipientMemberId,
             event.relatedBookingId ?? null,
             JSON.stringify(event.payload),
+            event.sentAt ?? null,
+            event.failedAt ?? null,
+            event.failureReason ?? null,
             event.createdAt,
             event.updatedAt
         ]);
         return mapNotificationEvent(one(result));
     }
+    async getNotificationEvent(eventId) {
+        const result = await this.executor.query("SELECT * FROM notification_events WHERE id = $1", [eventId]);
+        return result.rows[0] ? mapNotificationEvent(result.rows[0]) : undefined;
+    }
     async listNotificationEventsForGym(gymId) {
-        const result = await this.executor.query("SELECT * FROM notification_events WHERE gym_id = $1 ORDER BY created_at", [gymId]);
+        const result = await this.executor.query("SELECT * FROM notification_events WHERE gym_id = $1 ORDER BY created_at DESC", [gymId]);
         return result.rows.map(mapNotificationEvent);
+    }
+    async updateNotificationEvent(event) {
+        const result = await this.executor.query(`UPDATE notification_events
+       SET status = $2,
+           payload = $3::jsonb,
+           sent_at = $4,
+           failed_at = $5,
+           failure_reason = $6,
+           updated_at = $7
+       WHERE id = $1
+       RETURNING *`, [
+            event.id,
+            event.status,
+            JSON.stringify(event.payload),
+            event.sentAt ?? null,
+            event.failedAt ?? null,
+            event.failureReason ?? null,
+            event.updatedAt
+        ]);
+        return mapNotificationEvent(one(result));
     }
     async createCheckIn(checkIn) {
         const result = await this.executor.query(`INSERT INTO check_ins (
@@ -1002,6 +1045,156 @@ export class PostgresRepositories {
     async listAccessEventsForGym(gymId) {
         const result = await this.executor.query("SELECT * FROM access_events WHERE gym_id = $1 ORDER BY occurred_at DESC", [gymId]);
         return result.rows.map(mapAccessEvent);
+    }
+    async upsertStripeAccount(account) {
+        const result = await this.executor.query(`INSERT INTO stripe_payment_accounts (
+        id, gym_id, stripe_account_id, onboarding_complete, charges_enabled, payouts_enabled,
+        requirements_currently_due, dashboard_url, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10)
+      ON CONFLICT (gym_id) DO UPDATE
+      SET stripe_account_id = EXCLUDED.stripe_account_id,
+          onboarding_complete = EXCLUDED.onboarding_complete,
+          charges_enabled = EXCLUDED.charges_enabled,
+          payouts_enabled = EXCLUDED.payouts_enabled,
+          requirements_currently_due = EXCLUDED.requirements_currently_due,
+          dashboard_url = EXCLUDED.dashboard_url,
+          updated_at = EXCLUDED.updated_at
+      RETURNING *`, [
+            account.id,
+            account.gymId,
+            account.stripeAccountId,
+            account.onboardingComplete,
+            account.chargesEnabled,
+            account.payoutsEnabled,
+            JSON.stringify(account.requirementsCurrentlyDue),
+            account.dashboardUrl ?? null,
+            account.createdAt,
+            account.updatedAt
+        ]);
+        return mapStripePaymentAccount(one(result));
+    }
+    async getStripeAccountForGym(gymId) {
+        const result = await this.executor.query("SELECT * FROM stripe_payment_accounts WHERE gym_id = $1", [gymId]);
+        return result.rows[0] ? mapStripePaymentAccount(result.rows[0]) : undefined;
+    }
+    async createPaymentTransaction(transaction) {
+        const result = await this.executor.query(`INSERT INTO stripe_payment_transactions (
+        id, gym_id, member_id, stripe_account_id, stripe_payment_intent_id, amount_cents,
+        currency, application_fee_cents, payment_method, status, note, receipt_email,
+        refunded_amount_cents, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      RETURNING *`, [
+            transaction.id,
+            transaction.gymId,
+            transaction.memberId ?? null,
+            transaction.stripeAccountId ?? null,
+            transaction.stripePaymentIntentId ?? null,
+            transaction.amountCents,
+            transaction.currency,
+            transaction.applicationFeeCents,
+            transaction.paymentMethod,
+            transaction.status,
+            transaction.note ?? null,
+            transaction.receiptEmail ?? null,
+            transaction.refundedAmountCents,
+            transaction.createdAt,
+            transaction.updatedAt
+        ]);
+        return mapStripePaymentTransaction(one(result));
+    }
+    async getPaymentTransaction(paymentId) {
+        const result = await this.executor.query("SELECT * FROM stripe_payment_transactions WHERE id = $1", [paymentId]);
+        return result.rows[0] ? mapStripePaymentTransaction(result.rows[0]) : undefined;
+    }
+    async listPaymentTransactionsForGym(gymId) {
+        const result = await this.executor.query("SELECT * FROM stripe_payment_transactions WHERE gym_id = $1 ORDER BY created_at DESC", [gymId]);
+        return result.rows.map(mapStripePaymentTransaction);
+    }
+    async updatePaymentTransaction(transaction) {
+        const result = await this.executor.query(`UPDATE stripe_payment_transactions
+       SET member_id = $2,
+           stripe_account_id = $3,
+           stripe_payment_intent_id = $4,
+           amount_cents = $5,
+           currency = $6,
+           application_fee_cents = $7,
+           payment_method = $8,
+           status = $9,
+           note = $10,
+           receipt_email = $11,
+           refunded_amount_cents = $12,
+           updated_at = $13
+       WHERE id = $1
+       RETURNING *`, [
+            transaction.id,
+            transaction.memberId ?? null,
+            transaction.stripeAccountId ?? null,
+            transaction.stripePaymentIntentId ?? null,
+            transaction.amountCents,
+            transaction.currency,
+            transaction.applicationFeeCents,
+            transaction.paymentMethod,
+            transaction.status,
+            transaction.note ?? null,
+            transaction.receiptEmail ?? null,
+            transaction.refundedAmountCents,
+            transaction.updatedAt
+        ]);
+        return mapStripePaymentTransaction(one(result));
+    }
+    async createContractWaiverDocument(document) {
+        const result = await this.executor.query(`INSERT INTO contract_waiver_documents (
+        id, gym_id, title, type, version, requires_signature, signed_member_count,
+        published_at, archived_at, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING *`, [
+            document.id,
+            document.gymId,
+            document.title,
+            document.type,
+            document.version,
+            document.requiresSignature,
+            document.signedMemberCount,
+            document.publishedAt ?? null,
+            document.archivedAt ?? null,
+            document.createdAt,
+            document.updatedAt
+        ]);
+        return mapContractWaiverDocument(one(result));
+    }
+    async getContractWaiverDocument(documentId) {
+        const result = await this.executor.query("SELECT * FROM contract_waiver_documents WHERE id = $1", [documentId]);
+        return result.rows[0] ? mapContractWaiverDocument(result.rows[0]) : undefined;
+    }
+    async listContractWaiverDocumentsForGym(gymId) {
+        const result = await this.executor.query(`SELECT * FROM contract_waiver_documents
+       WHERE gym_id = $1
+       ORDER BY title, version DESC`, [gymId]);
+        return result.rows.map(mapContractWaiverDocument);
+    }
+    async updateContractWaiverDocument(document) {
+        const result = await this.executor.query(`UPDATE contract_waiver_documents
+       SET title = $2,
+           type = $3,
+           version = $4,
+           requires_signature = $5,
+           signed_member_count = $6,
+           published_at = $7,
+           archived_at = $8,
+           updated_at = $9
+       WHERE id = $1
+       RETURNING *`, [
+            document.id,
+            document.title,
+            document.type,
+            document.version,
+            document.requiresSignature,
+            document.signedMemberCount,
+            document.publishedAt ?? null,
+            document.archivedAt ?? null,
+            document.updatedAt
+        ]);
+        return mapContractWaiverDocument(one(result));
     }
     async createRefreshToken(refreshToken) {
         const result = await this.executor.query(`INSERT INTO refresh_tokens (
@@ -1408,6 +1601,15 @@ function mapNotificationEvent(row) {
     if (row.related_booking_id) {
         event.relatedBookingId = row.related_booking_id;
     }
+    if (row.sent_at) {
+        event.sentAt = row.sent_at;
+    }
+    if (row.failed_at) {
+        event.failedAt = row.failed_at;
+    }
+    if (row.failure_reason) {
+        event.failureReason = row.failure_reason;
+    }
     return event;
 }
 function mapCheckIn(row) {
@@ -1497,6 +1699,73 @@ function mapAccessEvent(row) {
         event.memberId = row.member_id;
     }
     return event;
+}
+function mapStripePaymentAccount(row) {
+    const account = {
+        id: row.id,
+        gymId: row.gym_id,
+        stripeAccountId: row.stripe_account_id,
+        onboardingComplete: row.onboarding_complete,
+        chargesEnabled: row.charges_enabled,
+        payoutsEnabled: row.payouts_enabled,
+        requirementsCurrentlyDue: stringArray(row.requirements_currently_due),
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+    };
+    if (row.dashboard_url) {
+        account.dashboardUrl = row.dashboard_url;
+    }
+    return account;
+}
+function mapStripePaymentTransaction(row) {
+    const transaction = {
+        id: row.id,
+        gymId: row.gym_id,
+        amountCents: row.amount_cents,
+        currency: row.currency,
+        applicationFeeCents: row.application_fee_cents,
+        paymentMethod: row.payment_method,
+        status: row.status,
+        refundedAmountCents: row.refunded_amount_cents,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+    };
+    if (row.member_id) {
+        transaction.memberId = row.member_id;
+    }
+    if (row.stripe_account_id) {
+        transaction.stripeAccountId = row.stripe_account_id;
+    }
+    if (row.stripe_payment_intent_id) {
+        transaction.stripePaymentIntentId = row.stripe_payment_intent_id;
+    }
+    if (row.note) {
+        transaction.note = row.note;
+    }
+    if (row.receipt_email) {
+        transaction.receiptEmail = row.receipt_email;
+    }
+    return transaction;
+}
+function mapContractWaiverDocument(row) {
+    const document = {
+        id: row.id,
+        gymId: row.gym_id,
+        title: row.title,
+        type: row.type,
+        version: row.version,
+        requiresSignature: row.requires_signature,
+        signedMemberCount: row.signed_member_count,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+    };
+    if (row.published_at) {
+        document.publishedAt = row.published_at;
+    }
+    if (row.archived_at) {
+        document.archivedAt = row.archived_at;
+    }
+    return document;
 }
 function mapRefreshToken(row) {
     const refreshToken = {

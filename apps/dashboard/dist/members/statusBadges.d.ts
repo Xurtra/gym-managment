@@ -23,5 +23,5 @@ export interface MemberStatusBadgeLegend {
 export declare function buildMemberStatusBadge(status: MemberStatus): MemberStatusBadge;
 export declare function buildMemberStatusBadgeLegend(statuses?: MemberStatus[]): MemberStatusBadge[];
 export declare function buildMemberStatusBadgeLegendState(statuses?: MemberStatus[]): MemberStatusBadgeLegend;
-export declare function memberStatusLabel(status: MemberStatus): "Lead" | "Trial" | "Active" | "Frozen" | "Cancelled" | "Expired" | "Archived" | "Past due";
+export declare function memberStatusLabel(status: MemberStatus): "Cancelled" | "Lead" | "Trial" | "Active" | "Frozen" | "Expired" | "Archived" | "Past due";
 //# sourceMappingURL=statusBadges.d.ts.map
