@@ -368,6 +368,7 @@ export interface StripePaymentTransaction {
   memberId?: string;
   stripeAccountId?: string;
   stripePaymentIntentId?: string;
+  stripeClientSecret?: string;
   amountCents: number;
   currency: string;
   applicationFeeCents: number;

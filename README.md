@@ -59,9 +59,11 @@ Password123
 
 The API defaults to `http://0.0.0.0:4000`. Copy `.env.example` to `.env` when local secrets or service URLs need to differ. `PERSISTENCE_DRIVER=memory` is the quick local default, but memory-mode data disappears when the API process restarts. Use `npm run dev:api:postgres` for persistent local data.
 
-Stripe payments run in mock mode by default for local development. To prepare a real Stripe environment later, add `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and optionally `STRIPE_CONNECT_CLIENT_ID` to `.env`, then set `STRIPE_MOCK_MODE=false`.
+Stripe payments run in mock mode by default for local development. For Stripe test/live mode, add `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_ONBOARDING_REFRESH_URL`, and `STRIPE_ONBOARDING_RETURN_URL` to `.env`, then set `STRIPE_MOCK_MODE=false`. The API exposes `POST /stripe/webhooks` for Stripe CLI or Dashboard webhook forwarding.
 
 `npm run test:postgres` requires Docker. It starts a disposable Postgres container on port `55432`, runs migrations, executes the Postgres-backed API flow test, and removes the container.
+
+Railway deployment settings are documented in [docs/RAILWAY_DEPLOYMENT.md](docs/RAILWAY_DEPLOYMENT.md).
 
 ## Backend Milestone 1
 

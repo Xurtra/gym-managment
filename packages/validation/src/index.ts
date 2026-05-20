@@ -356,6 +356,7 @@ export const stripePaymentCollectSchema = z.object({
   amountCents: z.number().int().min(1),
   currency: trimmed.length(3).default("usd").transform((value) => value.toLowerCase()),
   paymentMethod: stripePaymentMethodSchema,
+  stripePaymentMethodId: trimmed.min(3).max(120).optional(),
   note: trimmed.max(500).optional(),
   receiptEmail: emailSchema.optional()
 });

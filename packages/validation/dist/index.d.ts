@@ -1365,6 +1365,7 @@ export declare const stripePaymentCollectSchema: z.ZodObject<{
     amountCents: z.ZodNumber;
     currency: z.ZodEffects<z.ZodDefault<z.ZodString>, string, string | undefined>;
     paymentMethod: z.ZodEnum<["card_reader", "manual_entry"]>;
+    stripePaymentMethodId: z.ZodOptional<z.ZodString>;
     note: z.ZodOptional<z.ZodString>;
     receiptEmail: z.ZodOptional<z.ZodEffects<z.ZodString, string, string>>;
 }, "strip", z.ZodTypeAny, {
@@ -1372,6 +1373,7 @@ export declare const stripePaymentCollectSchema: z.ZodObject<{
     currency: string;
     paymentMethod: "card_reader" | "manual_entry";
     memberId?: string | undefined;
+    stripePaymentMethodId?: string | undefined;
     note?: string | undefined;
     receiptEmail?: string | undefined;
 }, {
@@ -1379,6 +1381,7 @@ export declare const stripePaymentCollectSchema: z.ZodObject<{
     paymentMethod: "card_reader" | "manual_entry";
     memberId?: string | undefined;
     currency?: string | undefined;
+    stripePaymentMethodId?: string | undefined;
     note?: string | undefined;
     receiptEmail?: string | undefined;
 }>;

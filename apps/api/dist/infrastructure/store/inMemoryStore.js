@@ -133,8 +133,10 @@ export class InMemoryStore {
     payments = {
         upsertStripeAccount: (account) => this.upsertStripeAccount(account),
         getStripeAccountForGym: (gymId) => this.getStripeAccountForGym(gymId),
+        getStripeAccountByStripeAccountId: (stripeAccountId) => this.getStripeAccountByStripeAccountId(stripeAccountId),
         createPaymentTransaction: (transaction) => this.createPaymentTransaction(transaction),
         getPaymentTransaction: (paymentId) => this.getPaymentTransaction(paymentId),
+        getPaymentTransactionByStripePaymentIntentId: (stripePaymentIntentId) => this.getPaymentTransactionByStripePaymentIntentId(stripePaymentIntentId),
         listPaymentTransactionsForGym: (gymId) => this.listPaymentTransactionsForGym(gymId),
         updatePaymentTransaction: (transaction) => this.updatePaymentTransaction(transaction)
     };
@@ -450,12 +452,18 @@ export class InMemoryStore {
     async getStripeAccountForGym(gymId) {
         return this.stripePaymentAccountRecords.get(gymId);
     }
+    async getStripeAccountByStripeAccountId(stripeAccountId) {
+        return [...this.stripePaymentAccountRecords.values()].find((account) => account.stripeAccountId === stripeAccountId);
+    }
     async createPaymentTransaction(transaction) {
         this.stripePaymentTransactionRecords.set(transaction.id, transaction);
         return transaction;
     }
     async getPaymentTransaction(paymentId) {
         return this.stripePaymentTransactionRecords.get(paymentId);
+    }
+    async getPaymentTransactionByStripePaymentIntentId(stripePaymentIntentId) {
+        return [...this.stripePaymentTransactionRecords.values()].find((transaction) => transaction.stripePaymentIntentId === stripePaymentIntentId);
     }
     async listPaymentTransactionsForGym(gymId) {
         return [...this.stripePaymentTransactionRecords.values()]

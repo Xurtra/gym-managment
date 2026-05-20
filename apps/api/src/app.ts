@@ -83,6 +83,7 @@ interface RequestContext {
   params: Record<string, string>;
   query: URLSearchParams;
   body: unknown;
+  rawBody?: string;
   auth?: AccessTokenPayload;
   services: Services;
   config: ApiConfig;
@@ -195,15 +196,19 @@ export function createApp(config: ApiConfig, services = createServices(config)) 
       if (!match) {
         throw notFound("Route was not found.");
       }
-      const body = await readBody(req);
-      const result = await match.route.handler({
+      const requestBody = await readBody(req);
+      const context: RequestContext = {
         req,
         params: match.params,
         query: url.searchParams,
-        body,
+        body: requestBody.body,
         services,
         config
-      });
+      };
+      if (requestBody.rawBody !== undefined) {
+        context.rawBody = requestBody.rawBody;
+      }
+      const result = await match.route.handler(context);
       sendJson(res, 200, result ?? { ok: true });
     } catch (error) {
       sendError(res, error);
@@ -810,6 +815,13 @@ function createRoutes() {
     return context.services.accessControlService.heartbeat(input);
   });
 
+  add("POST", "/stripe/webhooks", async (context) => {
+    return context.services.paymentService.handleStripeWebhook(
+      context.rawBody ?? "",
+      headerValue(context.req.headers["stripe-signature"])
+    );
+  });
+
   add("GET", "/gyms/:gymId/payments/stripe-account", async (context) => {
     const auth = requireAuth(context);
     const gymId = requiredParam(context, "gymId");
@@ -1070,7 +1082,7 @@ function parseWith<T extends ZodSchema>(schema: T, body: unknown): z.infer<T> {
 
 async function readBody(req: IncomingMessage) {
   if (req.method === "GET") {
-    return undefined;
+    return { body: undefined, rawBody: undefined };
   }
   const chunks: Uint8Array<ArrayBufferLike>[] = [];
   for await (const chunk of req) {
@@ -1081,17 +1093,21 @@ async function readBody(req: IncomingMessage) {
     );
   }
   if (chunks.length === 0) {
-    return undefined;
+    return { body: undefined, rawBody: undefined };
   }
   const raw = new TextDecoder().decode(concatBytes(chunks));
   if (!raw.trim()) {
-    return undefined;
+    return { body: undefined, rawBody: raw };
   }
   try {
-    return JSON.parse(raw);
+    return { body: JSON.parse(raw) as unknown, rawBody: raw };
   } catch {
     throw badRequest("Request body must be valid JSON.", "invalid_json");
   }
+}
+
+function headerValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
 }
 
 function concatBytes(chunks: Uint8Array<ArrayBufferLike>[]) {

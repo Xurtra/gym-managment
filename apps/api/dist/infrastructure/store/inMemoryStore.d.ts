@@ -121,8 +121,10 @@ export declare class InMemoryStore implements Repositories {
     listAccessEventsForGym(gymId: string): Promise<AccessEvent[]>;
     upsertStripeAccount(account: StripePaymentAccount): Promise<StripePaymentAccount>;
     getStripeAccountForGym(gymId: string): Promise<StripePaymentAccount | undefined>;
+    getStripeAccountByStripeAccountId(stripeAccountId: string): Promise<StripePaymentAccount | undefined>;
     createPaymentTransaction(transaction: StripePaymentTransaction): Promise<StripePaymentTransaction>;
     getPaymentTransaction(paymentId: string): Promise<StripePaymentTransaction | undefined>;
+    getPaymentTransactionByStripePaymentIntentId(stripePaymentIntentId: string): Promise<StripePaymentTransaction | undefined>;
     listPaymentTransactionsForGym(gymId: string): Promise<StripePaymentTransaction[]>;
     updatePaymentTransaction(transaction: StripePaymentTransaction): Promise<StripePaymentTransaction>;
     createContractWaiverDocument(document: ContractWaiverDocument): Promise<ContractWaiverDocument>;

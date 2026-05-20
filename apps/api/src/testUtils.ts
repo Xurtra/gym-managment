@@ -11,6 +11,8 @@ export const testConfig: ApiConfig = {
   refreshTokenTtlDays: 30,
   passwordResetTokenTtlMinutes: 30,
   emailVerificationTokenTtlHours: 24,
+  stripeOnboardingRefreshUrl: "http://127.0.0.1:5173/stripe/refresh",
+  stripeOnboardingReturnUrl: "http://127.0.0.1:5173/stripe/return",
   stripeMockMode: true
 };
 

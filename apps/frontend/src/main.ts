@@ -12,7 +12,7 @@ import {
 import { CheckInMethod } from "@gym-platform/constants";
 import "./style.css";
 
-const API_BASE_URL = "http://127.0.0.1:4000";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:4000";
 const SESSION_STORAGE_KEY = "gym-platform-session";
 const PUBLIC_SLUG_STORAGE_KEY = "gym-platform-public-slug";
 
@@ -849,7 +849,7 @@ function render() {
       })
     : undefined;
   app.innerHTML = `
-    <div class="shell" style="background:#09090b; color:#e5e5e5; min-height:100vh;">
+    <div class="shell">
 
       <main class="layout" style="padding: 2rem; max-width: 1200px; margin: 0 auto;">
         <section class="panel primary" style="width:100%;">
@@ -1428,13 +1428,13 @@ function renderStaffView() {
         ${renderInput("name", "Role name")}
         <div class="field">
           <span>Permissions</span>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;">
+          <div class="permissions-grid">
             ${Object.values(Permission)
               .filter((permission) => permission !== Permission.PlatformAdmin)
               .map((permission) => `
-                <label style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:0.9rem;">
+                <label class="permission-chip ${defaultCustomRolePermissions().includes(permission) ? "active" : ""}">
                   <input name="permissions" type="checkbox" value="${permission}" ${defaultCustomRolePermissions().includes(permission) ? "checked" : ""} />
-                  ${escapeHtml(permissionLabel(permission))}
+                  <span>${escapeHtml(permissionLabel(permission))}</span>
                 </label>
               `)
               .join("")}
@@ -1763,7 +1763,7 @@ function renderPaymentsView() {
               </div>`
             : `<p class="muted">Connect Stripe before collecting payments.</p>`
         }
-        ${state.latestStripeOnboardingUrl ? `<p class="muted">Onboarding URL: ${escapeHtml(state.latestStripeOnboardingUrl)}</p>` : ""}
+        ${state.latestStripeOnboardingUrl ? `<p class="muted">Onboarding URL: <a href="${escapeAttribute(state.latestStripeOnboardingUrl)}" target="_blank" rel="noreferrer">Open Stripe onboarding</a></p>` : ""}
       </section>
 
       <form id="connect-stripe-form" class="form-card">
@@ -1789,6 +1789,7 @@ function renderPaymentsView() {
         }
         ${renderInput("amount", "Amount", "number", "49")}
         ${renderSelect("paymentMethod", "Payment method", [{ value: "manual_entry", label: "Manual entry" }, { value: "card_reader", label: "Card reader" }], "manual_entry")}
+        ${renderInput("stripePaymentMethodId", "Stripe payment method ID", "text", "")}
         ${renderInput("receiptEmail", "Receipt email", "email")}
         ${renderInput("note", "Note")}
         <button type="submit" ${!pointOfSaleEnabled || !account?.chargesEnabled ? "disabled" : ""}>Collect payment</button>
@@ -2766,6 +2767,7 @@ function bindEvents() {
       amountCents: dollarsToCents(data.amount),
       currency: "usd",
       paymentMethod: data.paymentMethod as "card_reader" | "manual_entry",
+      stripePaymentMethodId: data.stripePaymentMethodId || undefined,
       receiptEmail: data.receiptEmail || undefined,
       note: data.note || undefined
     });
@@ -3204,7 +3206,12 @@ function defaultCustomRolePermissions() {
 }
 
 function permissionLabel(permission: string) {
-  return permission.replace(":", " / ").replaceAll("_", " ");
+  const [scope, action] = permission.split(":");
+  return [scope, action].filter(Boolean).map((part) => titleCase(part?.replaceAll("_", " ") ?? "")).join(" - ");
+}
+
+function titleCase(value: string) {
+  return value.replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function formatCents(value: number) {

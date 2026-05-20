@@ -20,12 +20,16 @@ export function loadConfig() {
         nodeEnv,
         persistenceDriver: parsePersistenceDriver(process.env.PERSISTENCE_DRIVER),
         host: process.env.API_HOST ?? "0.0.0.0",
-        port: numberFromEnv("API_PORT", 4000),
+        port: numberFromEnv("API_PORT", numberFromEnv("PORT", 4000)),
         accessTokenSecret,
         accessTokenTtlSeconds: numberFromEnv("ACCESS_TOKEN_TTL_SECONDS", 15 * 60),
         refreshTokenTtlDays: numberFromEnv("REFRESH_TOKEN_TTL_DAYS", 30),
         passwordResetTokenTtlMinutes: numberFromEnv("PASSWORD_RESET_TOKEN_TTL_MINUTES", 30),
         emailVerificationTokenTtlHours: numberFromEnv("EMAIL_VERIFICATION_TOKEN_TTL_HOURS", 24),
+        stripeOnboardingRefreshUrl: process.env.STRIPE_ONBOARDING_REFRESH_URL ??
+            "http://127.0.0.1:5173/?gymSlug=demo-strength-club#/dashboard",
+        stripeOnboardingReturnUrl: process.env.STRIPE_ONBOARDING_RETURN_URL ??
+            "http://127.0.0.1:5173/?gymSlug=demo-strength-club#/dashboard",
         stripeMockMode: parseBoolean(process.env.STRIPE_MOCK_MODE, !process.env.STRIPE_SECRET_KEY)
     };
     if (process.env.DATABASE_URL) {

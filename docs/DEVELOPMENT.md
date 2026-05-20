@@ -69,9 +69,21 @@ STRIPE_MOCK_MODE=false
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 STRIPE_CONNECT_CLIENT_ID=ca_...
+STRIPE_ONBOARDING_REFRESH_URL=http://127.0.0.1:5173/?gymSlug=demo-strength-club#/dashboard
+STRIPE_ONBOARDING_RETURN_URL=http://127.0.0.1:5173/?gymSlug=demo-strength-club#/dashboard
 ```
 
-The backend now stores Stripe account state and payment transactions in memory or Postgres. The current local flow records mock transactions; live account onboarding, webhooks, and card-present confirmation are the next provider-specific pieces.
+The backend stores Stripe account state and payment transactions in memory or Postgres. With `STRIPE_MOCK_MODE=false`, the Payments tab creates or refreshes an Express connected account and returns a Stripe-hosted onboarding link. After onboarding, Stripe sends `account.updated` to `POST /stripe/webhooks`; that webhook updates `chargesEnabled`, `payoutsEnabled`, and outstanding requirements locally.
+
+Live manual-entry test payments create PaymentIntents on the connected account. Use a Stripe test PaymentMethod ID such as `pm_card_visa` in the Payments tab's "Stripe payment method ID" field to confirm a test payment server-side. If that field is blank, the API creates a pending PaymentIntent and returns its client secret for a future Stripe.js payment form. Refunds call Stripe and then update local state; Stripe `charge.refunded` webhooks also sync refund totals.
+
+For local webhook testing, install the Stripe CLI and forward events:
+
+```bash
+stripe listen --forward-to localhost:4000/stripe/webhooks
+```
+
+Copy the printed `whsec_...` value into `STRIPE_WEBHOOK_SECRET`.
 
 Focused dashboard staff-management coverage is in:
 

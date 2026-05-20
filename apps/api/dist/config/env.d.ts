@@ -14,6 +14,8 @@ export interface ApiConfig {
     stripeSecretKey?: string;
     stripeWebhookSecret?: string;
     stripeConnectClientId?: string;
+    stripeOnboardingRefreshUrl: string;
+    stripeOnboardingReturnUrl: string;
     stripeMockMode: boolean;
 }
 export declare function loadConfig(): ApiConfig;

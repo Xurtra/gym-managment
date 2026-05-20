@@ -100,15 +100,19 @@ export function createApp(config, services = createServices(config)) {
             if (!match) {
                 throw notFound("Route was not found.");
             }
-            const body = await readBody(req);
-            const result = await match.route.handler({
+            const requestBody = await readBody(req);
+            const context = {
                 req,
                 params: match.params,
                 query: url.searchParams,
-                body,
+                body: requestBody.body,
                 services,
                 config
-            });
+            };
+            if (requestBody.rawBody !== undefined) {
+                context.rawBody = requestBody.rawBody;
+            }
+            const result = await match.route.handler(context);
             sendJson(res, 200, result ?? { ok: true });
         }
         catch (error) {
@@ -563,6 +567,9 @@ function createRoutes() {
         const input = parseWith(accessDeviceHeartbeatSchema, context.body);
         return context.services.accessControlService.heartbeat(input);
     });
+    add("POST", "/stripe/webhooks", async (context) => {
+        return context.services.paymentService.handleStripeWebhook(context.rawBody ?? "", headerValue(context.req.headers["stripe-signature"]));
+    });
     add("GET", "/gyms/:gymId/payments/stripe-account", async (context) => {
         const auth = requireAuth(context);
         const gymId = requiredParam(context, "gymId");
@@ -772,7 +779,7 @@ function parseWith(schema, body) {
 }
 async function readBody(req) {
     if (req.method === "GET") {
-        return undefined;
+        return { body: undefined, rawBody: undefined };
     }
     const chunks = [];
     for await (const chunk of req) {
@@ -781,18 +788,21 @@ async function readBody(req) {
             : new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength));
     }
     if (chunks.length === 0) {
-        return undefined;
+        return { body: undefined, rawBody: undefined };
     }
     const raw = new TextDecoder().decode(concatBytes(chunks));
     if (!raw.trim()) {
-        return undefined;
+        return { body: undefined, rawBody: raw };
     }
     try {
-        return JSON.parse(raw);
+        return { body: JSON.parse(raw), rawBody: raw };
     }
     catch {
         throw badRequest("Request body must be valid JSON.", "invalid_json");
     }
+}
+function headerValue(value) {
+    return Array.isArray(value) ? value[0] : value;
 }
 function concatBytes(chunks) {
     const length = chunks.reduce((total, chunk) => total + chunk.byteLength, 0);

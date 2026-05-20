@@ -202,8 +202,12 @@ export class InMemoryStore implements Repositories {
   readonly payments: PaymentRepository = {
     upsertStripeAccount: (account) => this.upsertStripeAccount(account),
     getStripeAccountForGym: (gymId) => this.getStripeAccountForGym(gymId),
+    getStripeAccountByStripeAccountId: (stripeAccountId) =>
+      this.getStripeAccountByStripeAccountId(stripeAccountId),
     createPaymentTransaction: (transaction) => this.createPaymentTransaction(transaction),
     getPaymentTransaction: (paymentId) => this.getPaymentTransaction(paymentId),
+    getPaymentTransactionByStripePaymentIntentId: (stripePaymentIntentId) =>
+      this.getPaymentTransactionByStripePaymentIntentId(stripePaymentIntentId),
     listPaymentTransactionsForGym: (gymId) => this.listPaymentTransactionsForGym(gymId),
     updatePaymentTransaction: (transaction) => this.updatePaymentTransaction(transaction)
   };
@@ -607,6 +611,12 @@ export class InMemoryStore implements Repositories {
     return this.stripePaymentAccountRecords.get(gymId);
   }
 
+  async getStripeAccountByStripeAccountId(stripeAccountId: string) {
+    return [...this.stripePaymentAccountRecords.values()].find(
+      (account) => account.stripeAccountId === stripeAccountId
+    );
+  }
+
   async createPaymentTransaction(transaction: StripePaymentTransaction) {
     this.stripePaymentTransactionRecords.set(transaction.id, transaction);
     return transaction;
@@ -614,6 +624,12 @@ export class InMemoryStore implements Repositories {
 
   async getPaymentTransaction(paymentId: string) {
     return this.stripePaymentTransactionRecords.get(paymentId);
+  }
+
+  async getPaymentTransactionByStripePaymentIntentId(stripePaymentIntentId: string) {
+    return [...this.stripePaymentTransactionRecords.values()].find(
+      (transaction) => transaction.stripePaymentIntentId === stripePaymentIntentId
+    );
   }
 
   async listPaymentTransactionsForGym(gymId: string) {

@@ -109,8 +109,10 @@ export interface AccessControlRepository {
 export interface PaymentRepository {
     upsertStripeAccount(account: StripePaymentAccount): RepositoryResult<StripePaymentAccount>;
     getStripeAccountForGym(gymId: string): RepositoryResult<StripePaymentAccount | undefined>;
+    getStripeAccountByStripeAccountId(stripeAccountId: string): RepositoryResult<StripePaymentAccount | undefined>;
     createPaymentTransaction(transaction: StripePaymentTransaction): RepositoryResult<StripePaymentTransaction>;
     getPaymentTransaction(paymentId: string): RepositoryResult<StripePaymentTransaction | undefined>;
+    getPaymentTransactionByStripePaymentIntentId(stripePaymentIntentId: string): RepositoryResult<StripePaymentTransaction | undefined>;
     listPaymentTransactionsForGym(gymId: string): RepositoryResult<StripePaymentTransaction[]>;
     updatePaymentTransaction(transaction: StripePaymentTransaction): RepositoryResult<StripePaymentTransaction>;
 }

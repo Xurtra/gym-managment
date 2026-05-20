@@ -350,6 +350,7 @@ interface StripePaymentTransactionRow extends QueryResultRow {
   member_id: string | null;
   stripe_account_id: string | null;
   stripe_payment_intent_id: string | null;
+  stripe_client_secret: string | null;
   amount_cents: number;
   currency: string;
   application_fee_cents: number;
@@ -531,9 +532,13 @@ export class PostgresRepositories implements Repositories {
   readonly payments = {
     upsertStripeAccount: (account: StripePaymentAccount) => this.upsertStripeAccount(account),
     getStripeAccountForGym: (gymId: string) => this.getStripeAccountForGym(gymId),
+    getStripeAccountByStripeAccountId: (stripeAccountId: string) =>
+      this.getStripeAccountByStripeAccountId(stripeAccountId),
     createPaymentTransaction: (transaction: StripePaymentTransaction) =>
       this.createPaymentTransaction(transaction),
     getPaymentTransaction: (paymentId: string) => this.getPaymentTransaction(paymentId),
+    getPaymentTransactionByStripePaymentIntentId: (stripePaymentIntentId: string) =>
+      this.getPaymentTransactionByStripePaymentIntentId(stripePaymentIntentId),
     listPaymentTransactionsForGym: (gymId: string) =>
       this.listPaymentTransactionsForGym(gymId),
     updatePaymentTransaction: (transaction: StripePaymentTransaction) =>
@@ -1787,13 +1792,21 @@ export class PostgresRepositories implements Repositories {
     return result.rows[0] ? mapStripePaymentAccount(result.rows[0]) : undefined;
   }
 
+  async getStripeAccountByStripeAccountId(stripeAccountId: string) {
+    const result = await this.executor.query<StripePaymentAccountRow>(
+      "SELECT * FROM stripe_payment_accounts WHERE stripe_account_id = $1",
+      [stripeAccountId]
+    );
+    return result.rows[0] ? mapStripePaymentAccount(result.rows[0]) : undefined;
+  }
+
   async createPaymentTransaction(transaction: StripePaymentTransaction) {
     const result = await this.executor.query<StripePaymentTransactionRow>(
       `INSERT INTO stripe_payment_transactions (
-        id, gym_id, member_id, stripe_account_id, stripe_payment_intent_id, amount_cents,
+        id, gym_id, member_id, stripe_account_id, stripe_payment_intent_id, stripe_client_secret, amount_cents,
         currency, application_fee_cents, payment_method, status, note, receipt_email,
         refunded_amount_cents, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *`,
       [
         transaction.id,
@@ -1801,6 +1814,7 @@ export class PostgresRepositories implements Repositories {
         transaction.memberId ?? null,
         transaction.stripeAccountId ?? null,
         transaction.stripePaymentIntentId ?? null,
+        transaction.stripeClientSecret ?? null,
         transaction.amountCents,
         transaction.currency,
         transaction.applicationFeeCents,
@@ -1824,6 +1838,14 @@ export class PostgresRepositories implements Repositories {
     return result.rows[0] ? mapStripePaymentTransaction(result.rows[0]) : undefined;
   }
 
+  async getPaymentTransactionByStripePaymentIntentId(stripePaymentIntentId: string) {
+    const result = await this.executor.query<StripePaymentTransactionRow>(
+      "SELECT * FROM stripe_payment_transactions WHERE stripe_payment_intent_id = $1",
+      [stripePaymentIntentId]
+    );
+    return result.rows[0] ? mapStripePaymentTransaction(result.rows[0]) : undefined;
+  }
+
   async listPaymentTransactionsForGym(gymId: string) {
     const result = await this.executor.query<StripePaymentTransactionRow>(
       "SELECT * FROM stripe_payment_transactions WHERE gym_id = $1 ORDER BY created_at DESC",
@@ -1838,15 +1860,16 @@ export class PostgresRepositories implements Repositories {
        SET member_id = $2,
            stripe_account_id = $3,
            stripe_payment_intent_id = $4,
-           amount_cents = $5,
-           currency = $6,
-           application_fee_cents = $7,
-           payment_method = $8,
-           status = $9,
-           note = $10,
-           receipt_email = $11,
-           refunded_amount_cents = $12,
-           updated_at = $13
+           stripe_client_secret = $5,
+           amount_cents = $6,
+           currency = $7,
+           application_fee_cents = $8,
+           payment_method = $9,
+           status = $10,
+           note = $11,
+           receipt_email = $12,
+           refunded_amount_cents = $13,
+           updated_at = $14
        WHERE id = $1
        RETURNING *`,
       [
@@ -1854,6 +1877,7 @@ export class PostgresRepositories implements Repositories {
         transaction.memberId ?? null,
         transaction.stripeAccountId ?? null,
         transaction.stripePaymentIntentId ?? null,
+        transaction.stripeClientSecret ?? null,
         transaction.amountCents,
         transaction.currency,
         transaction.applicationFeeCents,
@@ -2530,6 +2554,9 @@ function mapStripePaymentTransaction(row: StripePaymentTransactionRow): StripePa
   }
   if (row.stripe_payment_intent_id) {
     transaction.stripePaymentIntentId = row.stripe_payment_intent_id;
+  }
+  if (row.stripe_client_secret) {
+    transaction.stripeClientSecret = row.stripe_client_secret;
   }
   if (row.note) {
     transaction.note = row.note;

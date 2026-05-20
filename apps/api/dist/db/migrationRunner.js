@@ -1,7 +1,8 @@
 import { readFileSync, readdirSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 export async function runMigrations(pool, options = {}) {
-    const migrationsDir = options.migrationsDir ?? resolve(import.meta.dirname, "migrations");
+    const migrationsDir = options.migrationsDir ?? resolve(dirname(fileURLToPath(import.meta.url)), "migrations");
     const logger = options.logger ?? console;
     const files = readdirSync(migrationsDir)
         .filter((file) => file.endsWith(".sql"))
