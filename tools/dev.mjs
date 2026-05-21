@@ -84,7 +84,7 @@ function shutdown(code = 0) {
     }
   }
 
-  setTimeout(() => process.exit(code), 500).unref?.();
+  globalThis.setTimeout(() => process.exit(code), 500).unref?.();
 }
 
 process.on("SIGINT", () => shutdown(0));

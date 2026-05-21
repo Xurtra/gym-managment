@@ -21,15 +21,15 @@ This slice adds the first frontend foundation layer without locking the repo int
 
 Base route tables and layout models now exist for:
 
-- `apps/dashboard`
-- `apps/member-portal`
-- `apps/website-renderer`
+- `frontend/dashboard`
+- `frontend/member-portal`
+- `frontend/website-renderer`
 
 The dashboard also has protected-route resolution so authenticated pages redirect to `/login` when no session exists. Protected dashboard routes can declare required permissions, dashboard navigation is filtered against the current user's permission set so role-limited users only see reachable modules, and restricted-role dashboard views can derive active navigation context plus visible and hidden route availability from the shared permission matrix.
 
 ## Public Website
 
-`apps/website-renderer/src` also includes framework-neutral public-site models for:
+`frontend/website-renderer/src` also includes framework-neutral public-site models for:
 
 - route and layout state for the public website shell
 - public signup state with online-signup feature gating, public-plan filtering and selection, pricing and signup-fee summaries, and blocked or empty states
@@ -37,7 +37,7 @@ The dashboard also has protected-route resolution so authenticated pages redirec
 
 ## Dashboard Shell
 
-`apps/dashboard/src/shell` includes framework-neutral models for:
+`frontend/dashboard/src/shell` includes framework-neutral models for:
 
 - sidebar state
 - grouped module navigation
@@ -60,7 +60,7 @@ The dashboard also has protected-route resolution so authenticated pages redirec
 
 ## Dashboard Staff
 
-`apps/dashboard/src/staff` also includes framework-neutral staff-management models for:
+`frontend/dashboard/src/staff` also includes framework-neutral staff-management models for:
 
 - trainer public visibility setting with eligibility checks, visibility summaries, profile slug normalization, and public URL preview
 - trainer specialties editor with specialty counts, duplicate detection, change summaries, and normalized submission
@@ -73,7 +73,7 @@ The dashboard also has protected-route resolution so authenticated pages redirec
 
 ## Dashboard Members
 
-`apps/dashboard/src/members` also includes framework-neutral member-management models for:
+`frontend/dashboard/src/members` also includes framework-neutral member-management models for:
 
 - member list state with search, status and tag filters, summary counts, filter-count metadata, permission-aware actions, and empty states
 - member profile state with identity, contact, emergency-contact, tags, notes, membership history, section counts, action counts, and membership summaries
@@ -84,7 +84,7 @@ The dashboard also has protected-route resolution so authenticated pages redirec
 
 ## Dashboard Leads
 
-`apps/dashboard/src/leads` also includes framework-neutral leads-and-CRM models for:
+`frontend/dashboard/src/leads` also includes framework-neutral leads-and-CRM models for:
 
 - lead list state with lead-only search and tag filters, summary counts, filter-count metadata, detail routes, and permission-aware actions
 - lead profile state with shared contact, emergency-contact, tags, notes, section counts, and tag summaries
@@ -93,7 +93,7 @@ The dashboard also has protected-route resolution so authenticated pages redirec
 
 ## Dashboard Membership Plans
 
-`apps/dashboard/src/membershipPlans` also includes framework-neutral membership-plan models for:
+`frontend/dashboard/src/membershipPlans` also includes framework-neutral membership-plan models for:
 
 - membership-plan list state with search and billing-interval filters, summary counts, pricing and visibility labels, detail routes, and permission-aware actions
 - membership-plan detail state with pricing, access, settings, and history sections plus archive and renewal metadata
@@ -102,7 +102,7 @@ The dashboard also has protected-route resolution so authenticated pages redirec
 
 ## Dashboard Contracts & Waivers
 
-`apps/dashboard/src/contractsWaivers` also includes framework-neutral contracts-and-waivers models for:
+`frontend/dashboard/src/contractsWaivers` also includes framework-neutral contracts-and-waivers models for:
 
 - contracts-and-waivers list state with search and type filters, summary counts, version and signature labels, detail routes, and permission-aware actions
 - contract-or-waiver detail state with overview, signature, and history sections plus version and status metadata
@@ -111,7 +111,7 @@ The dashboard also has protected-route resolution so authenticated pages redirec
 
 ## Dashboard Stripe Payments
 
-`apps/dashboard/src/payments` also includes framework-neutral Stripe-payments models for:
+`frontend/dashboard/src/payments` also includes framework-neutral Stripe-payments models for:
 
 - Stripe connection state with onboarding and capability summaries, requirement counts, dashboard-link state, and permission-aware actions
 - Stripe payment collection state with point-of-sale gating, member context, payment-method selection, amount and receipt validation, blocked reasons, and normalized collection submissions
@@ -120,7 +120,7 @@ The dashboard also has protected-route resolution so authenticated pages redirec
 
 ## Dashboard Bookings & Waitlists
 
-`apps/dashboard/src/bookings` also includes framework-neutral bookings-and-waitlists models for:
+`frontend/dashboard/src/bookings` also includes framework-neutral bookings-and-waitlists models for:
 
 - booking list state with member search, booking-status filters, summary counts, waitlist-position labels, late-fee metadata, and permission-aware actions
 - booking detail state with member, booking, and operations sections plus waitlist, cancellation, late-fee, and override metadata
@@ -131,7 +131,7 @@ The dashboard also has protected-route resolution so authenticated pages redirec
 
 ## Dashboard Personal Training
 
-`apps/dashboard/src/personalTraining` also includes framework-neutral personal-training models for:
+`frontend/dashboard/src/personalTraining` also includes framework-neutral personal-training models for:
 
 - personal-training session list state with feature-flag gating, member search, trainer and status filters, summary counts, empty states, and permission-aware actions
 - personal-training session detail state with member, schedule, and operations sections plus trainer, package, location, duration, and summary metadata
@@ -140,7 +140,7 @@ The dashboard also has protected-route resolution so authenticated pages redirec
 
 ## Dashboard Check-Ins
 
-`apps/dashboard/src/checkIns` also includes framework-neutral check-in models for:
+`frontend/dashboard/src/checkIns` also includes framework-neutral check-in models for:
 
 - front desk member-search state with normalized member matching, result filtering, and selected-member context
 - QR scanner and barcode-input state with normalized payload handling and check-in submission helpers
@@ -150,7 +150,7 @@ The dashboard also has protected-route resolution so authenticated pages redirec
 
 ## Dashboard Access Control
 
-`apps/dashboard/src/accessControl` also includes framework-neutral access-control models for:
+`frontend/dashboard/src/accessControl` also includes framework-neutral access-control models for:
 
 - access-device registration state with normalized naming, location selection, and submit eligibility
 - access-device list and key-rotation state with offline counts, API-key preview metadata, rotation warnings, and status summaries
@@ -159,7 +159,7 @@ The dashboard also has protected-route resolution so authenticated pages redirec
 
 ## Auth Shell
 
-`apps/dashboard/src/auth` includes screen models for:
+`frontend/dashboard/src/auth` includes screen models for:
 
 - login
 - registration

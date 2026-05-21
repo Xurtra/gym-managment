@@ -19,7 +19,7 @@ API routes:
 
 ## Dashboard
 
-Framework-neutral dashboard state lives under `apps/dashboard/src/staff`:
+Framework-neutral dashboard state lives under `frontend/dashboard/src/staff`:
 
 - `buildStaffInviteFlow` builds the email and message fields, role-selection options, selected-role context, pending and expired invite counts, summary labels, pending invite table state, and an empty state when no invites are pending.
 - `createStaffInviteSubmission` normalizes email and optional message text before API submission.
@@ -34,8 +34,8 @@ These invite models live alongside the rest of the staff-management dashboard st
 
 ## Tests
 
-- `apps/api/src/modules/roles/role.service.test.ts`
-- `apps/api/src/modules/system/system-flow.test.ts`
-- `apps/dashboard/src/staff/staffInviteDashboard.test.ts`
+- `backend/api/src/modules/roles/role.service.test.ts`
+- `backend/api/src/modules/system/system-flow.test.ts`
+- `frontend/dashboard/src/staff/staffInviteDashboard.test.ts`
 - `packages/api-client/src/apiClientAuth.test.ts`
   Covers role-list, invite-list, invite-create, and invite-accept request paths, methods, auth headers, and request bodies used by the shared client, plus dashboard invite-flow and accept-invite screen-state coverage.

@@ -23,7 +23,7 @@ API routes:
 
 ## Dashboard
 
-Framework-neutral staff access state lives under `apps/dashboard/src/staff`:
+Framework-neutral staff access state lives under `frontend/dashboard/src/staff`:
 
 - `buildStaffPermissionsScreen` builds editable staff rows, assignable role options, removal confirmation state, audit-trail state, summary counts, selected-staff context, locked-reason labels, and an empty state when no staff access records exist.
 - `buildCustomRoleCreateScreen` and `buildCustomRoleEditScreen` build grouped permission toggles for custom roles, including permission-count summaries, per-group selection summaries, locked-role state, and role-name validation feedback.
@@ -49,8 +49,8 @@ Related staff-management dashboard models in the same module area also cover:
 
 ## Tests
 
-- `apps/api/src/modules/roles/role.service.test.ts`
-- `apps/api/src/modules/system/system-flow.test.ts`
-- `apps/dashboard/src/staff/staffInviteDashboard.test.ts`
+- `backend/api/src/modules/roles/role.service.test.ts`
+- `backend/api/src/modules/system/system-flow.test.ts`
+- `frontend/dashboard/src/staff/staffInviteDashboard.test.ts`
 - `packages/api-client/src/apiClientAuth.test.ts`
   Covers role/staff-access request paths, HTTP methods, auth headers, and request bodies for role listing, custom role create/update, role assignment, staff removal, audit listing, and staff invite flows.

@@ -1,6 +1,6 @@
 # Worker
 
-The worker app lives in `apps/worker`. It provides the foundation for background jobs:
+The worker app lives in `backend/worker`. It provides the foundation for background jobs:
 
 - `InMemoryJobQueue` stores queued jobs for local development and tests.
 - `WorkerRuntime` polls the queue and dispatches registered handlers.

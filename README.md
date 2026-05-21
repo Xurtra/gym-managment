@@ -4,10 +4,12 @@ This repository is now scaffolded as a TypeScript monorepo for a modular gym man
 
 ## Workspace Layout
 
-- `apps/api` - backend API service and domain modules.
-- `apps/dashboard` - staff dashboard route, auth, gym settings, locations, members, leads, membership plans, contracts and waivers, Stripe payments, check-in, and access-control screen logic.
-- `apps/member-portal` - member-facing route and layout logic.
-- `apps/website-renderer` - public website route, Website Builder, signup, and checkout logic.
+- `backend/api` - backend API service and domain modules.
+- `backend/worker` - background worker foundation.
+- `frontend/app` - Vite browser app that composes the web dashboard, public site, and member portal models.
+- `frontend/dashboard` - staff dashboard route, auth, gym settings, locations, members, leads, membership plans, contracts and waivers, Stripe payments, check-in, and access-control screen logic.
+- `frontend/member-portal` - member-facing route and layout logic.
+- `frontend/website-renderer` - public website route, Website Builder, signup, and checkout logic.
 - `packages/ui` - shared UI state models for primitives and common states.
 - `packages/constants` - shared roles, permissions, statuses, feature flags, and token constants.
 - `packages/validation` - shared request validation schemas.

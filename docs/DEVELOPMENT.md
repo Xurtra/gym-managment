@@ -30,72 +30,72 @@ npm run dev:worker
 Focused dashboard staff-management coverage is in:
 
 ```bash
-npx vitest run apps/dashboard/src/staff/staffInviteDashboard.test.ts
+npx vitest run frontend/dashboard/src/staff/staffInviteDashboard.test.ts
 ```
 
 Focused dashboard member-management coverage is in:
 
 ```bash
-npx vitest run apps/dashboard/src/members/memberDashboard.test.ts
-npx vitest run apps/dashboard/src/members/memberSearch.test.ts
-npx vitest run apps/dashboard/src/members/memberStatusBadges.test.ts
-npx vitest run apps/dashboard/src/members/memberProfileSections.test.ts
+npx vitest run frontend/dashboard/src/members/memberDashboard.test.ts
+npx vitest run frontend/dashboard/src/members/memberSearch.test.ts
+npx vitest run frontend/dashboard/src/members/memberStatusBadges.test.ts
+npx vitest run frontend/dashboard/src/members/memberProfileSections.test.ts
 ```
 
 Focused dashboard leads-and-CRM coverage is in:
 
 ```bash
-npx vitest run apps/dashboard/src/leads/leadsDashboard.test.ts
+npx vitest run frontend/dashboard/src/leads/leadsDashboard.test.ts
 ```
 
 Focused dashboard membership-plan coverage is in:
 
 ```bash
-npx vitest run apps/dashboard/src/membershipPlans/membershipPlansDashboard.test.ts
+npx vitest run frontend/dashboard/src/membershipPlans/membershipPlansDashboard.test.ts
 ```
 
 Focused dashboard contracts-and-waivers coverage is in:
 
 ```bash
-npx vitest run apps/dashboard/src/contractsWaivers/contractsWaiversDashboard.test.ts
+npx vitest run frontend/dashboard/src/contractsWaivers/contractsWaiversDashboard.test.ts
 ```
 
 Focused dashboard Stripe-payments coverage is in:
 
 ```bash
-npx vitest run apps/dashboard/src/payments/paymentsDashboard.test.ts
+npx vitest run frontend/dashboard/src/payments/paymentsDashboard.test.ts
 ```
 
 Focused dashboard bookings-and-waitlists coverage is in:
 
 ```bash
-npx vitest run apps/dashboard/src/bookings/bookingsDashboard.test.ts
+npx vitest run frontend/dashboard/src/bookings/bookingsDashboard.test.ts
 ```
 
 Focused dashboard personal-training coverage is in:
 
 ```bash
-npx vitest run apps/dashboard/src/personalTraining/personalTrainingDashboard.test.ts
+npx vitest run frontend/dashboard/src/personalTraining/personalTrainingDashboard.test.ts
 ```
 
 Focused dashboard check-in coverage is in:
 
 ```bash
-npx vitest run apps/dashboard/src/checkIns/checkInDashboard.test.ts
+npx vitest run frontend/dashboard/src/checkIns/checkInDashboard.test.ts
 ```
 
 Focused dashboard access-control coverage is in:
 
 ```bash
-npx vitest run apps/dashboard/src/accessControl/accessControlDashboard.test.ts
+npx vitest run frontend/dashboard/src/accessControl/accessControlDashboard.test.ts
 ```
 
 Focused public website signup-and-checkout coverage is in:
 
 ```bash
-npx vitest run apps/website-renderer/src/publicRoutes.test.ts
-npx vitest run apps/website-renderer/src/signup.test.ts
-npx vitest run apps/website-renderer/src/checkout.test.ts
+npx vitest run frontend/website-renderer/src/publicRoutes.test.ts
+npx vitest run frontend/website-renderer/src/signup.test.ts
+npx vitest run frontend/website-renderer/src/checkout.test.ts
 ```
 
 ## Environment Files

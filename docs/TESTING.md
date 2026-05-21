@@ -37,7 +37,7 @@ The backend test suite has two layers.
 
 ## Full Process Test
 
-`apps/api/src/modules/system/system-flow.test.ts` starts the API with a real HTTP server on an ephemeral port and tests the current backend process end to end:
+`backend/api/src/modules/system/system-flow.test.ts` starts the API with a real HTTP server on an ephemeral port and tests the current backend process end to end:
 
 - Owner registration and gym creation.
 - Authenticated current-user lookup.

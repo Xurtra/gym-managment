@@ -5,7 +5,8 @@
   "description": "Modular gym management platform monorepo.",
   "type": "module",
   "workspaces": [
-    "apps/*",
+    "backend/*",
+    "frontend/*",
     "packages/*"
   ],
   "scripts": {

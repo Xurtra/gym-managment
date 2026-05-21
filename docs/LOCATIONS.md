@@ -20,7 +20,7 @@ API routes:
 
 ## Dashboard Modules
 
-Framework-neutral dashboard state lives under `apps/dashboard/src/locations`:
+Framework-neutral dashboard state lives under `frontend/dashboard/src/locations`:
 
 - `list.ts` builds the active location list page with archived counts.
 - `detail.ts` builds the location detail state with map links, address validation, hours, rooms, and access rules.
@@ -33,8 +33,8 @@ Framework-neutral dashboard state lives under `apps/dashboard/src/locations`:
 
 ## Tests
 
-- `apps/dashboard/src/locations/locationDashboard.test.ts`
-- `apps/api/src/modules/locations/location.service.test.ts`
-- `apps/api/src/modules/classes/classSchedule.service.test.ts`
-- `apps/api/src/modules/system/system-flow.test.ts`
+- `frontend/dashboard/src/locations/locationDashboard.test.ts`
+- `backend/api/src/modules/locations/location.service.test.ts`
+- `backend/api/src/modules/classes/classSchedule.service.test.ts`
+- `backend/api/src/modules/system/system-flow.test.ts`
 - `packages/api-client/src/apiClientAuth.test.ts`

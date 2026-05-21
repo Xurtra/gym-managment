@@ -23,7 +23,7 @@ The routes enforce tenant access and `gym:read` or `gym:update`.
 
 ## Dashboard Modules
 
-Framework-neutral dashboard state lives under `apps/dashboard/src/gymSettings`:
+Framework-neutral dashboard state lives under `frontend/dashboard/src/gymSettings`:
 
 - profile settings page
 - logo upload flow state
@@ -36,4 +36,4 @@ Framework-neutral dashboard state lives under `apps/dashboard/src/gymSettings`:
 - onboarding wizard steps, including membership-plan selection, Stripe payment-connection routing, and progress routing
 - onboarding progress indicator with the next membership-plan or payment-connection step when it is still incomplete
 
-The public website signup and checkout models in `apps/website-renderer/src` also depend on these gym settings. In particular, the `online_signup` feature flag and the set of active, public membership plans determine whether the public signup flow is available and which plans can proceed into checkout.
+The public website signup and checkout models in `frontend/website-renderer/src` also depend on these gym settings. In particular, the `online_signup` feature flag and the set of active, public membership plans determine whether the public signup flow is available and which plans can proceed into checkout.
