@@ -1,0 +1,20 @@
+
+> gym-management-platform@0.1.0 dev
+> node tools/dev.mjs
+
+[dev] cleared existing listener on port 5173 (pid 11048)
+[frontend] 
+> @gym-platform/frontend@0.1.0 dev
+> vite
+
+[api] 
+> @gym-platform/api@0.1.0 dev
+> tsx --conditions=development src/index.ts
+
+[frontend] 
+  [32m[1mVITE[22m v5.4.21[39m  [2mready in [0m[1m304[22m[2m[0m ms[22m
+
+[frontend]   [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m5173[22m/[39m
+[api] Gym Platform API listening on http://0.0.0.0:4000
+[api] exited with code 1
+[frontend] exited with signal SIGTERM

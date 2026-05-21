@@ -642,24 +642,7 @@ async function refreshDashboard() {
       const scheduleFrom = new Date();
       const scheduleTo = new Date(scheduleFrom);
       scheduleTo.setUTCDate(scheduleTo.getUTCDate() + 30);
-      const [
-        members,
-        plans,
-        locations,
-        classTypes,
-        classSessions,
-        roles,
-        staff,
-        staffInvites,
-        staffAudit,
-        accessDevices,
-        accessRules,
-        accessEvents,
-        stripeAccount,
-        stripePayments,
-        notifications,
-        contractWaiverDocuments
-      ] = (await Promise.all([
+      const results = await Promise.allSettled([
         client.listMembers(state.gym.id) as Promise<MemberListResponse>,
         client.listMembershipPlans(state.gym.id) as Promise<PlanListResponse>,
         client.listLocations(state.gym.id) as Promise<LocationListResponse>,
@@ -680,71 +663,167 @@ async function refreshDashboard() {
         client.listPayments(state.gym.id) as Promise<StripePaymentListResponse>,
         client.listNotifications(state.gym.id) as Promise<NotificationListResponse>,
         client.listContractWaiverDocuments(state.gym.id) as Promise<ContractWaiverDocumentListResponse>
-      ])) as [
-        MemberListResponse,
-        PlanListResponse,
-        LocationListResponse,
-        ClassTypeListResponse,
-        PublicSessionRecord[],
-        RoleListResponse,
-        StaffListResponse,
-        StaffInviteListResponse,
-        StaffAuditListResponse,
-        AccessDeviceListResponse,
-        AccessRuleListResponse,
-        AccessEventListResponse,
-        StripePaymentAccountResponse,
-        StripePaymentListResponse,
-        NotificationListResponse,
-        ContractWaiverDocumentListResponse
-      ];
-      state.members = members.members;
-      state.plans = plans.plans;
-      state.locations = locations.locations;
-      state.classTypes = classTypes.classTypes;
-      state.classSessions = classSessions;
-      state.roles = roles.roles;
-      state.staff = staff.staff;
-      state.staffInvites = staffInvites.invites;
-      state.staffAudit = staffAudit.entries;
-      state.accessDevices = accessDevices.devices;
-      state.accessRules = accessRules.rules;
-      state.accessEvents = accessEvents.events;
-      state.stripeAccount = stripeAccount.account;
-      state.stripePayments = stripePayments.payments;
-      state.notifications = notifications.notifications;
-      state.contractWaiverDocuments = contractWaiverDocuments.documents;
+      ]);
+      const dashboardErrors: string[] = [];
+      const [
+        membersResult,
+        plansResult,
+        locationsResult,
+        classTypesResult,
+        classSessionsResult,
+        rolesResult,
+        staffResult,
+        staffInvitesResult,
+        staffAuditResult,
+        accessDevicesResult,
+        accessRulesResult,
+        accessEventsResult,
+        stripeAccountResult,
+        stripePaymentsResult,
+        notificationsResult,
+        contractWaiverDocumentsResult
+      ] = results;
+
+      if (membersResult.status === "fulfilled") {
+        state.members = membersResult.value.members;
+      } else {
+        dashboardErrors.push(`members: ${describeError(membersResult.reason)}`);
+      }
+      if (plansResult.status === "fulfilled") {
+        state.plans = plansResult.value.plans;
+      } else {
+        dashboardErrors.push(`plans: ${describeError(plansResult.reason)}`);
+      }
+      if (locationsResult.status === "fulfilled") {
+        state.locations = locationsResult.value.locations;
+      } else {
+        dashboardErrors.push(`locations: ${describeError(locationsResult.reason)}`);
+      }
+      if (classTypesResult.status === "fulfilled") {
+        state.classTypes = classTypesResult.value.classTypes;
+      } else {
+        dashboardErrors.push(`class types: ${describeError(classTypesResult.reason)}`);
+      }
+      if (classSessionsResult.status === "fulfilled") {
+        state.classSessions = classSessionsResult.value;
+      } else {
+        dashboardErrors.push(`class sessions: ${describeError(classSessionsResult.reason)}`);
+      }
+      if (rolesResult.status === "fulfilled") {
+        state.roles = rolesResult.value.roles;
+      } else {
+        dashboardErrors.push(`roles: ${describeError(rolesResult.reason)}`);
+      }
+      if (staffResult.status === "fulfilled") {
+        state.staff = staffResult.value.staff;
+      } else {
+        dashboardErrors.push(`staff: ${describeError(staffResult.reason)}`);
+      }
+      if (staffInvitesResult.status === "fulfilled") {
+        state.staffInvites = staffInvitesResult.value.invites;
+      } else {
+        dashboardErrors.push(`staff invites: ${describeError(staffInvitesResult.reason)}`);
+      }
+      if (staffAuditResult.status === "fulfilled") {
+        state.staffAudit = staffAuditResult.value.entries;
+      } else {
+        dashboardErrors.push(`staff audit: ${describeError(staffAuditResult.reason)}`);
+      }
+      if (accessDevicesResult.status === "fulfilled") {
+        state.accessDevices = accessDevicesResult.value.devices;
+      } else {
+        dashboardErrors.push(`access devices: ${describeError(accessDevicesResult.reason)}`);
+      }
+      if (accessRulesResult.status === "fulfilled") {
+        state.accessRules = accessRulesResult.value.rules;
+      } else {
+        dashboardErrors.push(`access rules: ${describeError(accessRulesResult.reason)}`);
+      }
+      if (accessEventsResult.status === "fulfilled") {
+        state.accessEvents = accessEventsResult.value.events;
+      } else {
+        dashboardErrors.push(`access events: ${describeError(accessEventsResult.reason)}`);
+      }
+      if (stripeAccountResult.status === "fulfilled") {
+        state.stripeAccount = stripeAccountResult.value.account;
+      } else {
+        dashboardErrors.push(`Stripe account: ${describeError(stripeAccountResult.reason)}`);
+      }
+      if (stripePaymentsResult.status === "fulfilled") {
+        state.stripePayments = stripePaymentsResult.value.payments;
+      } else {
+        dashboardErrors.push(`payments: ${describeError(stripePaymentsResult.reason)}`);
+      }
+      if (notificationsResult.status === "fulfilled") {
+        state.notifications = notificationsResult.value.notifications;
+      } else {
+        dashboardErrors.push(`notifications: ${describeError(notificationsResult.reason)}`);
+      }
+      if (contractWaiverDocumentsResult.status === "fulfilled") {
+        state.contractWaiverDocuments = contractWaiverDocumentsResult.value.documents;
+      } else {
+        dashboardErrors.push(`contracts and waivers: ${describeError(contractWaiverDocumentsResult.reason)}`);
+      }
       if (!state.selectedCheckInLocationId || !state.locations.some((location) => location.id === state.selectedCheckInLocationId)) {
         state.selectedCheckInLocationId = state.locations[0]?.id ?? "";
       }
       if (!state.selectedClassSessionId || !state.classSessions.some((session) => session.id === state.selectedClassSessionId)) {
         state.selectedClassSessionId = state.classSessions[0]?.id ?? "";
       }
+      const bookingResults = await Promise.allSettled(
+        state.classSessions.map(async (session) => {
+          const bookings = (await client.listClassBookings(
+            state.gym?.id ?? "",
+            session.id
+          )) as ClassBookingListResponse;
+          return [session.id, bookings.bookings] as const;
+        })
+      );
       state.classBookings = Object.fromEntries(
-        await Promise.all(
-          state.classSessions.map(async (session) => {
-            const bookings = (await client.listClassBookings(
-              state.gym?.id ?? "",
-              session.id
-            )) as ClassBookingListResponse;
-            return [session.id, bookings.bookings] as const;
-          })
+        bookingResults.flatMap((result) =>
+          result.status === "fulfilled"
+            ? [result.value]
+            : []
         )
       );
+      dashboardErrors.push(
+        ...bookingResults.flatMap((result) =>
+          result.status === "rejected" ? [`class bookings: ${describeError(result.reason)}`] : []
+        )
+      );
+
+      const membershipResults = await Promise.allSettled(
+        state.members.map(async (member) => {
+          const memberships = (await client.listMemberMemberships(
+            state.gym?.id ?? "",
+            member.id
+          )) as MemberMembershipListResponse;
+          return [member.id, memberships.memberships] as const;
+        })
+      );
       state.memberMemberships = Object.fromEntries(
-        await Promise.all(
-          state.members.map(async (member) => {
-            const memberships = (await client.listMemberMemberships(
-              state.gym?.id ?? "",
-              member.id
-            )) as MemberMembershipListResponse;
-            return [member.id, memberships.memberships] as const;
-          })
+        membershipResults.flatMap((result) =>
+          result.status === "fulfilled"
+            ? [result.value]
+            : []
+        )
+      );
+      dashboardErrors.push(
+        ...membershipResults.flatMap((result) =>
+          result.status === "rejected" ? [`member memberships: ${describeError(result.reason)}`] : []
         )
       );
       if (!state.publicSlug) {
         state.publicSlug = state.gym.slug;
         localStorage.setItem(PUBLIC_SLUG_STORAGE_KEY, state.publicSlug);
+      }
+      if (dashboardErrors.length > 0) {
+        setBanner(
+          "error",
+          `Some dashboard data could not load: ${dashboardErrors.slice(0, 3).join("; ")}${
+            dashboardErrors.length > 3 ? `; and ${dashboardErrors.length - 3} more` : ""
+          }`
+        );
       }
     } else {
       const isPlatformAdmin = state.me?.memberships?.some(m => m.role?.permissions?.includes("platform:admin"));
@@ -781,8 +860,12 @@ async function refreshDashboard() {
       await refreshPublic(state.publicSlug, false);
     }
   } catch (error) {
-    clearDashboardState();
-    setBanner("error", describeError(error));
+    if (error instanceof ApiError && error.status === 401) {
+      clearDashboardState();
+      setBanner("info", "Your session expired. Please log in again.");
+    } else {
+      setBanner("error", describeError(error));
+    }
   } finally {
     state.dashboardLoading = false;
     render();
