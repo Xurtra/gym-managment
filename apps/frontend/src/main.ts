@@ -12,7 +12,7 @@ import {
 import { CheckInMethod } from "@gym-platform/constants";
 import "./style.css";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? window.location.origin;
+const API_BASE_URL = "http://127.0.0.1:4000";
 const SESSION_STORAGE_KEY = "gym-platform-session";
 const PUBLIC_SLUG_STORAGE_KEY = "gym-platform-public-slug";
 const THEME_STORAGE_KEY = "gym-platform-theme";
