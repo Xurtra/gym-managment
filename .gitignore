@@ -4,8 +4,7 @@ node_modules/
 dist/
 build/
 .next/
-.env
-.env.local
+
 
 # Python
 .venv/
