@@ -46,6 +46,36 @@ export declare const loginSchema: z.ZodObject<{
     twoFactorCode?: string | undefined;
     recoveryCode?: string | undefined;
 }>;
+export declare const memberPortalLoginSchema: z.ZodObject<{
+    gymSlug: z.ZodString;
+    email: z.ZodEffects<z.ZodString, string, string>;
+    password: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    email: string;
+    password: string;
+    gymSlug: string;
+}, {
+    email: string;
+    password: string;
+    gymSlug: string;
+}>;
+export declare const memberPortalAccountSchema: z.ZodObject<{
+    password: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    password: string;
+}, {
+    password: string;
+}>;
+export declare const memberPortalTokenAcceptSchema: z.ZodObject<{
+    token: z.ZodString;
+    password: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    password: string;
+    token: string;
+}, {
+    password: string;
+    token: string;
+}>;
 export declare const publicSignupSchema: z.ZodObject<{
     planId: z.ZodString;
     firstName: z.ZodString;
@@ -1395,6 +1425,22 @@ export declare const stripePaymentRefundSchema: z.ZodObject<{
     reason?: string | undefined;
     amountCents?: number | undefined;
 }>;
+export declare const stripeSubscriptionCheckoutSchema: z.ZodObject<{
+    memberId: z.ZodString;
+    planId: z.ZodString;
+    successUrl: z.ZodOptional<z.ZodString>;
+    cancelUrl: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    planId: string;
+    memberId: string;
+    successUrl?: string | undefined;
+    cancelUrl?: string | undefined;
+}, {
+    planId: string;
+    memberId: string;
+    successUrl?: string | undefined;
+    cancelUrl?: string | undefined;
+}>;
 export declare const notificationProcessSchema: z.ZodObject<{
     markFailed: z.ZodDefault<z.ZodBoolean>;
     failureReason: z.ZodOptional<z.ZodString>;
@@ -1456,6 +1502,103 @@ export declare const contractWaiverUpdateSchema: z.ZodEffects<z.ZodObject<{
     requiresSignature?: boolean | undefined;
     publish?: boolean | undefined;
 }>;
+export declare const contractWaiverAssignmentCreateSchema: z.ZodObject<{
+    memberId: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    memberId: string;
+}, {
+    memberId: string;
+}>;
+export declare const contractWaiverSignatureCreateSchema: z.ZodObject<{
+    signerName: z.ZodString;
+    signatureText: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    signerName: string;
+    signatureText: string;
+}, {
+    signerName: string;
+    signatureText: string;
+}>;
+export declare const staffAvailabilityCreateSchema: z.ZodEffects<z.ZodObject<{
+    userId: z.ZodString;
+    weekday: z.ZodNumber;
+    startsAt: z.ZodString;
+    endsAt: z.ZodString;
+    locationId: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    userId: string;
+    startsAt: string;
+    endsAt: string;
+    weekday: number;
+    locationId?: string | undefined;
+}, {
+    userId: string;
+    startsAt: string;
+    endsAt: string;
+    weekday: number;
+    locationId?: string | undefined;
+}>, {
+    userId: string;
+    startsAt: string;
+    endsAt: string;
+    weekday: number;
+    locationId?: string | undefined;
+}, {
+    userId: string;
+    startsAt: string;
+    endsAt: string;
+    weekday: number;
+    locationId?: string | undefined;
+}>;
+export declare const staffTaskStatusSchema: z.ZodEnum<["todo", "in_progress", "done", "archived"]>;
+export declare const staffTaskCreateSchema: z.ZodObject<{
+    title: z.ZodString;
+    description: z.ZodOptional<z.ZodString>;
+    assignedToUserId: z.ZodOptional<z.ZodString>;
+    dueAt: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    title: string;
+    description?: string | undefined;
+    assignedToUserId?: string | undefined;
+    dueAt?: string | undefined;
+}, {
+    title: string;
+    description?: string | undefined;
+    assignedToUserId?: string | undefined;
+    dueAt?: string | undefined;
+}>;
+export declare const staffTaskUpdateSchema: z.ZodEffects<z.ZodObject<{
+    title: z.ZodOptional<z.ZodString>;
+    description: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    assignedToUserId: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    dueAt: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+} & {
+    status: z.ZodOptional<z.ZodEnum<["todo", "in_progress", "done", "archived"]>>;
+}, "strip", z.ZodTypeAny, {
+    status?: "archived" | "todo" | "in_progress" | "done" | undefined;
+    description?: string | undefined;
+    title?: string | undefined;
+    assignedToUserId?: string | undefined;
+    dueAt?: string | undefined;
+}, {
+    status?: "archived" | "todo" | "in_progress" | "done" | undefined;
+    description?: string | undefined;
+    title?: string | undefined;
+    assignedToUserId?: string | undefined;
+    dueAt?: string | undefined;
+}>, {
+    status?: "archived" | "todo" | "in_progress" | "done" | undefined;
+    description?: string | undefined;
+    title?: string | undefined;
+    assignedToUserId?: string | undefined;
+    dueAt?: string | undefined;
+}, {
+    status?: "archived" | "todo" | "in_progress" | "done" | undefined;
+    description?: string | undefined;
+    title?: string | undefined;
+    assignedToUserId?: string | undefined;
+    dueAt?: string | undefined;
+}>;
 export declare const permissionSchema: z.ZodNativeEnum<{
     readonly GymRead: "gym:read";
     readonly GymUpdate: "gym:update";
@@ -1493,6 +1636,9 @@ export declare const roleNameSchema: z.ZodNativeEnum<{
 }>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type MemberPortalLoginInput = z.infer<typeof memberPortalLoginSchema>;
+export type MemberPortalAccountInput = z.infer<typeof memberPortalAccountSchema>;
+export type MemberPortalTokenAcceptInput = z.infer<typeof memberPortalTokenAcceptSchema>;
 export type PublicSignupInput = z.infer<typeof publicSignupSchema>;
 export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
@@ -1527,7 +1673,13 @@ export type AccessDeviceEventInput = z.input<typeof accessDeviceEventSchema>;
 export type AccessDeviceHeartbeatInput = z.input<typeof accessDeviceHeartbeatSchema>;
 export type StripePaymentCollectInput = z.infer<typeof stripePaymentCollectSchema>;
 export type StripePaymentRefundInput = z.infer<typeof stripePaymentRefundSchema>;
+export type StripeSubscriptionCheckoutInput = z.infer<typeof stripeSubscriptionCheckoutSchema>;
 export type NotificationProcessInput = z.input<typeof notificationProcessSchema>;
 export type ContractWaiverCreateInput = z.infer<typeof contractWaiverCreateSchema>;
 export type ContractWaiverUpdateInput = z.infer<typeof contractWaiverUpdateSchema>;
+export type ContractWaiverAssignmentCreateInput = z.infer<typeof contractWaiverAssignmentCreateSchema>;
+export type ContractWaiverSignatureCreateInput = z.infer<typeof contractWaiverSignatureCreateSchema>;
+export type StaffAvailabilityCreateInput = z.infer<typeof staffAvailabilityCreateSchema>;
+export type StaffTaskCreateInput = z.infer<typeof staffTaskCreateSchema>;
+export type StaffTaskUpdateInput = z.infer<typeof staffTaskUpdateSchema>;
 //# sourceMappingURL=index.d.ts.map

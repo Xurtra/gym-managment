@@ -22,6 +22,8 @@
     "precommit": "echo \"Pre-commit checks are disabled.\"",
     "start:api": "npm run start -w @gym-platform/api",
     "migrate:api": "npm run migrate -w @gym-platform/api",
+    "railway:frontend:build": "npm ci && npm run build:frontend",
+    "railway:frontend:start": "node tools/serve-frontend.mjs",
     "start:worker": "npm run start -w @gym-platform/worker",
     "test": "vitest run",
     "test:postgres": "node tools/run-postgres-integration.mjs",

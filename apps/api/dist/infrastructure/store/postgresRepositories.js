@@ -42,7 +42,14 @@ export class PostgresRepositories {
     };
     staffShifts = {
         createStaffShift: (shift) => this.createStaffShift(shift),
-        listStaffShiftsForStaff: (gymId, userId) => this.listStaffShiftsForStaff(gymId, userId)
+        listStaffShiftsForGym: (gymId) => this.listStaffShiftsForGym(gymId),
+        listStaffShiftsForStaff: (gymId, userId) => this.listStaffShiftsForStaff(gymId, userId),
+        createStaffAvailability: (availability) => this.createStaffAvailability(availability),
+        listStaffAvailabilitiesForGym: (gymId) => this.listStaffAvailabilitiesForGym(gymId),
+        createStaffTask: (task) => this.createStaffTask(task),
+        getStaffTask: (taskId) => this.getStaffTask(taskId),
+        listStaffTasksForGym: (gymId) => this.listStaffTasksForGym(gymId),
+        updateStaffTask: (task) => this.updateStaffTask(task)
     };
     locations = {
         createLocation: (location) => this.createLocation(location),
@@ -53,6 +60,7 @@ export class PostgresRepositories {
     members = {
         createMember: (member) => this.createMember(member),
         getMember: (memberId) => this.getMember(memberId),
+        findMemberByGymAndEmail: (gymId, email) => this.findMemberByGymAndEmail(gymId, email),
         listMembersForGym: (gymId) => this.listMembersForGym(gymId),
         updateMember: (member) => this.updateMember(member)
     };
@@ -115,19 +123,40 @@ export class PostgresRepositories {
         getPaymentTransaction: (paymentId) => this.getPaymentTransaction(paymentId),
         getPaymentTransactionByStripePaymentIntentId: (stripePaymentIntentId) => this.getPaymentTransactionByStripePaymentIntentId(stripePaymentIntentId),
         listPaymentTransactionsForGym: (gymId) => this.listPaymentTransactionsForGym(gymId),
-        updatePaymentTransaction: (transaction) => this.updatePaymentTransaction(transaction)
+        updatePaymentTransaction: (transaction) => this.updatePaymentTransaction(transaction),
+        createStripeSubscription: (subscription) => this.createStripeSubscription(subscription),
+        getStripeSubscription: (subscriptionId) => this.getStripeSubscription(subscriptionId),
+        getStripeSubscriptionByStripeSubscriptionId: (stripeSubscriptionId) => this.getStripeSubscriptionByStripeSubscriptionId(stripeSubscriptionId),
+        getStripeSubscriptionByCheckoutSessionId: (checkoutSessionId) => this.getStripeSubscriptionByCheckoutSessionId(checkoutSessionId),
+        listStripeSubscriptionsForGym: (gymId) => this.listStripeSubscriptionsForGym(gymId),
+        updateStripeSubscription: (subscription) => this.updateStripeSubscription(subscription)
     };
     contractWaivers = {
         createDocument: (document) => this.createContractWaiverDocument(document),
         getDocument: (documentId) => this.getContractWaiverDocument(documentId),
         listDocumentsForGym: (gymId) => this.listContractWaiverDocumentsForGym(gymId),
-        updateDocument: (document) => this.updateContractWaiverDocument(document)
+        updateDocument: (document) => this.updateContractWaiverDocument(document),
+        createAssignment: (assignment) => this.createContractWaiverAssignment(assignment),
+        getAssignment: (assignmentId) => this.getContractWaiverAssignment(assignmentId),
+        findAssignment: (gymId, documentId, memberId) => this.findContractWaiverAssignment(gymId, documentId, memberId),
+        listAssignmentsForGym: (gymId) => this.listContractWaiverAssignmentsForGym(gymId),
+        listAssignmentsForMember: (gymId, memberId) => this.listContractWaiverAssignmentsForMember(gymId, memberId),
+        updateAssignment: (assignment) => this.updateContractWaiverAssignment(assignment),
+        createSignature: (signature) => this.createContractWaiverSignature(signature),
+        listSignaturesForAssignment: (assignmentId) => this.listContractWaiverSignaturesForAssignment(assignmentId)
     };
     tokens = {
         createRefreshToken: (refreshToken) => this.createRefreshToken(refreshToken),
         findRefreshTokenByHash: (tokenHash) => this.findRefreshTokenByHash(tokenHash),
         listRefreshTokensForUser: (userId) => this.listRefreshTokensForUser(userId),
         updateRefreshToken: (refreshToken) => this.updateRefreshToken(refreshToken),
+        createMemberRefreshToken: (refreshToken) => this.createMemberRefreshToken(refreshToken),
+        findMemberRefreshTokenByHash: (tokenHash) => this.findMemberRefreshTokenByHash(tokenHash),
+        listRefreshTokensForMember: (memberId) => this.listRefreshTokensForMember(memberId),
+        updateMemberRefreshToken: (refreshToken) => this.updateMemberRefreshToken(refreshToken),
+        createMemberPortalToken: (token) => this.createMemberPortalToken(token),
+        findMemberPortalTokenByHash: (tokenHash) => this.findMemberPortalTokenByHash(tokenHash),
+        updateMemberPortalToken: (token) => this.updateMemberPortalToken(token),
         createPurposeToken: (purposeToken) => this.createPurposeToken(purposeToken),
         findPurposeTokenByHash: (tokenHash, purpose) => this.findPurposeTokenByHash(tokenHash, purpose),
         updatePurposeToken: (purposeToken) => this.updatePurposeToken(purposeToken)
@@ -474,6 +503,83 @@ export class PostgresRepositories {
         const result = await this.executor.query("SELECT * FROM staff_shifts WHERE gym_id = $1 AND user_id = $2 ORDER BY starts_at", [gymId, userId]);
         return result.rows.map(mapStaffShift);
     }
+    async listStaffShiftsForGym(gymId) {
+        const result = await this.executor.query("SELECT * FROM staff_shifts WHERE gym_id = $1 ORDER BY starts_at", [gymId]);
+        return result.rows.map(mapStaffShift);
+    }
+    async createStaffAvailability(availability) {
+        const result = await this.executor.query(`INSERT INTO staff_availabilities (
+        id, gym_id, user_id, weekday, starts_at, ends_at, location_id, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *`, [
+            availability.id,
+            availability.gymId,
+            availability.userId,
+            availability.weekday,
+            availability.startsAt,
+            availability.endsAt,
+            availability.locationId ?? null,
+            availability.createdAt,
+            availability.updatedAt
+        ]);
+        return mapStaffAvailability(one(result));
+    }
+    async listStaffAvailabilitiesForGym(gymId) {
+        const result = await this.executor.query(`SELECT * FROM staff_availabilities
+       WHERE gym_id = $1
+       ORDER BY weekday, starts_at, user_id`, [gymId]);
+        return result.rows.map(mapStaffAvailability);
+    }
+    async createStaffTask(task) {
+        const result = await this.executor.query(`INSERT INTO staff_tasks (
+        id, gym_id, title, description, assigned_to_user_id, status, due_at,
+        completed_at, created_by_user_id, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING *`, [
+            task.id,
+            task.gymId,
+            task.title,
+            task.description ?? null,
+            task.assignedToUserId ?? null,
+            task.status,
+            task.dueAt ?? null,
+            task.completedAt ?? null,
+            task.createdByUserId,
+            task.createdAt,
+            task.updatedAt
+        ]);
+        return mapStaffTask(one(result));
+    }
+    async getStaffTask(taskId) {
+        const result = await this.executor.query("SELECT * FROM staff_tasks WHERE id = $1", [taskId]);
+        return result.rows[0] ? mapStaffTask(result.rows[0]) : undefined;
+    }
+    async listStaffTasksForGym(gymId) {
+        const result = await this.executor.query("SELECT * FROM staff_tasks WHERE gym_id = $1 ORDER BY created_at DESC", [gymId]);
+        return result.rows.map(mapStaffTask);
+    }
+    async updateStaffTask(task) {
+        const result = await this.executor.query(`UPDATE staff_tasks
+       SET title = $2,
+           description = $3,
+           assigned_to_user_id = $4,
+           status = $5,
+           due_at = $6,
+           completed_at = $7,
+           updated_at = $8
+       WHERE id = $1
+       RETURNING *`, [
+            task.id,
+            task.title,
+            task.description ?? null,
+            task.assignedToUserId ?? null,
+            task.status,
+            task.dueAt ?? null,
+            task.completedAt ?? null,
+            task.updatedAt
+        ]);
+        return mapStaffTask(one(result));
+    }
     async createLocation(location) {
         const result = await this.executor.query(`INSERT INTO locations (
         id, gym_id, name, address, timezone, phone, operating_hours, status,
@@ -531,8 +637,9 @@ export class PostgresRepositories {
     async createMember(member) {
         const result = await this.executor.query(`INSERT INTO members (
         id, gym_id, first_name, last_name, email, phone, barcode, profile_image_url, status,
+        portal_password_hash, portal_enabled_at, last_portal_login_at,
         emergency_contact, notes, tag_names, archived_at, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12::jsonb, $13, $14, $15)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15::jsonb, $16, $17, $18)
       RETURNING *`, [
             member.id,
             member.gymId,
@@ -543,6 +650,9 @@ export class PostgresRepositories {
             member.barcode ?? null,
             member.profileImageUrl ?? null,
             member.status,
+            member.portalPasswordHash ?? null,
+            member.portalEnabledAt ?? null,
+            member.lastPortalLoginAt ?? null,
             member.emergencyContact ? JSON.stringify(member.emergencyContact) : null,
             member.notes ?? null,
             JSON.stringify(member.tagNames),
@@ -558,6 +668,10 @@ export class PostgresRepositories {
         ]);
         return result.rows[0] ? mapMember(result.rows[0]) : undefined;
     }
+    async findMemberByGymAndEmail(gymId, email) {
+        const result = await this.executor.query("SELECT * FROM members WHERE gym_id = $1 AND lower(email) = lower($2)", [gymId, email]);
+        return result.rows[0] ? mapMember(result.rows[0]) : undefined;
+    }
     async listMembersForGym(gymId) {
         const result = await this.executor.query("SELECT * FROM members WHERE gym_id = $1 ORDER BY created_at", [gymId]);
         return result.rows.map(mapMember);
@@ -571,11 +685,14 @@ export class PostgresRepositories {
           barcode = $6,
           profile_image_url = $7,
           status = $8,
-          emergency_contact = $9::jsonb,
-          notes = $10,
-          tag_names = $11::jsonb,
-          archived_at = $12,
-          updated_at = $13
+          portal_password_hash = $9,
+          portal_enabled_at = $10,
+          last_portal_login_at = $11,
+          emergency_contact = $12::jsonb,
+          notes = $13,
+          tag_names = $14::jsonb,
+          archived_at = $15,
+          updated_at = $16
       WHERE id = $1
       RETURNING *`, [
             member.id,
@@ -586,6 +703,9 @@ export class PostgresRepositories {
             member.barcode ?? null,
             member.profileImageUrl ?? null,
             member.status,
+            member.portalPasswordHash ?? null,
+            member.portalEnabledAt ?? null,
+            member.lastPortalLoginAt ?? null,
             member.emergencyContact ? JSON.stringify(member.emergencyContact) : null,
             member.notes ?? null,
             JSON.stringify(member.tagNames),
@@ -1155,6 +1275,72 @@ export class PostgresRepositories {
         ]);
         return mapStripePaymentTransaction(one(result));
     }
+    async createStripeSubscription(subscription) {
+        const result = await this.executor.query(`INSERT INTO stripe_subscriptions (
+        id, gym_id, member_id, plan_id, stripe_account_id, stripe_customer_id,
+        stripe_subscription_id, stripe_checkout_session_id, status, current_period_start,
+        current_period_end, cancel_at_period_end, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      RETURNING *`, [
+            subscription.id,
+            subscription.gymId,
+            subscription.memberId,
+            subscription.planId,
+            subscription.stripeAccountId ?? null,
+            subscription.stripeCustomerId ?? null,
+            subscription.stripeSubscriptionId ?? null,
+            subscription.stripeCheckoutSessionId ?? null,
+            subscription.status,
+            subscription.currentPeriodStart ?? null,
+            subscription.currentPeriodEnd ?? null,
+            subscription.cancelAtPeriodEnd,
+            subscription.createdAt,
+            subscription.updatedAt
+        ]);
+        return mapStripeSubscription(one(result));
+    }
+    async getStripeSubscription(subscriptionId) {
+        const result = await this.executor.query("SELECT * FROM stripe_subscriptions WHERE id = $1", [subscriptionId]);
+        return result.rows[0] ? mapStripeSubscription(result.rows[0]) : undefined;
+    }
+    async getStripeSubscriptionByStripeSubscriptionId(stripeSubscriptionId) {
+        const result = await this.executor.query("SELECT * FROM stripe_subscriptions WHERE stripe_subscription_id = $1", [stripeSubscriptionId]);
+        return result.rows[0] ? mapStripeSubscription(result.rows[0]) : undefined;
+    }
+    async getStripeSubscriptionByCheckoutSessionId(checkoutSessionId) {
+        const result = await this.executor.query("SELECT * FROM stripe_subscriptions WHERE stripe_checkout_session_id = $1", [checkoutSessionId]);
+        return result.rows[0] ? mapStripeSubscription(result.rows[0]) : undefined;
+    }
+    async listStripeSubscriptionsForGym(gymId) {
+        const result = await this.executor.query("SELECT * FROM stripe_subscriptions WHERE gym_id = $1 ORDER BY created_at DESC", [gymId]);
+        return result.rows.map(mapStripeSubscription);
+    }
+    async updateStripeSubscription(subscription) {
+        const result = await this.executor.query(`UPDATE stripe_subscriptions
+       SET stripe_account_id = $2,
+           stripe_customer_id = $3,
+           stripe_subscription_id = $4,
+           stripe_checkout_session_id = $5,
+           status = $6,
+           current_period_start = $7,
+           current_period_end = $8,
+           cancel_at_period_end = $9,
+           updated_at = $10
+       WHERE id = $1
+       RETURNING *`, [
+            subscription.id,
+            subscription.stripeAccountId ?? null,
+            subscription.stripeCustomerId ?? null,
+            subscription.stripeSubscriptionId ?? null,
+            subscription.stripeCheckoutSessionId ?? null,
+            subscription.status,
+            subscription.currentPeriodStart ?? null,
+            subscription.currentPeriodEnd ?? null,
+            subscription.cancelAtPeriodEnd,
+            subscription.updatedAt
+        ]);
+        return mapStripeSubscription(one(result));
+    }
     async createContractWaiverDocument(document) {
         const result = await this.executor.query(`INSERT INTO contract_waiver_documents (
         id, gym_id, title, type, version, requires_signature, signed_member_count,
@@ -1209,6 +1395,79 @@ export class PostgresRepositories {
         ]);
         return mapContractWaiverDocument(one(result));
     }
+    async createContractWaiverAssignment(assignment) {
+        const result = await this.executor.query(`INSERT INTO contract_waiver_assignments (
+        id, gym_id, document_id, member_id, status, assigned_by_user_id,
+        assigned_at, signed_at, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING *`, [
+            assignment.id,
+            assignment.gymId,
+            assignment.documentId,
+            assignment.memberId,
+            assignment.status,
+            assignment.assignedByUserId,
+            assignment.assignedAt,
+            assignment.signedAt ?? null,
+            assignment.createdAt,
+            assignment.updatedAt
+        ]);
+        return mapContractWaiverAssignment(one(result));
+    }
+    async getContractWaiverAssignment(assignmentId) {
+        const result = await this.executor.query("SELECT * FROM contract_waiver_assignments WHERE id = $1", [assignmentId]);
+        return result.rows[0] ? mapContractWaiverAssignment(result.rows[0]) : undefined;
+    }
+    async findContractWaiverAssignment(gymId, documentId, memberId) {
+        const result = await this.executor.query(`SELECT * FROM contract_waiver_assignments
+       WHERE gym_id = $1 AND document_id = $2 AND member_id = $3 AND status <> 'void'
+       LIMIT 1`, [gymId, documentId, memberId]);
+        return result.rows[0] ? mapContractWaiverAssignment(result.rows[0]) : undefined;
+    }
+    async listContractWaiverAssignmentsForGym(gymId) {
+        const result = await this.executor.query("SELECT * FROM contract_waiver_assignments WHERE gym_id = $1 ORDER BY assigned_at DESC", [gymId]);
+        return result.rows.map(mapContractWaiverAssignment);
+    }
+    async listContractWaiverAssignmentsForMember(gymId, memberId) {
+        const result = await this.executor.query(`SELECT * FROM contract_waiver_assignments
+       WHERE gym_id = $1 AND member_id = $2
+       ORDER BY assigned_at DESC`, [gymId, memberId]);
+        return result.rows.map(mapContractWaiverAssignment);
+    }
+    async updateContractWaiverAssignment(assignment) {
+        const result = await this.executor.query(`UPDATE contract_waiver_assignments
+       SET status = $2,
+           signed_at = $3,
+           updated_at = $4
+       WHERE id = $1
+       RETURNING *`, [assignment.id, assignment.status, assignment.signedAt ?? null, assignment.updatedAt]);
+        return mapContractWaiverAssignment(one(result));
+    }
+    async createContractWaiverSignature(signature) {
+        const result = await this.executor.query(`INSERT INTO contract_waiver_signatures (
+        id, gym_id, assignment_id, document_id, member_id, document_title, document_version,
+        signer_name, signature_text, signer_ip, signed_at, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING *`, [
+            signature.id,
+            signature.gymId,
+            signature.assignmentId,
+            signature.documentId,
+            signature.memberId,
+            signature.documentTitle,
+            signature.documentVersion,
+            signature.signerName,
+            signature.signatureText,
+            signature.signerIp ?? null,
+            signature.signedAt,
+            signature.createdAt
+        ]);
+        return mapContractWaiverSignature(one(result));
+    }
+    async listContractWaiverSignaturesForAssignment(assignmentId) {
+        const result = await this.executor.query("SELECT * FROM contract_waiver_signatures WHERE assignment_id = $1 ORDER BY signed_at DESC", [assignmentId]);
+        return result.rows.map(mapContractWaiverSignature);
+    }
     async createRefreshToken(refreshToken) {
         const result = await this.executor.query(`INSERT INTO refresh_tokens (
         id, user_id, gym_id, token_hash, expires_at, revoked_at, replaced_by_token_id, created_at
@@ -1240,6 +1499,65 @@ export class PostgresRepositories {
       WHERE id = $1
       RETURNING *`, [refreshToken.id, refreshToken.revokedAt ?? null, refreshToken.replacedByTokenId ?? null]);
         return mapRefreshToken(one(result));
+    }
+    async createMemberRefreshToken(refreshToken) {
+        const result = await this.executor.query(`INSERT INTO member_refresh_tokens (
+        id, gym_id, member_id, token_hash, expires_at, revoked_at, replaced_by_token_id, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *`, [
+            refreshToken.id,
+            refreshToken.gymId,
+            refreshToken.memberId,
+            refreshToken.tokenHash,
+            refreshToken.expiresAt,
+            refreshToken.revokedAt ?? null,
+            refreshToken.replacedByTokenId ?? null,
+            refreshToken.createdAt
+        ]);
+        return mapMemberRefreshToken(one(result));
+    }
+    async findMemberRefreshTokenByHash(tokenHash) {
+        const result = await this.executor.query("SELECT * FROM member_refresh_tokens WHERE token_hash = $1", [tokenHash]);
+        return result.rows[0] ? mapMemberRefreshToken(result.rows[0]) : undefined;
+    }
+    async listRefreshTokensForMember(memberId) {
+        const result = await this.executor.query("SELECT * FROM member_refresh_tokens WHERE member_id = $1 ORDER BY created_at", [memberId]);
+        return result.rows.map(mapMemberRefreshToken);
+    }
+    async updateMemberRefreshToken(refreshToken) {
+        const result = await this.executor.query(`UPDATE member_refresh_tokens
+      SET revoked_at = $2,
+          replaced_by_token_id = $3
+      WHERE id = $1
+      RETURNING *`, [refreshToken.id, refreshToken.revokedAt ?? null, refreshToken.replacedByTokenId ?? null]);
+        return mapMemberRefreshToken(one(result));
+    }
+    async createMemberPortalToken(token) {
+        const result = await this.executor.query(`INSERT INTO member_portal_tokens (
+        id, gym_id, member_id, token_hash, purpose, expires_at, used_at, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *`, [
+            token.id,
+            token.gymId,
+            token.memberId,
+            token.tokenHash,
+            token.purpose,
+            token.expiresAt,
+            token.usedAt ?? null,
+            token.createdAt
+        ]);
+        return mapMemberPortalToken(one(result));
+    }
+    async findMemberPortalTokenByHash(tokenHash) {
+        const result = await this.executor.query("SELECT * FROM member_portal_tokens WHERE token_hash = $1", [tokenHash]);
+        return result.rows[0] ? mapMemberPortalToken(result.rows[0]) : undefined;
+    }
+    async updateMemberPortalToken(token) {
+        const result = await this.executor.query(`UPDATE member_portal_tokens
+      SET used_at = $2
+      WHERE id = $1
+      RETURNING *`, [token.id, token.usedAt ?? null]);
+        return mapMemberPortalToken(one(result));
     }
     async createPurposeToken(purposeToken) {
         const result = await this.executor.query(`INSERT INTO purpose_tokens (
@@ -1416,6 +1734,46 @@ function mapStaffShift(row) {
     }
     return shift;
 }
+function mapStaffAvailability(row) {
+    const availability = {
+        id: row.id,
+        gymId: row.gym_id,
+        userId: row.user_id,
+        weekday: row.weekday,
+        startsAt: row.starts_at,
+        endsAt: row.ends_at,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+    };
+    if (row.location_id) {
+        availability.locationId = row.location_id;
+    }
+    return availability;
+}
+function mapStaffTask(row) {
+    const task = {
+        id: row.id,
+        gymId: row.gym_id,
+        title: row.title,
+        status: row.status,
+        createdByUserId: row.created_by_user_id,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+    };
+    if (row.description) {
+        task.description = row.description;
+    }
+    if (row.assigned_to_user_id) {
+        task.assignedToUserId = row.assigned_to_user_id;
+    }
+    if (row.due_at) {
+        task.dueAt = row.due_at;
+    }
+    if (row.completed_at) {
+        task.completedAt = row.completed_at;
+    }
+    return task;
+}
 function mapLocation(row) {
     const location = {
         id: row.id,
@@ -1458,6 +1816,15 @@ function mapMember(row) {
     }
     if (row.profile_image_url !== null) {
         member.profileImageUrl = row.profile_image_url;
+    }
+    if (row.portal_password_hash) {
+        member.portalPasswordHash = row.portal_password_hash;
+    }
+    if (row.portal_enabled_at) {
+        member.portalEnabledAt = row.portal_enabled_at;
+    }
+    if (row.last_portal_login_at) {
+        member.lastPortalLoginAt = row.last_portal_login_at;
     }
     if (isRecord(row.emergency_contact)) {
         member.emergencyContact = emergencyContact(row.emergency_contact);
@@ -1763,6 +2130,37 @@ function mapStripePaymentTransaction(row) {
     }
     return transaction;
 }
+function mapStripeSubscription(row) {
+    const subscription = {
+        id: row.id,
+        gymId: row.gym_id,
+        memberId: row.member_id,
+        planId: row.plan_id,
+        status: row.status,
+        cancelAtPeriodEnd: row.cancel_at_period_end,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+    };
+    if (row.stripe_account_id) {
+        subscription.stripeAccountId = row.stripe_account_id;
+    }
+    if (row.stripe_customer_id) {
+        subscription.stripeCustomerId = row.stripe_customer_id;
+    }
+    if (row.stripe_subscription_id) {
+        subscription.stripeSubscriptionId = row.stripe_subscription_id;
+    }
+    if (row.stripe_checkout_session_id) {
+        subscription.stripeCheckoutSessionId = row.stripe_checkout_session_id;
+    }
+    if (row.current_period_start) {
+        subscription.currentPeriodStart = row.current_period_start;
+    }
+    if (row.current_period_end) {
+        subscription.currentPeriodEnd = row.current_period_end;
+    }
+    return subscription;
+}
 function mapContractWaiverDocument(row) {
     const document = {
         id: row.id,
@@ -1783,6 +2181,42 @@ function mapContractWaiverDocument(row) {
     }
     return document;
 }
+function mapContractWaiverAssignment(row) {
+    const assignment = {
+        id: row.id,
+        gymId: row.gym_id,
+        documentId: row.document_id,
+        memberId: row.member_id,
+        status: row.status,
+        assignedByUserId: row.assigned_by_user_id,
+        assignedAt: row.assigned_at,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+    };
+    if (row.signed_at) {
+        assignment.signedAt = row.signed_at;
+    }
+    return assignment;
+}
+function mapContractWaiverSignature(row) {
+    const signature = {
+        id: row.id,
+        gymId: row.gym_id,
+        assignmentId: row.assignment_id,
+        documentId: row.document_id,
+        memberId: row.member_id,
+        documentTitle: row.document_title,
+        documentVersion: row.document_version,
+        signerName: row.signer_name,
+        signatureText: row.signature_text,
+        signedAt: row.signed_at,
+        createdAt: row.created_at
+    };
+    if (row.signer_ip) {
+        signature.signerIp = row.signer_ip;
+    }
+    return signature;
+}
 function mapRefreshToken(row) {
     const refreshToken = {
         id: row.id,
@@ -1801,6 +2235,38 @@ function mapRefreshToken(row) {
         refreshToken.replacedByTokenId = row.replaced_by_token_id;
     }
     return refreshToken;
+}
+function mapMemberRefreshToken(row) {
+    const refreshToken = {
+        id: row.id,
+        gymId: row.gym_id,
+        memberId: row.member_id,
+        tokenHash: row.token_hash,
+        expiresAt: row.expires_at,
+        createdAt: row.created_at
+    };
+    if (row.revoked_at) {
+        refreshToken.revokedAt = row.revoked_at;
+    }
+    if (row.replaced_by_token_id) {
+        refreshToken.replacedByTokenId = row.replaced_by_token_id;
+    }
+    return refreshToken;
+}
+function mapMemberPortalToken(row) {
+    const token = {
+        id: row.id,
+        gymId: row.gym_id,
+        memberId: row.member_id,
+        tokenHash: row.token_hash,
+        purpose: row.purpose,
+        expiresAt: row.expires_at,
+        createdAt: row.created_at
+    };
+    if (row.used_at) {
+        token.usedAt = row.used_at;
+    }
+    return token;
 }
 function mapPurposeToken(row) {
     const purposeToken = {

@@ -3,7 +3,7 @@ import { type MemberContactInformationSection, type MemberEmergencyContactSectio
 import { type MemberStatusBadge } from "./statusBadges.js";
 import type { MemberProfileMembershipView, MemberView } from "./types.js";
 export interface MemberProfileAction {
-    key: "back_to_members" | "edit" | "check_in" | "assign_plan" | "archive";
+    key: "back_to_members" | "edit" | "check_in" | "assign_plan" | "portal_invite" | "archive";
     button: ButtonModel;
     href?: string;
 }
@@ -22,6 +22,8 @@ export interface MemberProfilePage {
     statusBadge: MemberStatusBadge;
     active: boolean;
     archived: boolean;
+    portalStatusLabel: string;
+    portalActionLabel: string;
     contactSection: MemberContactInformationSection;
     emergencyContactSection: MemberEmergencyContactSection;
     notesSection: MemberNotesSection;

@@ -16,6 +16,8 @@ export interface ApiConfig {
     stripeConnectClientId?: string;
     stripeOnboardingRefreshUrl: string;
     stripeOnboardingReturnUrl: string;
+    stripeSubscriptionSuccessUrl: string;
+    stripeSubscriptionCancelUrl: string;
     stripeMockMode: boolean;
 }
 export declare function loadConfig(): ApiConfig;

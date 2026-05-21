@@ -23,6 +23,21 @@ export const loginSchema = z.object({
     twoFactorCode: trimmed.regex(/^\d{6}$/).optional(),
     recoveryCode: trimmed.min(8).max(40).optional()
 });
+export const memberPortalLoginSchema = z.object({
+    gymSlug: trimmed
+        .min(2)
+        .max(80)
+        .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+    email: emailSchema,
+    password: z.string().min(1)
+});
+export const memberPortalAccountSchema = z.object({
+    password: passwordSchema
+});
+export const memberPortalTokenAcceptSchema = z.object({
+    token: z.string().min(32),
+    password: passwordSchema
+});
 export const publicSignupSchema = z.object({
     planId: id,
     firstName: trimmed.min(1).max(80),
@@ -285,6 +300,12 @@ export const stripePaymentRefundSchema = z.object({
     amountCents: z.number().int().min(1).optional(),
     reason: trimmed.max(500).optional()
 });
+export const stripeSubscriptionCheckoutSchema = z.object({
+    memberId: id,
+    planId: id,
+    successUrl: trimmed.url().optional(),
+    cancelUrl: trimmed.url().optional()
+});
 export const notificationProcessSchema = z.object({
     markFailed: z.boolean().default(false),
     failureReason: trimmed.max(500).optional()
@@ -299,6 +320,35 @@ export const contractWaiverCreateSchema = z.object({
 });
 export const contractWaiverUpdateSchema = contractWaiverCreateSchema
     .partial()
+    .refine((value) => Object.keys(value).length > 0, "At least one field must be provided.");
+export const contractWaiverAssignmentCreateSchema = z.object({
+    memberId: id
+});
+export const contractWaiverSignatureCreateSchema = z.object({
+    signerName: trimmed.min(1).max(120),
+    signatureText: trimmed.min(1).max(5000)
+});
+export const staffAvailabilityCreateSchema = z
+    .object({
+    userId: id,
+    weekday: z.number().int().min(0).max(6),
+    startsAt: z.string().regex(/^\d{2}:\d{2}$/),
+    endsAt: z.string().regex(/^\d{2}:\d{2}$/),
+    locationId: id.optional()
+})
+    .refine((value) => value.endsAt > value.startsAt, {
+    message: "Availability end time must be after start time."
+});
+export const staffTaskStatusSchema = z.enum(["todo", "in_progress", "done", "archived"]);
+export const staffTaskCreateSchema = z.object({
+    title: trimmed.min(1).max(160),
+    description: trimmed.max(2000).optional(),
+    assignedToUserId: id.optional(),
+    dueAt: z.string().datetime().optional()
+});
+export const staffTaskUpdateSchema = staffTaskCreateSchema
+    .partial()
+    .extend({ status: staffTaskStatusSchema.optional() })
     .refine((value) => Object.keys(value).length > 0, "At least one field must be provided.");
 export const permissionSchema = z.nativeEnum(Permission);
 export const roleNameSchema = z.nativeEnum(RoleName);

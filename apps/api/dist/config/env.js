@@ -30,6 +30,10 @@ export function loadConfig() {
             "http://127.0.0.1:5173/?gymSlug=demo-strength-club#/dashboard",
         stripeOnboardingReturnUrl: process.env.STRIPE_ONBOARDING_RETURN_URL ??
             "http://127.0.0.1:5173/?gymSlug=demo-strength-club#/dashboard",
+        stripeSubscriptionSuccessUrl: process.env.STRIPE_SUBSCRIPTION_SUCCESS_URL ??
+            "http://127.0.0.1:5173/?gymSlug=demo-strength-club#/dashboard",
+        stripeSubscriptionCancelUrl: process.env.STRIPE_SUBSCRIPTION_CANCEL_URL ??
+            "http://127.0.0.1:5173/?gymSlug=demo-strength-club#/dashboard",
         stripeMockMode: parseBoolean(process.env.STRIPE_MOCK_MODE, !process.env.STRIPE_SECRET_KEY)
     };
     if (process.env.DATABASE_URL) {

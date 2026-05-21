@@ -6,7 +6,9 @@ import {
   accessRuleCreateSchema,
   classBookingCreateSchema,
   checkInCreateSchema,
+  contractWaiverAssignmentCreateSchema,
   contractWaiverCreateSchema,
+  contractWaiverSignatureCreateSchema,
   contractWaiverUpdateSchema,
   forgotPasswordSchema,
   gymCreateSchema,
@@ -18,6 +20,9 @@ import {
   locationCreateSchema,
   locationUpdateSchema,
   loginSchema,
+  memberPortalAccountSchema,
+  memberPortalLoginSchema,
+  memberPortalTokenAcceptSchema,
   memberCreateSchema,
   memberMembershipAssignSchema,
   memberUpdateSchema,
@@ -32,12 +37,16 @@ import {
   resetPasswordSchema,
   roleAssignmentSchema,
   staffAccessRemoveSchema,
+  staffAvailabilityCreateSchema,
   staffInviteAcceptSchema,
   staffInviteCreateSchema,
+  staffTaskCreateSchema,
+  staffTaskUpdateSchema,
   staffShiftCreateSchema,
   staffManualBookingSchema,
   stripePaymentCollectSchema,
   stripePaymentRefundSchema,
+  stripeSubscriptionCheckoutSchema,
   twoFactorVerifySchema,
   waitlistJoinSchema,
   verifyEmailSchema
@@ -59,11 +68,13 @@ import { CheckInService } from "./modules/checkIns/checkIn.service.js";
 import { ClassScheduleService } from "./modules/classes/classSchedule.service.js";
 import { ContractWaiverService } from "./modules/contractsWaivers/contractWaiver.service.js";
 import { MemberMembershipService } from "./modules/memberMemberships/memberMembership.service.js";
+import { MemberPortalService } from "./modules/memberPortal/memberPortal.service.js";
 import { LocationService } from "./modules/locations/location.service.js";
 import { MemberService } from "./modules/members/member.service.js";
 import { MembershipPlanService } from "./modules/membershipPlans/membershipPlan.service.js";
 import { NotificationService } from "./modules/notifications/notification.service.js";
 import { PaymentService } from "./modules/payments/payment.service.js";
+import { ReportingService } from "./modules/reports/reporting.service.js";
 import { RoleService } from "./modules/roles/role.service.js";
 import { StaffScheduleService } from "./modules/staffSchedule/staffSchedule.service.js";
 import { TenancyService } from "./modules/tenancy/tenancy.service.js";
@@ -102,6 +113,7 @@ export interface Services {
   locationService: LocationService;
   memberService: MemberService;
   memberMembershipService: MemberMembershipService;
+  memberPortalService: MemberPortalService;
   membershipPlanService: MembershipPlanService;
   classScheduleService: ClassScheduleService;
   bookingService: BookingService;
@@ -110,6 +122,7 @@ export interface Services {
   notificationService: NotificationService;
   paymentService: PaymentService;
   contractWaiverService: ContractWaiverService;
+  reportingService: ReportingService;
 }
 
 export function createServices(
@@ -130,6 +143,11 @@ export function createServices(
   const staffScheduleService = new StaffScheduleService(repositories, clock);
   const memberService = new MemberService(repositories, clock);
   const memberMembershipService = new MemberMembershipService(repositories, clock);
+  const memberPortalService = new MemberPortalService(repositories, clock, {
+    accessTokenSecret: config.accessTokenSecret,
+    accessTokenTtlSeconds: config.accessTokenTtlSeconds,
+    refreshTokenTtlDays: config.refreshTokenTtlDays
+  });
   const membershipPlanService = new MembershipPlanService(repositories, clock);
   const classScheduleService = new ClassScheduleService(repositories, clock);
   const bookingService = new BookingService(repositories, clock);
@@ -138,6 +156,7 @@ export function createServices(
   const notificationService = new NotificationService(repositories, clock);
   const paymentService = new PaymentService(repositories, clock, config);
   const contractWaiverService = new ContractWaiverService(repositories, clock);
+  const reportingService = new ReportingService(repositories, clock);
   const services: Services = {
     repositories,
     clock,
@@ -148,6 +167,7 @@ export function createServices(
     locationService,
     memberService,
     memberMembershipService,
+    memberPortalService,
     membershipPlanService,
     classScheduleService,
     bookingService,
@@ -155,7 +175,8 @@ export function createServices(
     accessControlService,
     notificationService,
     paymentService,
-    contractWaiverService
+    contractWaiverService,
+    reportingService
   };
   if (repositories instanceof InMemoryStore) {
     services.store = repositories;
@@ -293,6 +314,120 @@ function createRoutes() {
   add("GET", "/auth/me", (context) => {
     const auth = requireAuth(context);
     return context.services.authService.currentUser(auth.sub, auth.gymId);
+  });
+
+  add("POST", "/member-auth/login", async (context) => {
+    const input = parseWith(memberPortalLoginSchema, context.body);
+    return context.services.memberPortalService.login(input);
+  });
+
+  add("POST", "/member-auth/refresh", (context) => {
+    const input = parseWith(refreshTokenSchema, context.body);
+    return context.services.memberPortalService.refresh(input.refreshToken);
+  });
+
+  add("POST", "/member-auth/logout", (context) => {
+    const input = parseWith(logoutSchema, context.body);
+    return context.services.memberPortalService.logout(input.refreshToken);
+  });
+
+  add("POST", "/member-auth/setup-password", (context) => {
+    const input = parseWith(memberPortalTokenAcceptSchema, context.body);
+    return context.services.memberPortalService.acceptPortalToken(input);
+  });
+
+  add("GET", "/member-portal/me", async (context) => {
+    const auth = requireMemberAuth(context);
+    return context.services.memberPortalService.me(auth.gymId, auth.sub);
+  });
+
+  add("GET", "/member-portal/memberships", async (context) => {
+    const auth = requireMemberAuth(context);
+    return context.services.memberPortalService.memberships(auth.gymId, auth.sub);
+  });
+
+  add("GET", "/member-portal/check-in-code", async (context) => {
+    const auth = requireMemberAuth(context);
+    return context.services.memberPortalService.checkInCode(auth.gymId, auth.sub);
+  });
+
+  add("GET", "/member-portal/check-ins", async (context) => {
+    const auth = requireMemberAuth(context);
+    return context.services.memberPortalService.checkIns(auth.gymId, auth.sub);
+  });
+
+  add("GET", "/member-portal/classes", async (context) => {
+    const auth = requireMemberAuth(context);
+    const from = context.query.get("from") ? new Date(context.query.get("from") ?? "") : new Date();
+    const to = context.query.get("to")
+      ? new Date(context.query.get("to") ?? "")
+      : new Date(from.getTime() + 7 * 24 * 60 * 60 * 1000);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || to < from) {
+      throw badRequest("Schedule date range is invalid.", "invalid_schedule_range");
+    }
+    const locationId = context.query.get("locationId") ?? undefined;
+    if (locationId) {
+      const location = await context.services.repositories.locations.getLocation(locationId);
+      if (!location || location.gymId !== auth.gymId) {
+        throw notFound("Location was not found.");
+      }
+    }
+    const sessions = await context.services.repositories.classes.listPublicClassSessionsForGym(
+      auth.gymId,
+      from,
+      to
+    );
+    return {
+      sessions: locationId
+        ? sessions.filter((session) => session.locationId === locationId)
+        : sessions
+    };
+  });
+
+  add("GET", "/member-portal/bookings", async (context) => {
+    const auth = requireMemberAuth(context);
+    return {
+      bookings: (await context.services.repositories.bookings.listClassBookingsForMember(auth.sub))
+        .filter((booking) => booking.gymId === auth.gymId)
+    };
+  });
+
+  add("POST", "/member-portal/class-sessions/:sessionId/bookings", async (context) => {
+    const auth = requireMemberAuth(context);
+    return context.services.bookingService.createBooking(
+      auth.gymId,
+      requiredParam(context, "sessionId"),
+      { memberId: auth.sub }
+    );
+  });
+
+  add("POST", "/member-portal/class-sessions/:sessionId/waitlist", async (context) => {
+    const auth = requireMemberAuth(context);
+    return context.services.bookingService.joinWaitlist(
+      auth.gymId,
+      requiredParam(context, "sessionId"),
+      { memberId: auth.sub }
+    );
+  });
+
+  add("DELETE", "/member-portal/bookings/:bookingId", async (context) => {
+    const auth = requireMemberAuth(context);
+    await requireMemberOwnsBooking(context, auth.gymId, auth.sub, requiredParam(context, "bookingId"));
+    return context.services.bookingService.cancelBooking(
+      auth.gymId,
+      requiredParam(context, "bookingId"),
+      auth.sub
+    );
+  });
+
+  add("DELETE", "/member-portal/bookings/:bookingId/waitlist", async (context) => {
+    const auth = requireMemberAuth(context);
+    await requireMemberOwnsBooking(context, auth.gymId, auth.sub, requiredParam(context, "bookingId"));
+    return context.services.bookingService.leaveWaitlist(
+      auth.gymId,
+      requiredParam(context, "bookingId"),
+      auth.sub
+    );
   });
 
   add("GET", "/gyms", async (context) => {
@@ -504,6 +639,65 @@ function createRoutes() {
     return context.services.staffScheduleService.createShift(gymId, auth.sub, input);
   });
 
+  add("GET", "/gyms/:gymId/staff/shifts", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.StaffRead);
+    return { shifts: await context.services.staffScheduleService.listShifts(gymId) };
+  });
+
+  add("GET", "/gyms/:gymId/staff/availability", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.StaffRead);
+    return { availability: await context.services.staffScheduleService.listAvailability(gymId) };
+  });
+
+  add("POST", "/gyms/:gymId/staff/availability", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(
+      gymId,
+      auth.sub,
+      Permission.StaffRoleAssign
+    );
+    const input = parseWith(staffAvailabilityCreateSchema, context.body);
+    return context.services.staffScheduleService.createAvailability(gymId, input);
+  });
+
+  add("GET", "/gyms/:gymId/staff/tasks", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.StaffRead);
+    return { tasks: await context.services.staffScheduleService.listTasks(gymId) };
+  });
+
+  add("POST", "/gyms/:gymId/staff/tasks", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.StaffInvite);
+    const input = parseWith(staffTaskCreateSchema, context.body);
+    return context.services.staffScheduleService.createTask(gymId, auth.sub, input);
+  });
+
+  add("PATCH", "/gyms/:gymId/staff/tasks/:taskId", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.StaffInvite);
+    const input = parseWith(staffTaskUpdateSchema, context.body);
+    return context.services.staffScheduleService.updateTask(
+      gymId,
+      requiredParam(context, "taskId"),
+      input
+    );
+  });
+
   add("GET", "/gyms/:gymId/members", async (context) => {
     const auth = requireAuth(context);
     const gymId = requiredParam(context, "gymId");
@@ -528,6 +722,31 @@ function createRoutes() {
     await context.services.roleService.requirePermission(gymId, auth.sub, Permission.MemberWrite);
     const input = parseWith(memberUpdateSchema, context.body);
     return context.services.memberService.update(gymId, requiredParam(context, "memberId"), input);
+  });
+
+  add("POST", "/gyms/:gymId/members/:memberId/portal-account", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.MemberWrite);
+    const input = parseWith(memberPortalAccountSchema, context.body);
+    return context.services.memberPortalService.enablePortalAccount(
+      gymId,
+      requiredParam(context, "memberId"),
+      input
+    );
+  });
+
+  add("POST", "/gyms/:gymId/members/:memberId/portal-invite", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.MemberWrite);
+    return context.services.memberPortalService.createPortalInvite(
+      gymId,
+      requiredParam(context, "memberId"),
+      context.req.headers.origin ?? "http://localhost:5173"
+    );
   });
 
   add("DELETE", "/gyms/:gymId/members/:memberId", async (context) => {
@@ -846,6 +1065,23 @@ function createRoutes() {
     return { payments: await context.services.paymentService.listPayments(gymId) };
   });
 
+  add("GET", "/gyms/:gymId/payments/subscriptions", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PaymentRead);
+    return { subscriptions: await context.services.paymentService.listSubscriptions(gymId) };
+  });
+
+  add("POST", "/gyms/:gymId/payments/subscriptions/checkout", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PaymentWrite);
+    const input = parseWith(stripeSubscriptionCheckoutSchema, context.body);
+    return context.services.paymentService.createSubscriptionCheckout(gymId, input);
+  });
+
   add("POST", "/gyms/:gymId/payments", async (context) => {
     const auth = requireAuth(context);
     const gymId = requiredParam(context, "gymId");
@@ -908,6 +1144,14 @@ function createRoutes() {
     return { documents: await context.services.contractWaiverService.list(gymId) };
   });
 
+  add("GET", "/gyms/:gymId/contracts-waivers/assignments", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.MemberRead);
+    return { assignments: await context.services.contractWaiverService.listAssignments(gymId) };
+  });
+
   add("POST", "/gyms/:gymId/contracts-waivers", async (context) => {
     const auth = requireAuth(context);
     const gymId = requiredParam(context, "gymId");
@@ -915,6 +1159,47 @@ function createRoutes() {
     await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymUpdate);
     const input = parseWith(contractWaiverCreateSchema, context.body);
     return context.services.contractWaiverService.create(gymId, input);
+  });
+
+  add("POST", "/gyms/:gymId/contracts-waivers/:documentId/assignments", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.MemberWrite);
+    const input = parseWith(contractWaiverAssignmentCreateSchema, context.body);
+    return context.services.contractWaiverService.assign(
+      gymId,
+      requiredParam(context, "documentId"),
+      auth.sub,
+      input
+    );
+  });
+
+  add("GET", "/gyms/:gymId/members/:memberId/contracts-waivers", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.MemberRead);
+    return {
+      assignments: await context.services.contractWaiverService.listMemberAssignments(
+        gymId,
+        requiredParam(context, "memberId")
+      )
+    };
+  });
+
+  add("POST", "/gyms/:gymId/contracts-waivers/assignments/:assignmentId/sign", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.MemberWrite);
+    const input = parseWith(contractWaiverSignatureCreateSchema, context.body);
+    return context.services.contractWaiverService.signAssignment(
+      gymId,
+      requiredParam(context, "assignmentId"),
+      input,
+      requestIp(context.req)
+    );
   });
 
   add("PATCH", "/gyms/:gymId/contracts-waivers/:documentId", async (context) => {
@@ -939,6 +1224,14 @@ function createRoutes() {
       gymId,
       requiredParam(context, "documentId")
     );
+  });
+
+  add("GET", "/gyms/:gymId/reports/overview", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.ReportRead);
+    return context.services.reportingService.overview(gymId);
   });
 
   add("GET", "/public/gyms/:gymSlug/schedule", async (context) => {
@@ -1068,6 +1361,27 @@ function requireAuth(context: RequestContext) {
   return payload;
 }
 
+function requireMemberAuth(context: RequestContext) {
+  const payload = requireAuth(context);
+  if (!payload.gymId) {
+    throw unauthorized("Member access token is missing gym context.");
+  }
+  return { ...payload, gymId: payload.gymId };
+}
+
+async function requireMemberOwnsBooking(
+  context: RequestContext,
+  gymId: string,
+  memberId: string,
+  bookingId: string
+) {
+  const booking = await context.services.repositories.bookings.getClassBooking(bookingId);
+  if (!booking || booking.gymId !== gymId || booking.memberId !== memberId) {
+    throw notFound("Class booking was not found.");
+  }
+  return booking;
+}
+
 function requiredParam(context: RequestContext, key: string) {
   const value = context.params[key];
   if (!value) {
@@ -1108,6 +1422,11 @@ async function readBody(req: IncomingMessage) {
 
 function headerValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function requestIp(req: IncomingMessage) {
+  const forwardedFor = headerValue(req.headers["x-forwarded-for"]);
+  return forwardedFor?.split(",")[0]?.trim() || req.socket.remoteAddress || undefined;
 }
 
 function concatBytes(chunks: Uint8Array<ArrayBufferLike>[]) {

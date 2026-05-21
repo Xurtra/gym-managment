@@ -59,6 +59,129 @@ export class StaffScheduleService {
         }
         return toPublicStaffShift(await this.repositories.staffShifts.createStaffShift(shift));
     }
+    async listShifts(gymId) {
+        return (await this.repositories.staffShifts.listStaffShiftsForGym(gymId)).map(toPublicStaffShift);
+    }
+    async createAvailability(gymId, input) {
+        await this.ensureStaffUser(gymId, input.userId);
+        await this.ensureLocation(gymId, input.locationId);
+        if (input.endsAt <= input.startsAt) {
+            throw badRequest("Availability end time must be after start time.", "invalid_availability_time");
+        }
+        const now = this.clock.now();
+        const availability = {
+            id: randomUUID(),
+            gymId,
+            userId: input.userId,
+            weekday: input.weekday,
+            startsAt: input.startsAt,
+            endsAt: input.endsAt,
+            createdAt: now,
+            updatedAt: now
+        };
+        if (input.locationId) {
+            availability.locationId = input.locationId;
+        }
+        return this.repositories.staffShifts.createStaffAvailability(availability);
+    }
+    async listAvailability(gymId) {
+        return this.repositories.staffShifts.listStaffAvailabilitiesForGym(gymId);
+    }
+    async createTask(gymId, createdByUserId, input) {
+        if (input.assignedToUserId) {
+            await this.ensureStaffUser(gymId, input.assignedToUserId);
+        }
+        const now = this.clock.now();
+        const task = {
+            id: randomUUID(),
+            gymId,
+            title: input.title,
+            status: "todo",
+            createdByUserId,
+            createdAt: now,
+            updatedAt: now
+        };
+        if (input.description) {
+            task.description = input.description;
+        }
+        if (input.assignedToUserId) {
+            task.assignedToUserId = input.assignedToUserId;
+        }
+        if (input.dueAt) {
+            task.dueAt = new Date(input.dueAt);
+        }
+        return this.repositories.staffShifts.createStaffTask(task);
+    }
+    async listTasks(gymId) {
+        return this.repositories.staffShifts.listStaffTasksForGym(gymId);
+    }
+    async updateTask(gymId, taskId, input) {
+        const existing = await this.repositories.staffShifts.getStaffTask(taskId);
+        if (!existing || existing.gymId !== gymId) {
+            throw notFound("Staff task was not found.");
+        }
+        if (input.assignedToUserId) {
+            await this.ensureStaffUser(gymId, input.assignedToUserId);
+        }
+        const now = this.clock.now();
+        const updated = {
+            ...existing,
+            title: input.title ?? existing.title,
+            status: input.status ?? existing.status,
+            updatedAt: now
+        };
+        if ("description" in input) {
+            if (input.description) {
+                updated.description = input.description;
+            }
+            else {
+                delete updated.description;
+            }
+        }
+        if ("assignedToUserId" in input) {
+            if (input.assignedToUserId) {
+                updated.assignedToUserId = input.assignedToUserId;
+            }
+            else {
+                delete updated.assignedToUserId;
+            }
+        }
+        if ("dueAt" in input) {
+            if (input.dueAt) {
+                updated.dueAt = new Date(input.dueAt);
+            }
+            else {
+                delete updated.dueAt;
+            }
+        }
+        if (updated.status === "done" && !updated.completedAt) {
+            updated.completedAt = now;
+        }
+        if (updated.status !== "done") {
+            delete updated.completedAt;
+        }
+        return this.repositories.staffShifts.updateStaffTask(updated);
+    }
+    async ensureStaffUser(gymId, userId) {
+        const membership = await this.repositories.gymUsers.findGymUser(gymId, userId);
+        if (!membership || membership.status !== UserStatus.Active) {
+            throw notFound("Staff member was not found.");
+        }
+        const role = await this.repositories.roles.getRole(membership.roleId);
+        if (!role || role.gymId !== gymId || role.name === RoleName.Member) {
+            throw notFound("Staff member was not found.");
+        }
+        return membership;
+    }
+    async ensureLocation(gymId, locationId) {
+        if (!locationId) {
+            return;
+        }
+        const location = await this.repositories.locations.getLocation(locationId);
+        if (!location || location.gymId !== gymId || location.status !== LocationStatus.Active) {
+            throw notFound("Location was not found.");
+        }
+    }
 }
 function toPublicStaffShift(shift) {
     return {

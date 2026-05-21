@@ -36,9 +36,12 @@ STRIPE_SECRET_KEY=sk_test_or_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 STRIPE_ONBOARDING_REFRESH_URL=https://<frontend-domain>/?gymSlug=demo-strength-club#/dashboard
 STRIPE_ONBOARDING_RETURN_URL=https://<frontend-domain>/?gymSlug=demo-strength-club#/dashboard
+STRIPE_SUBSCRIPTION_SUCCESS_URL=https://<frontend-domain>/?gymSlug=demo-strength-club#/dashboard
+STRIPE_SUBSCRIPTION_CANCEL_URL=https://<frontend-domain>/?gymSlug=demo-strength-club#/dashboard
 ```
 
 The API reads Railway's `PORT` automatically. `API_PORT` is only needed for local overrides.
+The repo includes `railway.json` with the API build, pre-deploy migration, and start commands.
 
 ## Frontend Service
 
@@ -47,7 +50,7 @@ Recommended Railway settings:
 ```text
 Root directory: /
 Build command: npm ci && npm run build:frontend
-Start command: npm run preview -w @gym-platform/frontend -- --host 0.0.0.0 --port $PORT
+Start command: npm run railway:frontend:start
 ```
 
 Required variables:
@@ -94,3 +97,11 @@ Subscribe to:
 - `payment_intent.canceled`
 - `payment_intent.requires_action`
 - `charge.refunded`
+- `checkout.session.completed`
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+- `invoice.payment_succeeded`
+- `invoice.payment_failed`
+
+After rotating any exposed Railway database password, update the Postgres variable reference and redeploy the API service so the pre-deploy migration command runs against the new credentials.

@@ -7,7 +7,9 @@ import type {
   CheckInCreateInput,
   ClassSessionCreateInput,
   ClassTypeCreateInput,
+  ContractWaiverAssignmentCreateInput,
   ContractWaiverCreateInput,
+  ContractWaiverSignatureCreateInput,
   ContractWaiverUpdateInput,
   CustomRoleCreateInput,
   CustomRoleUpdateInput,
@@ -18,6 +20,8 @@ import type {
   LoginInput,
   MemberCreateInput,
   MemberMembershipAssignInput,
+  MemberPortalAccountInput,
+  MemberPortalTokenAcceptInput,
   MemberUpdateInput,
   MembershipPlanCreateInput,
   MembershipPlanUpdateInput,
@@ -26,12 +30,16 @@ import type {
   ResetPasswordInput,
   RoleAssignmentInput,
   StaffAccessRemoveInput,
+  StaffAvailabilityCreateInput,
   StaffInviteAcceptInput,
   StaffInviteCreateInput,
+  StaffTaskCreateInput,
+  StaffTaskUpdateInput,
   StaffShiftCreateInput,
   StaffManualBookingInput,
   StripePaymentCollectInput,
   StripePaymentRefundInput,
+  StripeSubscriptionCheckoutInput,
   NotificationProcessInput
 } from "@gym-platform/validation";
 
@@ -196,6 +204,30 @@ export class GymApiClient {
     return this.request("POST", `/gyms/${gymId}/staff/shifts`, input);
   }
 
+  listStaffShifts(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/staff/shifts`);
+  }
+
+  listStaffAvailability(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/staff/availability`);
+  }
+
+  createStaffAvailability(gymId: string, input: StaffAvailabilityCreateInput) {
+    return this.request("POST", `/gyms/${gymId}/staff/availability`, input);
+  }
+
+  listStaffTasks(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/staff/tasks`);
+  }
+
+  createStaffTask(gymId: string, input: StaffTaskCreateInput) {
+    return this.request("POST", `/gyms/${gymId}/staff/tasks`, input);
+  }
+
+  updateStaffTask(gymId: string, taskId: string, input: StaffTaskUpdateInput) {
+    return this.request("PATCH", `/gyms/${gymId}/staff/tasks/${taskId}`, input);
+  }
+
   listMembers(gymId: string) {
     return this.request("GET", `/gyms/${gymId}/members`);
   }
@@ -218,6 +250,53 @@ export class GymApiClient {
 
   assignMemberMembership(gymId: string, memberId: string, input: MemberMembershipAssignInput) {
     return this.request("POST", `/gyms/${gymId}/members/${memberId}/memberships`, input);
+  }
+
+  enableMemberPortalAccount(gymId: string, memberId: string, input: MemberPortalAccountInput) {
+    return this.request("POST", `/gyms/${gymId}/members/${memberId}/portal-account`, input);
+  }
+
+  createMemberPortalInvite(gymId: string, memberId: string) {
+    return this.request("POST", `/gyms/${gymId}/members/${memberId}/portal-invite`);
+  }
+
+  setupMemberPortalPassword(input: MemberPortalTokenAcceptInput) {
+    return this.request("POST", "/member-auth/setup-password", input);
+  }
+
+  listMemberPortalClasses(from?: string, to?: string, locationId?: string) {
+    const params = new URLSearchParams();
+    if (from) {
+      params.set("from", from);
+    }
+    if (to) {
+      params.set("to", to);
+    }
+    if (locationId) {
+      params.set("locationId", locationId);
+    }
+    const query = params.size > 0 ? `?${params.toString()}` : "";
+    return this.request("GET", `/member-portal/classes${query}`);
+  }
+
+  listMemberPortalBookings() {
+    return this.request("GET", "/member-portal/bookings");
+  }
+
+  createMemberPortalBooking(sessionId: string) {
+    return this.request("POST", `/member-portal/class-sessions/${sessionId}/bookings`);
+  }
+
+  joinMemberPortalWaitlist(sessionId: string) {
+    return this.request("POST", `/member-portal/class-sessions/${sessionId}/waitlist`);
+  }
+
+  cancelMemberPortalBooking(bookingId: string) {
+    return this.request("DELETE", `/member-portal/bookings/${bookingId}`);
+  }
+
+  leaveMemberPortalWaitlist(bookingId: string) {
+    return this.request("DELETE", `/member-portal/bookings/${bookingId}/waitlist`);
   }
 
   listMembershipPlans(gymId: string) {
@@ -340,6 +419,14 @@ export class GymApiClient {
     return this.request("GET", `/gyms/${gymId}/payments`);
   }
 
+  listSubscriptions(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/payments/subscriptions`);
+  }
+
+  createSubscriptionCheckout(gymId: string, input: StripeSubscriptionCheckoutInput) {
+    return this.request("POST", `/gyms/${gymId}/payments/subscriptions/checkout`, input);
+  }
+
   collectPayment(gymId: string, input: StripePaymentCollectInput) {
     return this.request("POST", `/gyms/${gymId}/payments`, input);
   }
@@ -368,6 +455,34 @@ export class GymApiClient {
     return this.request("POST", `/gyms/${gymId}/contracts-waivers`, input);
   }
 
+  listContractWaiverAssignments(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/contracts-waivers/assignments`);
+  }
+
+  assignContractWaiver(
+    gymId: string,
+    documentId: string,
+    input: ContractWaiverAssignmentCreateInput
+  ) {
+    return this.request("POST", `/gyms/${gymId}/contracts-waivers/${documentId}/assignments`, input);
+  }
+
+  listMemberContractWaivers(gymId: string, memberId: string) {
+    return this.request("GET", `/gyms/${gymId}/members/${memberId}/contracts-waivers`);
+  }
+
+  signContractWaiverAssignment(
+    gymId: string,
+    assignmentId: string,
+    input: ContractWaiverSignatureCreateInput
+  ) {
+    return this.request(
+      "POST",
+      `/gyms/${gymId}/contracts-waivers/assignments/${assignmentId}/sign`,
+      input
+    );
+  }
+
   updateContractWaiverDocument(
     gymId: string,
     documentId: string,
@@ -378,6 +493,10 @@ export class GymApiClient {
 
   archiveContractWaiverDocument(gymId: string, documentId: string) {
     return this.request("DELETE", `/gyms/${gymId}/contracts-waivers/${documentId}`);
+  }
+
+  reportOverview(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/reports/overview`);
   }
 
   publicSchedule(gymSlug: string, from?: string, to?: string, locationId?: string) {

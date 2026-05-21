@@ -8,20 +8,27 @@ import type {
   CheckIn,
   ClassSession,
   ClassType,
+  ContractWaiverAssignment,
   ContractWaiverDocument,
+  ContractWaiverSignature,
   Location,
   Member,
   MemberMembership,
+  MemberPortalToken,
+  MemberRefreshToken,
   MembershipPlan,
   NotificationEvent,
   PurposeToken,
   RefreshToken,
   Role,
   StripePaymentAccount,
+  StripeSubscription,
   StripePaymentTransaction,
   StaffAuditLog,
+  StaffAvailability,
   StaffInvite,
   StaffShift,
+  StaffTask,
   User
 } from "./entities.js";
 
@@ -74,7 +81,14 @@ export interface StaffAuditLogRepository {
 
 export interface StaffShiftRepository {
   createStaffShift(shift: StaffShift): RepositoryResult<StaffShift>;
+  listStaffShiftsForGym(gymId: string): RepositoryResult<StaffShift[]>;
   listStaffShiftsForStaff(gymId: string, userId: string): RepositoryResult<StaffShift[]>;
+  createStaffAvailability(availability: StaffAvailability): RepositoryResult<StaffAvailability>;
+  listStaffAvailabilitiesForGym(gymId: string): RepositoryResult<StaffAvailability[]>;
+  createStaffTask(task: StaffTask): RepositoryResult<StaffTask>;
+  getStaffTask(taskId: string): RepositoryResult<StaffTask | undefined>;
+  listStaffTasksForGym(gymId: string): RepositoryResult<StaffTask[]>;
+  updateStaffTask(task: StaffTask): RepositoryResult<StaffTask>;
 }
 
 export interface LocationRepository {
@@ -87,6 +101,7 @@ export interface LocationRepository {
 export interface MemberRepository {
   createMember(member: Member): RepositoryResult<Member>;
   getMember(memberId: string): RepositoryResult<Member | undefined>;
+  findMemberByGymAndEmail(gymId: string, email: string): RepositoryResult<Member | undefined>;
   listMembersForGym(gymId: string): RepositoryResult<Member[]>;
   updateMember(member: Member): RepositoryResult<Member>;
 }
@@ -170,6 +185,16 @@ export interface PaymentRepository {
   updatePaymentTransaction(
     transaction: StripePaymentTransaction
   ): RepositoryResult<StripePaymentTransaction>;
+  createStripeSubscription(subscription: StripeSubscription): RepositoryResult<StripeSubscription>;
+  getStripeSubscription(subscriptionId: string): RepositoryResult<StripeSubscription | undefined>;
+  getStripeSubscriptionByStripeSubscriptionId(
+    stripeSubscriptionId: string
+  ): RepositoryResult<StripeSubscription | undefined>;
+  getStripeSubscriptionByCheckoutSessionId(
+    checkoutSessionId: string
+  ): RepositoryResult<StripeSubscription | undefined>;
+  listStripeSubscriptionsForGym(gymId: string): RepositoryResult<StripeSubscription[]>;
+  updateStripeSubscription(subscription: StripeSubscription): RepositoryResult<StripeSubscription>;
 }
 
 export interface ContractWaiverRepository {
@@ -177,6 +202,27 @@ export interface ContractWaiverRepository {
   getDocument(documentId: string): RepositoryResult<ContractWaiverDocument | undefined>;
   listDocumentsForGym(gymId: string): RepositoryResult<ContractWaiverDocument[]>;
   updateDocument(document: ContractWaiverDocument): RepositoryResult<ContractWaiverDocument>;
+  createAssignment(
+    assignment: ContractWaiverAssignment
+  ): RepositoryResult<ContractWaiverAssignment>;
+  getAssignment(assignmentId: string): RepositoryResult<ContractWaiverAssignment | undefined>;
+  findAssignment(
+    gymId: string,
+    documentId: string,
+    memberId: string
+  ): RepositoryResult<ContractWaiverAssignment | undefined>;
+  listAssignmentsForGym(gymId: string): RepositoryResult<ContractWaiverAssignment[]>;
+  listAssignmentsForMember(
+    gymId: string,
+    memberId: string
+  ): RepositoryResult<ContractWaiverAssignment[]>;
+  updateAssignment(
+    assignment: ContractWaiverAssignment
+  ): RepositoryResult<ContractWaiverAssignment>;
+  createSignature(signature: ContractWaiverSignature): RepositoryResult<ContractWaiverSignature>;
+  listSignaturesForAssignment(
+    assignmentId: string
+  ): RepositoryResult<ContractWaiverSignature[]>;
 }
 
 export interface TokenRepository {
@@ -184,6 +230,13 @@ export interface TokenRepository {
   findRefreshTokenByHash(tokenHash: string): RepositoryResult<RefreshToken | undefined>;
   listRefreshTokensForUser(userId: string): RepositoryResult<RefreshToken[]>;
   updateRefreshToken(refreshToken: RefreshToken): RepositoryResult<RefreshToken>;
+  createMemberRefreshToken(refreshToken: MemberRefreshToken): RepositoryResult<MemberRefreshToken>;
+  findMemberRefreshTokenByHash(tokenHash: string): RepositoryResult<MemberRefreshToken | undefined>;
+  listRefreshTokensForMember(memberId: string): RepositoryResult<MemberRefreshToken[]>;
+  updateMemberRefreshToken(refreshToken: MemberRefreshToken): RepositoryResult<MemberRefreshToken>;
+  createMemberPortalToken(token: MemberPortalToken): RepositoryResult<MemberPortalToken>;
+  findMemberPortalTokenByHash(tokenHash: string): RepositoryResult<MemberPortalToken | undefined>;
+  updateMemberPortalToken(token: MemberPortalToken): RepositoryResult<MemberPortalToken>;
   createPurposeToken(purposeToken: PurposeToken): RepositoryResult<PurposeToken>;
   findPurposeTokenByHash(
     tokenHash: string,

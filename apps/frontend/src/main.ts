@@ -2,6 +2,7 @@ import { GymApiClient, ApiError, type ApiTokenStore } from "@gym-platform/api-cl
 import { AccessDeviceType, BillingInterval, FeatureFlag, MemberStatus, MembershipStatus, Permission } from "@gym-platform/constants";
 import {
   buildMemberListPage,
+  buildMemberProfilePage,
   type CheckInRecord,
 } from "@gym-platform/dashboard";
 import {
@@ -81,6 +82,7 @@ interface MemberRecord {
   phone?: string;
   barcode?: string;
   profileImageUrl?: string;
+  portalEnabled?: boolean;
   emergencyContact?: { name: string; phone: string; relationship?: string };
   notes?: string;
   tagNames: string[];
@@ -237,6 +239,14 @@ interface StaffInviteRecord {
 interface StaffInviteCreateResponse {
   invite: StaffInviteRecord;
   inviteToken: string;
+}
+
+interface MemberPortalInviteResponse {
+  token: string;
+  setupUrl: string;
+  purpose: "setup" | "reset";
+  expiresAt: string;
+  member: MemberRecord;
 }
 
 interface StaffInviteListResponse {
@@ -443,7 +453,7 @@ interface PublicSignupResponse {
   summary: { totalDueTodayCents: number };
 }
 
-type ViewName = "dashboard" | "public";
+type ViewName = "dashboard" | "public" | "memberPortalSetup";
 type BannerTone = "success" | "error" | "info";
 
 interface AppState {
@@ -467,6 +477,13 @@ interface AppState {
   staffInvites: StaffInviteRecord[];
   staffAudit: StaffAuditRecord[];
   latestInviteToken?: string;
+  latestMemberPortalInvite?: {
+    memberId: string;
+    setupUrl: string;
+    token: string;
+    purpose: "setup" | "reset";
+    expiresAt: string;
+  };
   accessDevices: AccessDeviceRecord[];
   accessRules: AccessRuleRecord[];
   accessEvents: AccessEventRecord[];
@@ -856,12 +873,34 @@ function render() {
           ${renderBanner()}
           ${state.view === "dashboard"
             ? renderDashboard()
-            : renderPublic(publicPlanPage, publicSignupPage, publicSchedulePage)}
+            : state.view === "memberPortalSetup"
+              ? renderMemberPortalSetup()
+              : renderPublic(publicPlanPage, publicSignupPage, publicSchedulePage)}
         </section>
       </main>
     </div>
   `;
   bindEvents();
+}
+
+function renderMemberPortalSetup() {
+  const token = memberPortalSetupToken();
+  return `
+    <div class="auth-card" style="max-width:560px;margin:0 auto;">
+      <p class="eyebrow">Member portal</p>
+      <h1>Set your password</h1>
+      <p class="muted">Create a password to use your gym membership on the mobile app.</p>
+      ${
+        token
+          ? `<form id="member-portal-setup-form" class="form-card">
+              <input type="hidden" name="token" value="${escapeAttribute(token)}" />
+              ${renderInput("password", "New password", "password")}
+              <button type="submit">Set password</button>
+            </form>`
+          : `<div class="empty-state"><h3>Missing setup token</h3><p>Ask the gym staff to generate a new member portal link.</p></div>`
+      }
+    </div>
+  `;
 }
 
 function renderDashboard() {
@@ -1190,7 +1229,17 @@ function renderMemberProfileView() {
     return `<div class="empty-state"><h3>Member not found</h3><p>The selected member could not be found.</p></div>`;
   }
   const memberships = state.memberMemberships[member.id] ?? [];
+  const profilePage = buildMemberProfilePage({
+    member,
+    memberships: memberships.map((membership) => ({
+      ...membership,
+      planName: planName(membership.planId),
+      status: membership.status as MembershipStatus
+    })),
+    permissions: currentPermissions()
+  });
   const activeMembership = memberships.find((membership) => membership.status === MembershipStatus.Active || membership.status === MembershipStatus.Trialing);
+  const latestPortalInvite = state.latestMemberPortalInvite?.memberId === member.id ? state.latestMemberPortalInvite : undefined;
   const profilePhoto = member.profileImageUrl
     ? `<img src="${escapeAttribute(member.profileImageUrl)}" alt="${escapeAttribute(`${member.firstName} ${member.lastName}`.trim())}" style="width:112px;height:112px;border-radius:28px;object-fit:cover;border:1px solid var(--border);" />`
     : `<div style="width:112px;height:112px;border-radius:28px;display:grid;place-items:center;background:var(--surface-muted);border:1px solid var(--border);font-size:2rem;font-weight:700;">${escapeHtml(`${member.firstName.charAt(0)}${member.lastName.charAt(0)}`.toUpperCase() || "M")}</div>`;
@@ -1217,7 +1266,22 @@ function renderMemberProfileView() {
         </div>
         <div class="mini-card">
           <strong>Status</strong>
-          <p style="margin:0.5rem 0;color:var(--muted);">${member.status}</p>
+          <p style="margin:0.5rem 0;color:var(--muted);">${profilePage.statusLabel}</p>
+        </div>
+        <div class="mini-card">
+          <strong>Member portal</strong>
+          <p style="margin:0.5rem 0;color:var(--muted);">${profilePage.portalStatusLabel}${member.email ? "" : " - add an email before inviting"}</p>
+          <button type="button" data-action="create-member-portal-invite" data-member-id="${member.id}" ${profilePage.actions.find((action) => action.key === "portal_invite")?.button.disabled ? "disabled" : ""}>
+            ${profilePage.portalActionLabel}
+          </button>
+          ${latestPortalInvite ? `
+            <div class="token-box" style="margin-top:0.75rem;">
+              <strong>${latestPortalInvite.purpose === "setup" ? "Setup link" : "Reset link"}</strong>
+              <p style="word-break:break-all;margin:0.5rem 0;">${escapeHtml(latestPortalInvite.setupUrl)}</p>
+              <small>Expires ${new Date(latestPortalInvite.expiresAt).toLocaleString()}</small>
+              <button type="button" data-action="copy-member-portal-link" data-copy-value="${escapeAttribute(latestPortalInvite.setupUrl)}" style="margin-top:0.75rem;">Copy link</button>
+            </div>
+          ` : ""}
         </div>
         ${member.barcode ? `<div class="mini-card"><strong>Barcode</strong><p style="margin:0.5rem 0;color:var(--muted);">${member.barcode}</p></div>` : ''}
         <div class="mini-card">
@@ -2239,6 +2303,51 @@ function bindEvents() {
     });
   });
 
+  app.querySelectorAll<HTMLButtonElement>("[data-action='create-member-portal-invite']").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!state.gym || !button.dataset.memberId) {
+        return;
+      }
+      try {
+        const response = (await client.createMemberPortalInvite(
+          state.gym.id,
+          button.dataset.memberId
+        )) as MemberPortalInviteResponse;
+        state.latestMemberPortalInvite = {
+          memberId: response.member.id,
+          setupUrl: response.setupUrl,
+          token: response.token,
+          purpose: response.purpose,
+          expiresAt: response.expiresAt
+        };
+        setBanner(
+          "success",
+          response.purpose === "setup" ? "Member portal setup link created." : "Member portal reset link created."
+        );
+        await refreshDashboard();
+      } catch (error) {
+        setBanner("error", describeError(error));
+        render();
+      }
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-action='copy-member-portal-link']").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const value = button.dataset.copyValue;
+      if (!value) {
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(value);
+        setBanner("success", "Member portal link copied.");
+      } catch {
+        setBanner("info", "Select and copy the member portal link manually.");
+      }
+      render();
+    });
+  });
+
   app.querySelectorAll<HTMLButtonElement>("[data-action='refund-payment']").forEach((button) => {
     button.addEventListener("click", async () => {
       if (!state.gym || !button.dataset.paymentId) {
@@ -2848,6 +2957,16 @@ function bindEvents() {
     await refreshDashboard();
   });
 
+  bindForm("member-portal-setup-form", async (form) => {
+    const data = formData(form);
+    await client.setupMemberPortalPassword({
+      token: data.token,
+      password: data.password
+    });
+    setBanner("success", "Password set. You can now log in from the mobile app.");
+    render();
+  });
+
   bindForm("public-slug-form", async (form) => {
     const data = formData(form);
     state.publicSuccess = undefined;
@@ -3077,6 +3196,7 @@ function clearDashboardState() {
   state.staffInvites = [];
   state.staffAudit = [];
   state.latestInviteToken = undefined;
+  state.latestMemberPortalInvite = undefined;
   state.accessDevices = [];
   state.accessRules = [];
   state.accessEvents = [];
@@ -3107,7 +3227,15 @@ function renderBanner() {
 }
 
 function readView(): ViewName {
+  if (window.location.hash.includes("/member-portal/setup")) {
+    return "memberPortalSetup";
+  }
   return window.location.hash.includes("/public") ? "public" : "dashboard";
+}
+
+function memberPortalSetupToken() {
+  const query = window.location.hash.split("?")[1] ?? "";
+  return new URLSearchParams(query).get("token") ?? "";
 }
 
 function loadSession() {

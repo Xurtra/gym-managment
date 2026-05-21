@@ -12,8 +12,9 @@ const members: MemberView[] = [
     email: "jamie@example.com",
     phone: "555-0101",
     barcode: "MEM-100",
-    status: MemberStatus.Active,
-    tagNames: ["Strength", "Founding"],
+      status: MemberStatus.Active,
+      portalEnabled: true,
+      tagNames: ["Strength", "Founding"],
     createdAt: "2026-05-16T12:00:00.000Z",
     updatedAt: "2026-05-16T12:00:00.000Z"
   },
@@ -173,6 +174,8 @@ describe("member dashboard screens", () => {
     expect(profile.statusBadge.tone).toBe("success");
     expect(profile.active).toBe(true);
     expect(profile.archived).toBe(false);
+    expect(profile.portalStatusLabel).toBe("Portal access enabled");
+    expect(profile.portalActionLabel).toBe("Reset portal password");
     expect(profile.contactSection.title).toBe("Contact information");
     expect(profile.contactSection.complete).toBe(true);
     expect(profile.contactSection.primaryContactMethod).toBe("email");
@@ -198,6 +201,11 @@ describe("member dashboard screens", () => {
       "Prefers morning classes."
     );
     expect(profile.sectionCount).toBe(5);
+    expect(profile.sections.find((section) => section.key === "identity")?.details).toContainEqual({
+      key: "portal_access",
+      label: "Portal access",
+      value: "Enabled"
+    });
     expect(profile.memberships.map((membership) => membership.id)).toEqual([
       "membership-active",
       "membership-old"
@@ -216,8 +224,9 @@ describe("member dashboard screens", () => {
       expiredCount: 1
     });
     expect(profile.membershipSummaryLabel).toBe("Showing 2 memberships");
-    expect(profile.actionCount).toBe(5);
+    expect(profile.actionCount).toBe(6);
     expect(profile.actions.find((action) => action.key === "edit")?.button.disabled).toBe(false);
+    expect(profile.actions.find((action) => action.key === "portal_invite")?.button.disabled).toBe(false);
     expect(profile.actions.find((action) => action.key === "check_in")?.href).toBe(
       "/check-ins?memberId=member-1"
     );

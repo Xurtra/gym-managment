@@ -300,6 +300,73 @@ describe("GymApiClient auth refresh", () => {
     ]);
   });
 
+  it("builds member portal class booking requests", async () => {
+    const calls: Array<{
+      path: string;
+      method: string;
+      authorization?: string;
+    }> = [];
+    const client = new GymApiClient({
+      baseUrl: "http://api.local",
+      accessToken: "member-token",
+      fetchImpl: (async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+        const resolved = url instanceof URL ? url : new URL(String(url));
+        const headers = new Headers(init?.headers);
+        const authorization = headers.get("authorization") ?? undefined;
+        calls.push({
+          path: `${resolved.pathname}${resolved.search}`,
+          method: init?.method ?? "GET",
+          ...(authorization ? { authorization } : {})
+        });
+        return jsonResponse({ ok: true });
+      }) as typeof fetch
+    });
+
+    await client.listMemberPortalClasses(
+      "2026-05-18T00:00:00.000Z",
+      "2026-05-19T00:00:00.000Z",
+      "location-1"
+    );
+    await client.listMemberPortalBookings();
+    await client.createMemberPortalBooking("session-1");
+    await client.joinMemberPortalWaitlist("session-1");
+    await client.cancelMemberPortalBooking("booking-1");
+    await client.leaveMemberPortalWaitlist("booking-2");
+
+    expect(calls).toEqual([
+      {
+        path: "/member-portal/classes?from=2026-05-18T00%3A00%3A00.000Z&to=2026-05-19T00%3A00%3A00.000Z&locationId=location-1",
+        method: "GET",
+        authorization: "Bearer member-token"
+      },
+      {
+        path: "/member-portal/bookings",
+        method: "GET",
+        authorization: "Bearer member-token"
+      },
+      {
+        path: "/member-portal/class-sessions/session-1/bookings",
+        method: "POST",
+        authorization: "Bearer member-token"
+      },
+      {
+        path: "/member-portal/class-sessions/session-1/waitlist",
+        method: "POST",
+        authorization: "Bearer member-token"
+      },
+      {
+        path: "/member-portal/bookings/booking-1",
+        method: "DELETE",
+        authorization: "Bearer member-token"
+      },
+      {
+        path: "/member-portal/bookings/booking-2/waitlist",
+        method: "DELETE",
+        authorization: "Bearer member-token"
+      }
+    ]);
+  });
+
   it("builds member and membership management requests with the expected methods, bodies, and auth", async () => {
     const calls: Array<{
       path: string;

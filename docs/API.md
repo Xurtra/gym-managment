@@ -29,6 +29,27 @@ Protected endpoints require:
 Authorization: Bearer <access-token>
 ```
 
+## Member Portal Auth
+
+- `POST /gyms/:gymId/members/:memberId/portal-account` - enables or resets mobile/member portal access for a member. Staff route; requires tenant access plus `member:write`. Body: `{ "password": "..." }`.
+- `POST /gyms/:gymId/members/:memberId/portal-invite` - creates a one-time setup or reset token for a member portal password. Staff route; requires tenant access plus `member:write`.
+- `POST /member-auth/login` - logs in a member by gym slug, email, and password. Body: `{ "gymSlug": "demo-strength-club", "email": "member@example.com", "password": "..." }`.
+- `POST /member-auth/refresh` - rotates a member refresh token.
+- `POST /member-auth/logout` - revokes a member refresh token.
+- `POST /member-auth/setup-password` - consumes a one-time member portal setup/reset token and sets the member password. Body: `{ "token": "...", "password": "..." }`.
+- `GET /member-portal/me` - returns the authenticated member, gym, and membership assignments with plan details.
+- `GET /member-portal/memberships` - returns the authenticated member's membership assignments.
+- `GET /member-portal/check-in-code` - returns the QR payload and barcode fallback for phone check-in.
+- `GET /member-portal/check-ins` - returns the authenticated member's check-in history.
+- `GET /member-portal/classes?from=<iso>&to=<iso>&locationId=<id>` - returns public class sessions for the authenticated member's gym.
+- `GET /member-portal/bookings` - returns the authenticated member's class bookings and waitlist spots.
+- `POST /member-portal/class-sessions/:sessionId/bookings` - books the authenticated member into a class session.
+- `POST /member-portal/class-sessions/:sessionId/waitlist` - joins the authenticated member to a full class session's waitlist.
+- `DELETE /member-portal/bookings/:bookingId` - cancels the authenticated member's booked class and promotes the next eligible waitlist spot when applicable.
+- `DELETE /member-portal/bookings/:bookingId/waitlist` - removes the authenticated member from a waitlist.
+
+Member portal endpoints use separate member sessions from staff/admin auth. Mobile clients should store the member `accessToken` and `refreshToken` separately from any existing CapStone app session.
+
 ## Gyms
 
 - `POST /gyms` - creates a gym for the authenticated user and assigns the owner role.
@@ -39,7 +60,18 @@ Gym settings routes enforce tenant access and `gym:read` or `gym:update`.
 
 The current Checkout & Signup public-site slice does not add dedicated backend endpoints yet. It is modeled as framework-neutral public website state around existing gym feature flags and membership-plan visibility. In practice, public signup availability is expected to depend on the gym `online_signup` feature flag plus active, public, non-archived membership plans, while checkout submission is expected to normalize member signup data before future payment or member-creation integration points are attached.
 
-The current Stripe Payments dashboard slice does not add dedicated backend endpoints yet. It is modeled as framework-neutral dashboard state around existing gym feature flags, roles, members, and future Stripe integration points. In practice, payment collection and refund actions are expected to require `payment:write`, payment-history visibility is expected to require `payment:read`, and point-of-sale collection depends on the gym `point_of_sale` feature flag plus a connected Stripe account.
+## Stripe Payments & Subscriptions
+
+- `GET /gyms/:gymId/payments/stripe-account` - returns the gym's connected Stripe account state.
+- `POST /gyms/:gymId/payments/stripe-account/connect` - creates or resumes Stripe Connect onboarding.
+- `GET /gyms/:gymId/payments` - lists payment transactions.
+- `POST /gyms/:gymId/payments` - collects a one-time payment.
+- `POST /gyms/:gymId/payments/:paymentId/refund` - refunds a one-time payment in full or part.
+- `GET /gyms/:gymId/payments/subscriptions` - lists Stripe subscription records.
+- `POST /gyms/:gymId/payments/subscriptions/checkout` - creates a Stripe Checkout subscription session for a member and recurring membership plan.
+- `POST /stripe/webhooks` - receives Stripe account, payment, checkout, subscription, and invoice events.
+
+Payment routes enforce tenant access and `payment:read` or `payment:write`. Subscription checkout requires a connected Stripe account with charges enabled and a monthly or yearly membership plan. Webhook sync updates local subscription records and member membership status.
 
 ## Locations
 
@@ -66,6 +98,13 @@ Role listing requires `staff:read`. Custom role creation, custom role editing, a
 - `GET /gyms/:gymId/staff` - lists staff access records with user, role, and membership status.
 - `GET /gyms/:gymId/staff/audit` - lists staff access audit entries for role changes and access removals.
 - `DELETE /gyms/:gymId/staff/:userId` - removes staff access by disabling the gym-user membership and writing an audit entry. Optional JSON body: `{ "reason": "..." }`.
+- `GET /gyms/:gymId/staff/shifts` - lists scheduled staff shifts.
+- `POST /gyms/:gymId/staff/shifts` - creates a staff shift with overlap checks.
+- `GET /gyms/:gymId/staff/availability` - lists weekly staff availability blocks.
+- `POST /gyms/:gymId/staff/availability` - creates a staff availability block.
+- `GET /gyms/:gymId/staff/tasks` - lists staff task/checklist items.
+- `POST /gyms/:gymId/staff/tasks` - creates a staff task.
+- `PATCH /gyms/:gymId/staff/tasks/:taskId` - updates assignment, status, due date, or details for a staff task.
 
 Staff access listing and audit reads require `staff:read`. Removing staff access requires `staff:remove`, rejects owner removal, rejects self-removal, and preserves the disabled membership row for history. These routes back the dashboard staff-management screens for staff profile access state, audit history, restricted-role administration, and staff removal flows.
 
@@ -139,3 +178,22 @@ Check-in routes enforce tenant access and `member:read` or `member:write`. A mem
 - `POST /access/device-heartbeats` - device endpoint that records heartbeat time and restores active status.
 
 Staff access routes enforce tenant access and `access:read` or `access:write`. Device event and heartbeat routes authenticate with the device API key in the request body.
+
+## Contracts & Waivers
+
+- `GET /gyms/:gymId/contracts-waivers` - lists contract and waiver document records.
+- `POST /gyms/:gymId/contracts-waivers` - creates a contract or waiver document.
+- `PATCH /gyms/:gymId/contracts-waivers/:documentId` - updates title, type, version, signature requirement, or publish state.
+- `DELETE /gyms/:gymId/contracts-waivers/:documentId` - archives a contract or waiver document.
+- `GET /gyms/:gymId/contracts-waivers/assignments` - lists document assignments with signatures for signed/unsigned status.
+- `POST /gyms/:gymId/contracts-waivers/:documentId/assignments` - assigns a document to a member. Body: `{ "memberId": "..." }`.
+- `GET /gyms/:gymId/members/:memberId/contracts-waivers` - lists a member's assigned contracts and waivers with signatures.
+- `POST /gyms/:gymId/contracts-waivers/assignments/:assignmentId/sign` - captures a signature and stores signer name, signature text, signed time, document version, and request IP.
+
+Document reads require `gym:read`; assignment reads require `member:read`; assignment/signature writes require `member:write`.
+
+## Reporting
+
+- `GET /gyms/:gymId/reports/overview` - returns member growth, revenue, check-in volume, class attendance, and churn/past-due summary metrics.
+
+Reporting routes require `report:read`.

@@ -13,6 +13,8 @@ export const testConfig: ApiConfig = {
   emailVerificationTokenTtlHours: 24,
   stripeOnboardingRefreshUrl: "http://127.0.0.1:5173/stripe/refresh",
   stripeOnboardingReturnUrl: "http://127.0.0.1:5173/stripe/return",
+  stripeSubscriptionSuccessUrl: "http://127.0.0.1:5173/stripe/subscription/success",
+  stripeSubscriptionCancelUrl: "http://127.0.0.1:5173/stripe/subscription/cancel",
   stripeMockMode: true
 };
 

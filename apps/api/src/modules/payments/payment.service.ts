@@ -1,7 +1,8 @@
-import { FeatureFlag } from "@gym-platform/constants";
+import { BillingInterval, FeatureFlag, MemberStatus, MembershipStatus } from "@gym-platform/constants";
 import type {
   StripePaymentCollectInput,
-  StripePaymentRefundInput
+  StripePaymentRefundInput,
+  StripeSubscriptionCheckoutInput
 } from "@gym-platform/validation";
 import { randomUUID } from "node:crypto";
 import Stripe from "stripe";
@@ -9,6 +10,7 @@ import type { ApiConfig } from "../../config/env.js";
 import { badRequest, conflict, notFound } from "../../http/errors.js";
 import type {
   StripePaymentAccount,
+  StripeSubscription,
   StripePaymentTransaction
 } from "../../infrastructure/store/entities.js";
 import type { Repositories } from "../../infrastructure/store/repositories.js";
@@ -66,6 +68,115 @@ export class PaymentService {
 
   async listPayments(gymId: string) {
     return this.repositories.payments.listPaymentTransactionsForGym(gymId);
+  }
+
+  async listSubscriptions(gymId: string) {
+    return this.repositories.payments.listStripeSubscriptionsForGym(gymId);
+  }
+
+  async createSubscriptionCheckout(gymId: string, input: StripeSubscriptionCheckoutInput) {
+    const [gym, member, plan, account] = await Promise.all([
+      this.repositories.gyms.getGym(gymId),
+      this.repositories.members.getMember(input.memberId),
+      this.repositories.membershipPlans.getMembershipPlan(input.planId),
+      this.repositories.payments.getStripeAccountForGym(gymId)
+    ]);
+    if (!gym) {
+      throw notFound("Gym was not found.");
+    }
+    if (!member || member.gymId !== gymId || member.status === MemberStatus.Archived) {
+      throw notFound("Member was not found.");
+    }
+    if (!plan || plan.gymId !== gymId || plan.status === "archived") {
+      throw notFound("Membership plan was not found.");
+    }
+    if (plan.billingInterval !== BillingInterval.Monthly && plan.billingInterval !== BillingInterval.Yearly) {
+      throw conflict("Only monthly and yearly plans can use recurring Stripe subscriptions.", "plan_not_recurring");
+    }
+    if (!account) {
+      throw conflict("Connect Stripe before creating subscriptions.", "stripe_not_connected");
+    }
+    if (!account.chargesEnabled) {
+      throw conflict("Stripe charges are not enabled yet.", "stripe_charges_disabled");
+    }
+    const now = this.clock.now();
+    const localSubscription: StripeSubscription = {
+      id: randomUUID(),
+      gymId,
+      memberId: member.id,
+      planId: plan.id,
+      stripeAccountId: account.stripeAccountId,
+      status: "incomplete",
+      cancelAtPeriodEnd: false,
+      createdAt: now,
+      updatedAt: now
+    };
+    if (this.config.stripeMockMode) {
+      localSubscription.stripeCustomerId = `cus_mock_${randomUUID().replaceAll("-", "")}`;
+      localSubscription.stripeSubscriptionId = `sub_mock_${randomUUID().replaceAll("-", "")}`;
+      localSubscription.stripeCheckoutSessionId = `cs_mock_${randomUUID().replaceAll("-", "")}`;
+      localSubscription.status = plan.trialDays > 0 ? "trialing" : "active";
+      localSubscription.currentPeriodStart = now;
+      localSubscription.currentPeriodEnd = addPlanInterval(now, plan.billingInterval);
+      const saved = await this.repositories.payments.createStripeSubscription(localSubscription);
+      await this.syncMemberMembershipFromSubscription(saved);
+      return {
+        subscription: saved,
+        checkoutUrl: `http://localhost/stripe/mock-subscription-checkout/${saved.stripeCheckoutSessionId}`
+      };
+    }
+    const stripe = this.requireStripe();
+    const customerParams: Stripe.CustomerCreateParams = {
+      name: `${member.firstName} ${member.lastName}`.trim(),
+      metadata: { gymId, memberId: member.id }
+    };
+    if (member.email) {
+      customerParams.email = member.email;
+    }
+    const customer = await stripe.customers.create(
+      customerParams,
+      { stripeAccount: account.stripeAccountId }
+    );
+    localSubscription.stripeCustomerId = customer.id;
+    const subscriptionData: {
+      trial_period_days?: number;
+      metadata: Record<string, string>;
+    } = {
+      metadata: { gymId, memberId: member.id, planId: plan.id, localSubscriptionId: localSubscription.id }
+    };
+    if (plan.trialDays > 0) {
+      subscriptionData.trial_period_days = plan.trialDays;
+    }
+    const session = await stripe.checkout.sessions.create(
+      {
+        mode: "subscription",
+        customer: customer.id,
+        success_url: input.successUrl ?? this.config.stripeSubscriptionSuccessUrl,
+        cancel_url: input.cancelUrl ?? this.config.stripeSubscriptionCancelUrl,
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: "usd",
+              unit_amount: plan.priceCents,
+              product_data: {
+                name: plan.name,
+                metadata: { gymId, planId: plan.id }
+              },
+              recurring: {
+                interval: plan.billingInterval === BillingInterval.Yearly ? "year" : "month"
+              }
+            }
+          }
+        ],
+        subscription_data: subscriptionData,
+        metadata: { gymId, memberId: member.id, planId: plan.id, localSubscriptionId: localSubscription.id }
+      },
+      { stripeAccount: account.stripeAccountId }
+    );
+    localSubscription.stripeCheckoutSessionId = session.id;
+    const saved = await this.repositories.payments.createStripeSubscription(localSubscription);
+    return { subscription: saved, checkoutUrl: session.url };
   }
 
   async collectPayment(gymId: string, input: StripePaymentCollectInput) {
@@ -207,6 +318,18 @@ export class PaymentService {
       case "charge.refunded":
         await this.syncRefundedCharge(event.data.object);
         break;
+      case "checkout.session.completed":
+        await this.syncCheckoutSession(event.data.object);
+        break;
+      case "customer.subscription.created":
+      case "customer.subscription.updated":
+      case "customer.subscription.deleted":
+        await this.syncStripeSubscription(event.data.object);
+        break;
+      case "invoice.payment_succeeded":
+      case "invoice.payment_failed":
+        await this.syncInvoiceSubscription(event.data.object);
+        break;
       default:
         break;
     }
@@ -318,6 +441,117 @@ export class PaymentService {
     });
   }
 
+  private async syncCheckoutSession(session: Stripe.Checkout.Session) {
+    if (session.mode !== "subscription") {
+      return;
+    }
+    const localSubscriptionId = stringMetadata(session.metadata?.localSubscriptionId);
+    const existing = localSubscriptionId
+      ? await this.repositories.payments.getStripeSubscription(localSubscriptionId)
+      : await this.repositories.payments.getStripeSubscriptionByCheckoutSessionId(session.id);
+    if (!existing) {
+      return;
+    }
+    const updated: StripeSubscription = {
+      ...existing,
+      stripeCheckoutSessionId: session.id,
+      updatedAt: this.clock.now()
+    };
+    const stripeCustomerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
+    const stripeSubscriptionId =
+      typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
+    if (stripeCustomerId) {
+      updated.stripeCustomerId = stripeCustomerId;
+    }
+    if (stripeSubscriptionId) {
+      updated.stripeSubscriptionId = stripeSubscriptionId;
+    }
+    await this.repositories.payments.updateStripeSubscription(updated);
+  }
+
+  private async syncInvoiceSubscription(invoice: Stripe.Invoice) {
+    const invoiceRecord = invoice as unknown as { subscription?: string | { id?: string } };
+    const subscriptionId =
+      typeof invoiceRecord.subscription === "string"
+        ? invoiceRecord.subscription
+        : invoiceRecord.subscription?.id;
+    if (!subscriptionId) {
+      return;
+    }
+    const existing = await this.repositories.payments.getStripeSubscriptionByStripeSubscriptionId(subscriptionId);
+    if (!existing) {
+      return;
+    }
+    const status = invoice.status === "paid" ? "active" : invoice.status === "open" ? "past_due" : existing.status;
+    const updated = await this.repositories.payments.updateStripeSubscription({
+      ...existing,
+      status,
+      updatedAt: this.clock.now()
+    });
+    await this.syncMemberMembershipFromSubscription(updated);
+  }
+
+  private async syncStripeSubscription(stripeSubscription: Stripe.Subscription) {
+    const localSubscriptionId = stringMetadata(stripeSubscription.metadata?.localSubscriptionId);
+    const existing = localSubscriptionId
+      ? await this.repositories.payments.getStripeSubscription(localSubscriptionId)
+      : await this.repositories.payments.getStripeSubscriptionByStripeSubscriptionId(stripeSubscription.id);
+    if (!existing) {
+      return;
+    }
+    const currentPeriodStart = subscriptionPeriodDate(stripeSubscription, "current_period_start");
+    const currentPeriodEnd = subscriptionPeriodDate(stripeSubscription, "current_period_end");
+    const updated = await this.repositories.payments.updateStripeSubscription({
+      ...existing,
+      stripeCustomerId:
+        typeof stripeSubscription.customer === "string"
+          ? stripeSubscription.customer
+          : stripeSubscription.customer.id,
+      stripeSubscriptionId: stripeSubscription.id,
+      status: mapSubscriptionStatus(stripeSubscription.status),
+      ...(currentPeriodStart ? { currentPeriodStart } : {}),
+      ...(currentPeriodEnd ? { currentPeriodEnd } : {}),
+      cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
+      updatedAt: this.clock.now()
+    });
+    await this.syncMemberMembershipFromSubscription(updated);
+  }
+
+  private async syncMemberMembershipFromSubscription(subscription: StripeSubscription) {
+    const status = subscriptionToMembershipStatus(subscription.status);
+    const memberships = (await this.repositories.memberMemberships.listMemberMembershipsForMember(subscription.memberId))
+      .filter((membership) => membership.gymId === subscription.gymId && membership.planId === subscription.planId)
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+    const now = this.clock.now();
+    const existing = memberships[0];
+    if (!existing) {
+      await this.repositories.memberMemberships.createMemberMembership({
+        id: randomUUID(),
+        gymId: subscription.gymId,
+        memberId: subscription.memberId,
+        planId: subscription.planId,
+        status,
+        startsAt: subscription.currentPeriodStart ?? now,
+        ...(subscription.currentPeriodEnd && status !== MembershipStatus.Active && status !== MembershipStatus.Trialing
+          ? { endsAt: subscription.currentPeriodEnd }
+          : {}),
+        createdAt: now,
+        updatedAt: now
+      });
+      return;
+    }
+    await this.repositories.memberMemberships.updateMemberMembership({
+      ...existing,
+      status,
+      ...(subscription.currentPeriodStart ? { startsAt: subscription.currentPeriodStart } : {}),
+      ...(subscription.currentPeriodEnd &&
+      (status === MembershipStatus.Canceled || status === MembershipStatus.Expired)
+        ? { endsAt: subscription.currentPeriodEnd }
+        : {}),
+      updatedAt: now
+    });
+  }
+
   private mapStripeAccount(
     gymId: string,
     stripeAccount: Stripe.Account,
@@ -367,4 +601,55 @@ export class PaymentService {
   private createProviderAccountId(slug: string) {
     return `acct_mock_${slug.replaceAll("-", "_")}_${randomUUID().slice(0, 8)}`;
   }
+}
+
+function addPlanInterval(start: Date, interval: BillingInterval) {
+  const end = new Date(start);
+  if (interval === BillingInterval.Yearly) {
+    end.setUTCFullYear(end.getUTCFullYear() + 1);
+    return end;
+  }
+  end.setUTCMonth(end.getUTCMonth() + 1);
+  return end;
+}
+
+function stringMetadata(value: unknown) {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function subscriptionPeriodDate(subscription: Stripe.Subscription, key: "current_period_start" | "current_period_end") {
+  const value = (subscription as unknown as Record<string, unknown>)[key];
+  return typeof value === "number" ? new Date(value * 1000) : undefined;
+}
+
+function mapSubscriptionStatus(status: Stripe.Subscription.Status): StripeSubscription["status"] {
+  if (status === "active" || status === "trialing" || status === "past_due" || status === "paused") {
+    return status;
+  }
+  if (status === "canceled") {
+    return "canceled";
+  }
+  if (status === "incomplete_expired" || status === "unpaid") {
+    return "expired";
+  }
+  return "incomplete";
+}
+
+function subscriptionToMembershipStatus(status: StripeSubscription["status"]): MembershipStatus {
+  if (status === "active") {
+    return MembershipStatus.Active;
+  }
+  if (status === "trialing") {
+    return MembershipStatus.Trialing;
+  }
+  if (status === "past_due" || status === "incomplete") {
+    return MembershipStatus.PastDue;
+  }
+  if (status === "paused") {
+    return MembershipStatus.Paused;
+  }
+  if (status === "canceled") {
+    return MembershipStatus.Canceled;
+  }
+  return MembershipStatus.Expired;
 }

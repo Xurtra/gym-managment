@@ -181,6 +181,9 @@ export interface Member {
   phone?: string;
   barcode?: string;
   profileImageUrl?: string;
+  portalPasswordHash?: string;
+  portalEnabledAt?: Date;
+  lastPortalLoginAt?: Date;
   status: MemberStatus;
   emergencyContact?: EmergencyContact;
   notes?: string;
@@ -381,6 +384,49 @@ export interface StripePaymentTransaction {
   updatedAt: Date;
 }
 
+export interface StaffAvailability {
+  id: string;
+  gymId: string;
+  userId: string;
+  weekday: number;
+  startsAt: string;
+  endsAt: string;
+  locationId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface StaffTask {
+  id: string;
+  gymId: string;
+  title: string;
+  description?: string;
+  assignedToUserId?: string;
+  status: "todo" | "in_progress" | "done" | "archived";
+  dueAt?: Date;
+  completedAt?: Date;
+  createdByUserId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface StripeSubscription {
+  id: string;
+  gymId: string;
+  memberId: string;
+  planId: string;
+  stripeAccountId?: string;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  stripeCheckoutSessionId?: string;
+  status: "incomplete" | "trialing" | "active" | "past_due" | "paused" | "canceled" | "expired";
+  currentPeriodStart?: Date;
+  currentPeriodEnd?: Date;
+  cancelAtPeriodEnd: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface ContractWaiverDocument {
   id: string;
   gymId: string;
@@ -395,6 +441,34 @@ export interface ContractWaiverDocument {
   archivedAt?: Date;
 }
 
+export interface ContractWaiverAssignment {
+  id: string;
+  gymId: string;
+  documentId: string;
+  memberId: string;
+  status: "pending" | "signed" | "void";
+  assignedByUserId: string;
+  assignedAt: Date;
+  signedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ContractWaiverSignature {
+  id: string;
+  gymId: string;
+  assignmentId: string;
+  documentId: string;
+  memberId: string;
+  documentTitle: string;
+  documentVersion: number;
+  signerName: string;
+  signatureText: string;
+  signerIp?: string;
+  signedAt: Date;
+  createdAt: Date;
+}
+
 export interface RefreshToken {
   id: string;
   userId: string;
@@ -403,6 +477,28 @@ export interface RefreshToken {
   expiresAt: Date;
   revokedAt?: Date;
   replacedByTokenId?: string;
+  createdAt: Date;
+}
+
+export interface MemberRefreshToken {
+  id: string;
+  gymId: string;
+  memberId: string;
+  tokenHash: string;
+  expiresAt: Date;
+  revokedAt?: Date;
+  replacedByTokenId?: string;
+  createdAt: Date;
+}
+
+export interface MemberPortalToken {
+  id: string;
+  gymId: string;
+  memberId: string;
+  tokenHash: string;
+  purpose: "setup" | "reset";
+  expiresAt: Date;
+  usedAt?: Date;
   createdAt: Date;
 }
 
@@ -424,6 +520,8 @@ export interface StoreSnapshot {
   staffInvites: StaffInvite[];
   staffAuditLogs: StaffAuditLog[];
   staffShifts: StaffShift[];
+  staffAvailabilities: StaffAvailability[];
+  staffTasks: StaffTask[];
   locations: Location[];
   members: Member[];
   membershipPlans: MembershipPlan[];
@@ -438,7 +536,12 @@ export interface StoreSnapshot {
   accessEvents: AccessEvent[];
   stripePaymentAccounts: StripePaymentAccount[];
   stripePaymentTransactions: StripePaymentTransaction[];
+  stripeSubscriptions: StripeSubscription[];
   contractWaiverDocuments: ContractWaiverDocument[];
+  contractWaiverAssignments: ContractWaiverAssignment[];
+  contractWaiverSignatures: ContractWaiverSignature[];
   refreshTokens: RefreshToken[];
+  memberRefreshTokens: MemberRefreshToken[];
+  memberPortalTokens: MemberPortalToken[];
   purposeTokens: PurposeToken[];
 }

@@ -7,6 +7,8 @@ export class InMemoryStore {
     staffInviteRecords = new Map();
     staffAuditLogRecords = new Map();
     staffShiftRecords = new Map();
+    staffAvailabilityRecords = new Map();
+    staffTaskRecords = new Map();
     locationRecords = new Map();
     memberRecords = new Map();
     membershipPlanRecords = new Map();
@@ -21,8 +23,13 @@ export class InMemoryStore {
     accessEventRecords = new Map();
     stripePaymentAccountRecords = new Map();
     stripePaymentTransactionRecords = new Map();
+    stripeSubscriptionRecords = new Map();
     contractWaiverDocumentRecords = new Map();
+    contractWaiverAssignmentRecords = new Map();
+    contractWaiverSignatureRecords = new Map();
     refreshTokenRecords = new Map();
+    memberRefreshTokenRecords = new Map();
+    memberPortalTokenRecords = new Map();
     purposeTokenRecords = new Map();
     users = {
         createUser: (user) => this.createUser(user),
@@ -65,7 +72,14 @@ export class InMemoryStore {
     };
     staffShifts = {
         createStaffShift: (shift) => this.createStaffShift(shift),
-        listStaffShiftsForStaff: (gymId, userId) => this.listStaffShiftsForStaff(gymId, userId)
+        listStaffShiftsForGym: (gymId) => this.listStaffShiftsForGym(gymId),
+        listStaffShiftsForStaff: (gymId, userId) => this.listStaffShiftsForStaff(gymId, userId),
+        createStaffAvailability: (availability) => this.createStaffAvailability(availability),
+        listStaffAvailabilitiesForGym: (gymId) => this.listStaffAvailabilitiesForGym(gymId),
+        createStaffTask: (task) => this.createStaffTask(task),
+        getStaffTask: (taskId) => this.getStaffTask(taskId),
+        listStaffTasksForGym: (gymId) => this.listStaffTasksForGym(gymId),
+        updateStaffTask: (task) => this.updateStaffTask(task)
     };
     locations = {
         createLocation: (location) => this.createLocation(location),
@@ -76,6 +90,7 @@ export class InMemoryStore {
     members = {
         createMember: (member) => this.createMember(member),
         getMember: (memberId) => this.getMember(memberId),
+        findMemberByGymAndEmail: (gymId, email) => this.findMemberByGymAndEmail(gymId, email),
         listMembersForGym: (gymId) => this.listMembersForGym(gymId),
         updateMember: (member) => this.updateMember(member)
     };
@@ -138,19 +153,40 @@ export class InMemoryStore {
         getPaymentTransaction: (paymentId) => this.getPaymentTransaction(paymentId),
         getPaymentTransactionByStripePaymentIntentId: (stripePaymentIntentId) => this.getPaymentTransactionByStripePaymentIntentId(stripePaymentIntentId),
         listPaymentTransactionsForGym: (gymId) => this.listPaymentTransactionsForGym(gymId),
-        updatePaymentTransaction: (transaction) => this.updatePaymentTransaction(transaction)
+        updatePaymentTransaction: (transaction) => this.updatePaymentTransaction(transaction),
+        createStripeSubscription: (subscription) => this.createStripeSubscription(subscription),
+        getStripeSubscription: (subscriptionId) => this.getStripeSubscription(subscriptionId),
+        getStripeSubscriptionByStripeSubscriptionId: (stripeSubscriptionId) => this.getStripeSubscriptionByStripeSubscriptionId(stripeSubscriptionId),
+        getStripeSubscriptionByCheckoutSessionId: (checkoutSessionId) => this.getStripeSubscriptionByCheckoutSessionId(checkoutSessionId),
+        listStripeSubscriptionsForGym: (gymId) => this.listStripeSubscriptionsForGym(gymId),
+        updateStripeSubscription: (subscription) => this.updateStripeSubscription(subscription)
     };
     contractWaivers = {
         createDocument: (document) => this.createContractWaiverDocument(document),
         getDocument: (documentId) => this.getContractWaiverDocument(documentId),
         listDocumentsForGym: (gymId) => this.listContractWaiverDocumentsForGym(gymId),
-        updateDocument: (document) => this.updateContractWaiverDocument(document)
+        updateDocument: (document) => this.updateContractWaiverDocument(document),
+        createAssignment: (assignment) => this.createContractWaiverAssignment(assignment),
+        getAssignment: (assignmentId) => this.getContractWaiverAssignment(assignmentId),
+        findAssignment: (gymId, documentId, memberId) => this.findContractWaiverAssignment(gymId, documentId, memberId),
+        listAssignmentsForGym: (gymId) => this.listContractWaiverAssignmentsForGym(gymId),
+        listAssignmentsForMember: (gymId, memberId) => this.listContractWaiverAssignmentsForMember(gymId, memberId),
+        updateAssignment: (assignment) => this.updateContractWaiverAssignment(assignment),
+        createSignature: (signature) => this.createContractWaiverSignature(signature),
+        listSignaturesForAssignment: (assignmentId) => this.listContractWaiverSignaturesForAssignment(assignmentId)
     };
     tokens = {
         createRefreshToken: (refreshToken) => this.createRefreshToken(refreshToken),
         findRefreshTokenByHash: (tokenHash) => this.findRefreshTokenByHash(tokenHash),
         listRefreshTokensForUser: (userId) => this.listRefreshTokensForUser(userId),
         updateRefreshToken: (refreshToken) => this.updateRefreshToken(refreshToken),
+        createMemberRefreshToken: (refreshToken) => this.createMemberRefreshToken(refreshToken),
+        findMemberRefreshTokenByHash: (tokenHash) => this.findMemberRefreshTokenByHash(tokenHash),
+        listRefreshTokensForMember: (memberId) => this.listRefreshTokensForMember(memberId),
+        updateMemberRefreshToken: (refreshToken) => this.updateMemberRefreshToken(refreshToken),
+        createMemberPortalToken: (token) => this.createMemberPortalToken(token),
+        findMemberPortalTokenByHash: (tokenHash) => this.findMemberPortalTokenByHash(tokenHash),
+        updateMemberPortalToken: (token) => this.updateMemberPortalToken(token),
         createPurposeToken: (purposeToken) => this.createPurposeToken(purposeToken),
         findPurposeTokenByHash: (tokenHash, purpose) => this.findPurposeTokenByHash(tokenHash, purpose),
         updatePurposeToken: (purposeToken) => this.updatePurposeToken(purposeToken)
@@ -267,10 +303,42 @@ export class InMemoryStore {
         this.staffShiftRecords.set(shift.id, shift);
         return shift;
     }
+    async listStaffShiftsForGym(gymId) {
+        return [...this.staffShiftRecords.values()]
+            .filter((shift) => shift.gymId === gymId)
+            .sort((left, right) => left.startsAt.getTime() - right.startsAt.getTime());
+    }
     async listStaffShiftsForStaff(gymId, userId) {
         return [...this.staffShiftRecords.values()]
             .filter((shift) => shift.gymId === gymId && shift.userId === userId)
             .sort((left, right) => left.startsAt.getTime() - right.startsAt.getTime());
+    }
+    async createStaffAvailability(availability) {
+        this.staffAvailabilityRecords.set(availability.id, availability);
+        return availability;
+    }
+    async listStaffAvailabilitiesForGym(gymId) {
+        return [...this.staffAvailabilityRecords.values()]
+            .filter((availability) => availability.gymId === gymId)
+            .sort((left, right) => left.weekday - right.weekday ||
+            left.startsAt.localeCompare(right.startsAt) ||
+            left.userId.localeCompare(right.userId));
+    }
+    async createStaffTask(task) {
+        this.staffTaskRecords.set(task.id, task);
+        return task;
+    }
+    async getStaffTask(taskId) {
+        return this.staffTaskRecords.get(taskId);
+    }
+    async listStaffTasksForGym(gymId) {
+        return [...this.staffTaskRecords.values()]
+            .filter((task) => task.gymId === gymId)
+            .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+    }
+    async updateStaffTask(task) {
+        this.staffTaskRecords.set(task.id, task);
+        return task;
     }
     async createLocation(location) {
         this.locationRecords.set(location.id, location);
@@ -295,6 +363,9 @@ export class InMemoryStore {
     }
     async listMembersForGym(gymId) {
         return [...this.memberRecords.values()].filter((member) => member.gymId === gymId);
+    }
+    async findMemberByGymAndEmail(gymId, email) {
+        return [...this.memberRecords.values()].find((member) => member.gymId === gymId && member.email?.toLowerCase() === email.toLowerCase());
     }
     async updateMember(member) {
         this.memberRecords.set(member.id, member);
@@ -474,6 +545,26 @@ export class InMemoryStore {
         this.stripePaymentTransactionRecords.set(transaction.id, transaction);
         return transaction;
     }
+    async createStripeSubscription(subscription) {
+        this.stripeSubscriptionRecords.set(subscription.id, subscription);
+        return subscription;
+    }
+    async getStripeSubscription(subscriptionId) {
+        return this.stripeSubscriptionRecords.get(subscriptionId);
+    }
+    async getStripeSubscriptionByStripeSubscriptionId(stripeSubscriptionId) {
+        return [...this.stripeSubscriptionRecords.values()].find((subscription) => subscription.stripeSubscriptionId === stripeSubscriptionId);
+    }
+    async getStripeSubscriptionByCheckoutSessionId(checkoutSessionId) {
+        return [...this.stripeSubscriptionRecords.values()].find((subscription) => subscription.stripeCheckoutSessionId === checkoutSessionId);
+    }
+    async listStripeSubscriptionsForGym(gymId) {
+        return [...this.stripeSubscriptionRecords.values()].filter((subscription) => subscription.gymId === gymId);
+    }
+    async updateStripeSubscription(subscription) {
+        this.stripeSubscriptionRecords.set(subscription.id, subscription);
+        return subscription;
+    }
     async createContractWaiverDocument(document) {
         this.contractWaiverDocumentRecords.set(document.id, document);
         return document;
@@ -490,6 +581,42 @@ export class InMemoryStore {
         this.contractWaiverDocumentRecords.set(document.id, document);
         return document;
     }
+    async createContractWaiverAssignment(assignment) {
+        this.contractWaiverAssignmentRecords.set(assignment.id, assignment);
+        return assignment;
+    }
+    async getContractWaiverAssignment(assignmentId) {
+        return this.contractWaiverAssignmentRecords.get(assignmentId);
+    }
+    async findContractWaiverAssignment(gymId, documentId, memberId) {
+        return [...this.contractWaiverAssignmentRecords.values()].find((assignment) => assignment.gymId === gymId &&
+            assignment.documentId === documentId &&
+            assignment.memberId === memberId &&
+            assignment.status !== "void");
+    }
+    async listContractWaiverAssignmentsForGym(gymId) {
+        return [...this.contractWaiverAssignmentRecords.values()]
+            .filter((assignment) => assignment.gymId === gymId)
+            .sort((left, right) => right.assignedAt.getTime() - left.assignedAt.getTime());
+    }
+    async listContractWaiverAssignmentsForMember(gymId, memberId) {
+        return [...this.contractWaiverAssignmentRecords.values()]
+            .filter((assignment) => assignment.gymId === gymId && assignment.memberId === memberId)
+            .sort((left, right) => right.assignedAt.getTime() - left.assignedAt.getTime());
+    }
+    async updateContractWaiverAssignment(assignment) {
+        this.contractWaiverAssignmentRecords.set(assignment.id, assignment);
+        return assignment;
+    }
+    async createContractWaiverSignature(signature) {
+        this.contractWaiverSignatureRecords.set(signature.id, signature);
+        return signature;
+    }
+    async listContractWaiverSignaturesForAssignment(assignmentId) {
+        return [...this.contractWaiverSignatureRecords.values()]
+            .filter((signature) => signature.assignmentId === assignmentId)
+            .sort((left, right) => right.signedAt.getTime() - left.signedAt.getTime());
+    }
     async createRefreshToken(refreshToken) {
         this.refreshTokenRecords.set(refreshToken.id, refreshToken);
         return refreshToken;
@@ -503,6 +630,31 @@ export class InMemoryStore {
     async updateRefreshToken(refreshToken) {
         this.refreshTokenRecords.set(refreshToken.id, refreshToken);
         return refreshToken;
+    }
+    async createMemberRefreshToken(refreshToken) {
+        this.memberRefreshTokenRecords.set(refreshToken.id, refreshToken);
+        return refreshToken;
+    }
+    async findMemberRefreshTokenByHash(tokenHash) {
+        return [...this.memberRefreshTokenRecords.values()].find((refreshToken) => refreshToken.tokenHash === tokenHash);
+    }
+    async listRefreshTokensForMember(memberId) {
+        return [...this.memberRefreshTokenRecords.values()].filter((refreshToken) => refreshToken.memberId === memberId);
+    }
+    async updateMemberRefreshToken(refreshToken) {
+        this.memberRefreshTokenRecords.set(refreshToken.id, refreshToken);
+        return refreshToken;
+    }
+    async createMemberPortalToken(token) {
+        this.memberPortalTokenRecords.set(token.id, token);
+        return token;
+    }
+    async findMemberPortalTokenByHash(tokenHash) {
+        return [...this.memberPortalTokenRecords.values()].find((token) => token.tokenHash === tokenHash);
+    }
+    async updateMemberPortalToken(token) {
+        this.memberPortalTokenRecords.set(token.id, token);
+        return token;
     }
     async createPurposeToken(purposeToken) {
         this.purposeTokenRecords.set(purposeToken.id, purposeToken);
@@ -524,6 +676,8 @@ export class InMemoryStore {
             staffInvites: [...this.staffInviteRecords.values()],
             staffAuditLogs: [...this.staffAuditLogRecords.values()],
             staffShifts: [...this.staffShiftRecords.values()],
+            staffAvailabilities: [...this.staffAvailabilityRecords.values()],
+            staffTasks: [...this.staffTaskRecords.values()],
             locations: [...this.locationRecords.values()],
             members: [...this.memberRecords.values()],
             membershipPlans: [...this.membershipPlanRecords.values()],
@@ -538,8 +692,13 @@ export class InMemoryStore {
             accessEvents: [...this.accessEventRecords.values()],
             stripePaymentAccounts: [...this.stripePaymentAccountRecords.values()],
             stripePaymentTransactions: [...this.stripePaymentTransactionRecords.values()],
+            stripeSubscriptions: [...this.stripeSubscriptionRecords.values()],
             contractWaiverDocuments: [...this.contractWaiverDocumentRecords.values()],
+            contractWaiverAssignments: [...this.contractWaiverAssignmentRecords.values()],
+            contractWaiverSignatures: [...this.contractWaiverSignatureRecords.values()],
             refreshTokens: [...this.refreshTokenRecords.values()],
+            memberRefreshTokens: [...this.memberRefreshTokenRecords.values()],
+            memberPortalTokens: [...this.memberPortalTokenRecords.values()],
             purposeTokens: [...this.purposeTokenRecords.values()]
         };
     }

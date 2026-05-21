@@ -1,5 +1,5 @@
 import type { Pool, QueryResult, QueryResultRow } from "pg";
-import type { AccessDevice, AccessEvent, AccessRule, Gym, GymUser, ClassBooking, CheckIn, ClassSession, ClassType, ContractWaiverDocument, Location, Member, MemberMembership, MembershipPlan, NotificationEvent, PurposeToken, RefreshToken, Role, StripePaymentAccount, StripePaymentTransaction, StaffAuditLog, StaffInvite, StaffShift, User } from "./entities.js";
+import type { AccessDevice, AccessEvent, AccessRule, Gym, GymUser, ClassBooking, CheckIn, ClassSession, ClassType, ContractWaiverAssignment, ContractWaiverDocument, ContractWaiverSignature, Location, Member, MemberMembership, MemberPortalToken, MemberRefreshToken, MembershipPlan, NotificationEvent, PurposeToken, RefreshToken, Role, StripePaymentAccount, StripeSubscription, StripePaymentTransaction, StaffAuditLog, StaffAvailability, StaffInvite, StaffShift, StaffTask, User } from "./entities.js";
 import type { Repositories } from "./repositories.js";
 interface QueryExecutor {
     query<R extends QueryResultRow = QueryResultRow>(text: string, values?: readonly unknown[]): Promise<QueryResult<R>>;
@@ -54,7 +54,14 @@ export declare class PostgresRepositories implements Repositories {
     };
     readonly staffShifts: {
         createStaffShift: (shift: StaffShift) => Promise<StaffShift>;
+        listStaffShiftsForGym: (gymId: string) => Promise<StaffShift[]>;
         listStaffShiftsForStaff: (gymId: string, userId: string) => Promise<StaffShift[]>;
+        createStaffAvailability: (availability: StaffAvailability) => Promise<StaffAvailability>;
+        listStaffAvailabilitiesForGym: (gymId: string) => Promise<StaffAvailability[]>;
+        createStaffTask: (task: StaffTask) => Promise<StaffTask>;
+        getStaffTask: (taskId: string) => Promise<StaffTask | undefined>;
+        listStaffTasksForGym: (gymId: string) => Promise<StaffTask[]>;
+        updateStaffTask: (task: StaffTask) => Promise<StaffTask>;
     };
     readonly locations: {
         createLocation: (location: Location) => Promise<Location>;
@@ -65,6 +72,7 @@ export declare class PostgresRepositories implements Repositories {
     readonly members: {
         createMember: (member: Member) => Promise<Member>;
         getMember: (memberId: string) => Promise<Member | undefined>;
+        findMemberByGymAndEmail: (gymId: string, email: string) => Promise<Member | undefined>;
         listMembersForGym: (gymId: string) => Promise<Member[]>;
         updateMember: (member: Member) => Promise<Member>;
     };
@@ -128,18 +136,39 @@ export declare class PostgresRepositories implements Repositories {
         getPaymentTransactionByStripePaymentIntentId: (stripePaymentIntentId: string) => Promise<StripePaymentTransaction | undefined>;
         listPaymentTransactionsForGym: (gymId: string) => Promise<StripePaymentTransaction[]>;
         updatePaymentTransaction: (transaction: StripePaymentTransaction) => Promise<StripePaymentTransaction>;
+        createStripeSubscription: (subscription: StripeSubscription) => Promise<StripeSubscription>;
+        getStripeSubscription: (subscriptionId: string) => Promise<StripeSubscription | undefined>;
+        getStripeSubscriptionByStripeSubscriptionId: (stripeSubscriptionId: string) => Promise<StripeSubscription | undefined>;
+        getStripeSubscriptionByCheckoutSessionId: (checkoutSessionId: string) => Promise<StripeSubscription | undefined>;
+        listStripeSubscriptionsForGym: (gymId: string) => Promise<StripeSubscription[]>;
+        updateStripeSubscription: (subscription: StripeSubscription) => Promise<StripeSubscription>;
     };
     readonly contractWaivers: {
         createDocument: (document: ContractWaiverDocument) => Promise<ContractWaiverDocument>;
         getDocument: (documentId: string) => Promise<ContractWaiverDocument | undefined>;
         listDocumentsForGym: (gymId: string) => Promise<ContractWaiverDocument[]>;
         updateDocument: (document: ContractWaiverDocument) => Promise<ContractWaiverDocument>;
+        createAssignment: (assignment: ContractWaiverAssignment) => Promise<ContractWaiverAssignment>;
+        getAssignment: (assignmentId: string) => Promise<ContractWaiverAssignment | undefined>;
+        findAssignment: (gymId: string, documentId: string, memberId: string) => Promise<ContractWaiverAssignment | undefined>;
+        listAssignmentsForGym: (gymId: string) => Promise<ContractWaiverAssignment[]>;
+        listAssignmentsForMember: (gymId: string, memberId: string) => Promise<ContractWaiverAssignment[]>;
+        updateAssignment: (assignment: ContractWaiverAssignment) => Promise<ContractWaiverAssignment>;
+        createSignature: (signature: ContractWaiverSignature) => Promise<ContractWaiverSignature>;
+        listSignaturesForAssignment: (assignmentId: string) => Promise<ContractWaiverSignature[]>;
     };
     readonly tokens: {
         createRefreshToken: (refreshToken: RefreshToken) => Promise<RefreshToken>;
         findRefreshTokenByHash: (tokenHash: string) => Promise<RefreshToken | undefined>;
         listRefreshTokensForUser: (userId: string) => Promise<RefreshToken[]>;
         updateRefreshToken: (refreshToken: RefreshToken) => Promise<RefreshToken>;
+        createMemberRefreshToken: (refreshToken: MemberRefreshToken) => Promise<MemberRefreshToken>;
+        findMemberRefreshTokenByHash: (tokenHash: string) => Promise<MemberRefreshToken | undefined>;
+        listRefreshTokensForMember: (memberId: string) => Promise<MemberRefreshToken[]>;
+        updateMemberRefreshToken: (refreshToken: MemberRefreshToken) => Promise<MemberRefreshToken>;
+        createMemberPortalToken: (token: MemberPortalToken) => Promise<MemberPortalToken>;
+        findMemberPortalTokenByHash: (tokenHash: string) => Promise<MemberPortalToken | undefined>;
+        updateMemberPortalToken: (token: MemberPortalToken) => Promise<MemberPortalToken>;
         createPurposeToken: (purposeToken: PurposeToken) => Promise<PurposeToken>;
         findPurposeTokenByHash: (tokenHash: string, purpose: PurposeToken["purpose"]) => Promise<PurposeToken | undefined>;
         updatePurposeToken: (purposeToken: PurposeToken) => Promise<PurposeToken>;
@@ -175,12 +204,20 @@ export declare class PostgresRepositories implements Repositories {
     listStaffAuditLogsForGym(gymId: string): Promise<StaffAuditLog[]>;
     createStaffShift(shift: StaffShift): Promise<StaffShift>;
     listStaffShiftsForStaff(gymId: string, userId: string): Promise<StaffShift[]>;
+    listStaffShiftsForGym(gymId: string): Promise<StaffShift[]>;
+    createStaffAvailability(availability: StaffAvailability): Promise<StaffAvailability>;
+    listStaffAvailabilitiesForGym(gymId: string): Promise<StaffAvailability[]>;
+    createStaffTask(task: StaffTask): Promise<StaffTask>;
+    getStaffTask(taskId: string): Promise<StaffTask | undefined>;
+    listStaffTasksForGym(gymId: string): Promise<StaffTask[]>;
+    updateStaffTask(task: StaffTask): Promise<StaffTask>;
     createLocation(location: Location): Promise<Location>;
     getLocation(locationId: string): Promise<Location | undefined>;
     listLocationsForGym(gymId: string): Promise<Location[]>;
     updateLocation(location: Location): Promise<Location>;
     createMember(member: Member): Promise<Member>;
     getMember(memberId: string): Promise<Member | undefined>;
+    findMemberByGymAndEmail(gymId: string, email: string): Promise<Member | undefined>;
     listMembersForGym(gymId: string): Promise<Member[]>;
     updateMember(member: Member): Promise<Member>;
     createMembershipPlan(plan: MembershipPlan): Promise<MembershipPlan>;
@@ -228,14 +265,35 @@ export declare class PostgresRepositories implements Repositories {
     getPaymentTransactionByStripePaymentIntentId(stripePaymentIntentId: string): Promise<StripePaymentTransaction | undefined>;
     listPaymentTransactionsForGym(gymId: string): Promise<StripePaymentTransaction[]>;
     updatePaymentTransaction(transaction: StripePaymentTransaction): Promise<StripePaymentTransaction>;
+    createStripeSubscription(subscription: StripeSubscription): Promise<StripeSubscription>;
+    getStripeSubscription(subscriptionId: string): Promise<StripeSubscription | undefined>;
+    getStripeSubscriptionByStripeSubscriptionId(stripeSubscriptionId: string): Promise<StripeSubscription | undefined>;
+    getStripeSubscriptionByCheckoutSessionId(checkoutSessionId: string): Promise<StripeSubscription | undefined>;
+    listStripeSubscriptionsForGym(gymId: string): Promise<StripeSubscription[]>;
+    updateStripeSubscription(subscription: StripeSubscription): Promise<StripeSubscription>;
     createContractWaiverDocument(document: ContractWaiverDocument): Promise<ContractWaiverDocument>;
     getContractWaiverDocument(documentId: string): Promise<ContractWaiverDocument | undefined>;
     listContractWaiverDocumentsForGym(gymId: string): Promise<ContractWaiverDocument[]>;
     updateContractWaiverDocument(document: ContractWaiverDocument): Promise<ContractWaiverDocument>;
+    createContractWaiverAssignment(assignment: ContractWaiverAssignment): Promise<ContractWaiverAssignment>;
+    getContractWaiverAssignment(assignmentId: string): Promise<ContractWaiverAssignment | undefined>;
+    findContractWaiverAssignment(gymId: string, documentId: string, memberId: string): Promise<ContractWaiverAssignment | undefined>;
+    listContractWaiverAssignmentsForGym(gymId: string): Promise<ContractWaiverAssignment[]>;
+    listContractWaiverAssignmentsForMember(gymId: string, memberId: string): Promise<ContractWaiverAssignment[]>;
+    updateContractWaiverAssignment(assignment: ContractWaiverAssignment): Promise<ContractWaiverAssignment>;
+    createContractWaiverSignature(signature: ContractWaiverSignature): Promise<ContractWaiverSignature>;
+    listContractWaiverSignaturesForAssignment(assignmentId: string): Promise<ContractWaiverSignature[]>;
     createRefreshToken(refreshToken: RefreshToken): Promise<RefreshToken>;
     findRefreshTokenByHash(tokenHash: string): Promise<RefreshToken | undefined>;
     listRefreshTokensForUser(userId: string): Promise<RefreshToken[]>;
     updateRefreshToken(refreshToken: RefreshToken): Promise<RefreshToken>;
+    createMemberRefreshToken(refreshToken: MemberRefreshToken): Promise<MemberRefreshToken>;
+    findMemberRefreshTokenByHash(tokenHash: string): Promise<MemberRefreshToken | undefined>;
+    listRefreshTokensForMember(memberId: string): Promise<MemberRefreshToken[]>;
+    updateMemberRefreshToken(refreshToken: MemberRefreshToken): Promise<MemberRefreshToken>;
+    createMemberPortalToken(token: MemberPortalToken): Promise<MemberPortalToken>;
+    findMemberPortalTokenByHash(tokenHash: string): Promise<MemberPortalToken | undefined>;
+    updateMemberPortalToken(token: MemberPortalToken): Promise<MemberPortalToken>;
     createPurposeToken(purposeToken: PurposeToken): Promise<PurposeToken>;
     findPurposeTokenByHash(tokenHash: string, purpose: PurposeToken["purpose"]): Promise<PurposeToken | undefined>;
     updatePurposeToken(purposeToken: PurposeToken): Promise<PurposeToken>;

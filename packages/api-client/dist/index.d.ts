@@ -1,4 +1,4 @@
-import type { AccessDeviceCreateInput, AccessDeviceEventInput, AccessDeviceHeartbeatInput, AccessRuleCreateInput, ClassBookingCreateInput, CheckInCreateInput, ClassSessionCreateInput, ClassTypeCreateInput, ContractWaiverCreateInput, ContractWaiverUpdateInput, CustomRoleCreateInput, CustomRoleUpdateInput, GymCreateInput, GymUpdateInput, LocationCreateInput, LocationUpdateInput, LoginInput, MemberCreateInput, MemberMembershipAssignInput, MemberUpdateInput, MembershipPlanCreateInput, MembershipPlanUpdateInput, PublicSignupInput, RegisterInput, ResetPasswordInput, RoleAssignmentInput, StaffAccessRemoveInput, StaffInviteAcceptInput, StaffInviteCreateInput, StaffShiftCreateInput, StaffManualBookingInput, StripePaymentCollectInput, StripePaymentRefundInput, NotificationProcessInput } from "@gym-platform/validation";
+import type { AccessDeviceCreateInput, AccessDeviceEventInput, AccessDeviceHeartbeatInput, AccessRuleCreateInput, ClassBookingCreateInput, CheckInCreateInput, ClassSessionCreateInput, ClassTypeCreateInput, ContractWaiverAssignmentCreateInput, ContractWaiverCreateInput, ContractWaiverSignatureCreateInput, ContractWaiverUpdateInput, CustomRoleCreateInput, CustomRoleUpdateInput, GymCreateInput, GymUpdateInput, LocationCreateInput, LocationUpdateInput, LoginInput, MemberCreateInput, MemberMembershipAssignInput, MemberPortalAccountInput, MemberPortalTokenAcceptInput, MemberUpdateInput, MembershipPlanCreateInput, MembershipPlanUpdateInput, PublicSignupInput, RegisterInput, ResetPasswordInput, RoleAssignmentInput, StaffAccessRemoveInput, StaffAvailabilityCreateInput, StaffInviteAcceptInput, StaffInviteCreateInput, StaffTaskCreateInput, StaffTaskUpdateInput, StaffShiftCreateInput, StaffManualBookingInput, StripePaymentCollectInput, StripePaymentRefundInput, StripeSubscriptionCheckoutInput, NotificationProcessInput } from "@gym-platform/validation";
 export interface ApiClientOptions {
     baseUrl: string;
     accessToken?: string;
@@ -62,12 +62,27 @@ export declare class GymApiClient {
     removeStaffAccess(gymId: string, userId: string, input?: StaffAccessRemoveInput): Promise<unknown>;
     listStaffAuditLogs(gymId: string): Promise<unknown>;
     createStaffShift(gymId: string, input: StaffShiftCreateInput): Promise<unknown>;
+    listStaffShifts(gymId: string): Promise<unknown>;
+    listStaffAvailability(gymId: string): Promise<unknown>;
+    createStaffAvailability(gymId: string, input: StaffAvailabilityCreateInput): Promise<unknown>;
+    listStaffTasks(gymId: string): Promise<unknown>;
+    createStaffTask(gymId: string, input: StaffTaskCreateInput): Promise<unknown>;
+    updateStaffTask(gymId: string, taskId: string, input: StaffTaskUpdateInput): Promise<unknown>;
     listMembers(gymId: string): Promise<unknown>;
     createMember(gymId: string, input: MemberCreateInput): Promise<unknown>;
     updateMember(gymId: string, memberId: string, input: MemberUpdateInput): Promise<unknown>;
     archiveMember(gymId: string, memberId: string): Promise<unknown>;
     listMemberMemberships(gymId: string, memberId: string): Promise<unknown>;
     assignMemberMembership(gymId: string, memberId: string, input: MemberMembershipAssignInput): Promise<unknown>;
+    enableMemberPortalAccount(gymId: string, memberId: string, input: MemberPortalAccountInput): Promise<unknown>;
+    createMemberPortalInvite(gymId: string, memberId: string): Promise<unknown>;
+    setupMemberPortalPassword(input: MemberPortalTokenAcceptInput): Promise<unknown>;
+    listMemberPortalClasses(from?: string, to?: string, locationId?: string): Promise<unknown>;
+    listMemberPortalBookings(): Promise<unknown>;
+    createMemberPortalBooking(sessionId: string): Promise<unknown>;
+    joinMemberPortalWaitlist(sessionId: string): Promise<unknown>;
+    cancelMemberPortalBooking(bookingId: string): Promise<unknown>;
+    leaveMemberPortalWaitlist(bookingId: string): Promise<unknown>;
     listMembershipPlans(gymId: string): Promise<unknown>;
     createMembershipPlan(gymId: string, input: MembershipPlanCreateInput): Promise<unknown>;
     updateMembershipPlan(gymId: string, planId: string, input: MembershipPlanUpdateInput): Promise<unknown>;
@@ -97,6 +112,8 @@ export declare class GymApiClient {
     getStripePaymentAccount(gymId: string): Promise<unknown>;
     connectStripePaymentAccount(gymId: string): Promise<unknown>;
     listPayments(gymId: string): Promise<unknown>;
+    listSubscriptions(gymId: string): Promise<unknown>;
+    createSubscriptionCheckout(gymId: string, input: StripeSubscriptionCheckoutInput): Promise<unknown>;
     collectPayment(gymId: string, input: StripePaymentCollectInput): Promise<unknown>;
     refundPayment(gymId: string, paymentId: string, input?: StripePaymentRefundInput): Promise<unknown>;
     listNotifications(gymId: string): Promise<unknown>;
@@ -104,8 +121,13 @@ export declare class GymApiClient {
     retryNotification(gymId: string, notificationId: string): Promise<unknown>;
     listContractWaiverDocuments(gymId: string): Promise<unknown>;
     createContractWaiverDocument(gymId: string, input: ContractWaiverCreateInput): Promise<unknown>;
+    listContractWaiverAssignments(gymId: string): Promise<unknown>;
+    assignContractWaiver(gymId: string, documentId: string, input: ContractWaiverAssignmentCreateInput): Promise<unknown>;
+    listMemberContractWaivers(gymId: string, memberId: string): Promise<unknown>;
+    signContractWaiverAssignment(gymId: string, assignmentId: string, input: ContractWaiverSignatureCreateInput): Promise<unknown>;
     updateContractWaiverDocument(gymId: string, documentId: string, input: ContractWaiverUpdateInput): Promise<unknown>;
     archiveContractWaiverDocument(gymId: string, documentId: string): Promise<unknown>;
+    reportOverview(gymId: string): Promise<unknown>;
     publicSchedule(gymSlug: string, from?: string, to?: string, locationId?: string): Promise<unknown>;
     publicGym(gymSlug: string): Promise<unknown>;
     publicPlans(gymSlug: string): Promise<unknown>;

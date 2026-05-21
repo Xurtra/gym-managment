@@ -35,6 +35,8 @@ export function buildMemberProfilePage(inputModel) {
         statusBadge,
         active: inputModel.member.status === MemberStatus.Active,
         archived,
+        portalStatusLabel: inputModel.member.portalEnabled ? "Portal access enabled" : "Portal access not enabled",
+        portalActionLabel: inputModel.member.portalEnabled ? "Reset portal password" : "Enable portal access",
         contactSection,
         emergencyContactSection,
         notesSection,
@@ -63,6 +65,7 @@ function buildSections(member, statusBadge, contactSection, emergencyContactSect
             title: "Identity",
             details: [
                 { key: "status", label: "Status", value: statusBadge.label },
+                { key: "portal_access", label: "Portal access", value: member.portalEnabled ? "Enabled" : "Not enabled" },
                 { key: "barcode", label: "Barcode", value: member.barcode ?? "Not provided" },
                 { key: "profile_image", label: "Profile image", value: member.profileImageUrl ?? "Not provided" },
                 { key: "created", label: "Created", value: member.createdAt },
@@ -118,6 +121,15 @@ function buildActions(member, canWriteMembers, archived) {
                 icon: "badge-plus",
                 intent: "secondary",
                 disabled: !canWriteMembers || archived
+            })
+        },
+        {
+            key: "portal_invite",
+            button: button({
+                label: member.portalEnabled ? "Reset portal password" : "Enable portal access",
+                icon: "key-round",
+                intent: "secondary",
+                disabled: !canWriteMembers || archived || !member.email
             })
         },
         {

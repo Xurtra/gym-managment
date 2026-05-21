@@ -14,6 +14,7 @@ export interface MemberView {
     phone?: string;
     barcode?: string;
     profileImageUrl?: string;
+    portalEnabled?: boolean;
     emergencyContact?: EmergencyContactView;
     notes?: string;
     tagNames: string[];
