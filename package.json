@@ -9,7 +9,8 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && npm run build -w @gym-platform/frontend",
+    "build:types": "tsc -b",
     "dev": "node tools/dev.mjs",
     "dev:api": "npm run dev -w @gym-platform/api",
     "dev:frontend": "npm run dev -w @gym-platform/frontend",

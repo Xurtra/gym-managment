@@ -38,6 +38,9 @@ import {
   verifyEmailSchema
 } from "@gym-platform/validation";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { createReadStream } from "node:fs";
+import { access, stat } from "node:fs/promises";
+import { extname, join, normalize, resolve, sep } from "node:path";
 import { Pool } from "pg";
 import { ZodError, type ZodSchema } from "zod";
 import type { z } from "zod";
@@ -176,6 +179,9 @@ export function createApp(config: ApiConfig, services = createServices(config)) 
       const method = req.method as HttpMethod;
       const match = matchRoute(routes, method, url.pathname);
       if (!match) {
+        if (method === "GET" && await tryServeFrontendAsset(url.pathname, res)) {
+          return;
+        }
         throw notFound("Route was not found.");
       }
       const body = await readBody(req);
@@ -1009,6 +1015,111 @@ function sendJson(res: ServerResponse, status: number, data: unknown) {
     "Content-Length": Buffer.byteLength(body)
   });
   res.end(body);
+}
+
+async function tryServeFrontendAsset(pathname: string, res: ServerResponse) {
+  if (!shouldServeFrontendPath(pathname)) {
+    return false;
+  }
+  const frontendDist = await resolveFrontendDistPath();
+  if (!frontendDist) {
+    return false;
+  }
+  const requestedPath = pathname === "/" ? "/index.html" : pathname;
+  const assetPath = safeJoin(frontendDist, decodeURIComponent(requestedPath));
+  if (!assetPath) {
+    return false;
+  }
+  const filePath = await existingFilePath(assetPath) ?? await existingFilePath(join(frontendDist, "index.html"));
+  if (!filePath) {
+    return false;
+  }
+  const fileStat = await stat(filePath);
+  res.writeHead(200, {
+    ...corsHeaders,
+    "Content-Type": contentTypeFor(filePath),
+    "Content-Length": fileStat.size,
+    "Cache-Control": filePath.includes(`${sep}assets${sep}`)
+      ? "public, max-age=31536000, immutable"
+      : "no-cache"
+  });
+  createReadStream(filePath).pipe(res);
+  return true;
+}
+
+function shouldServeFrontendPath(pathname: string) {
+  return (
+    pathname === "/" ||
+    pathname === "/index.html" ||
+    pathname === "/favicon.ico" ||
+    pathname === "/manifest.webmanifest" ||
+    pathname.startsWith("/assets/")
+  );
+}
+
+async function resolveFrontendDistPath() {
+  const candidates = [
+    process.env.FRONTEND_DIST_DIR,
+    join(process.cwd(), "apps", "frontend", "dist"),
+    join(process.cwd(), "..", "frontend", "dist")
+  ].filter(Boolean) as string[];
+  for (const candidate of candidates) {
+    const resolved = resolve(candidate);
+    try {
+      await access(join(resolved, "index.html"));
+      return resolved;
+    } catch {
+      // Try the next conventional workspace location.
+    }
+  }
+  return undefined;
+}
+
+function safeJoin(root: string, pathname: string) {
+  const cleanedPath = normalize(pathname).replace(/^([/\\])+/, "");
+  const resolved = resolve(root, cleanedPath);
+  const rootWithSeparator = root.endsWith(sep) ? root : `${root}${sep}`;
+  if (resolved !== root && !resolved.startsWith(rootWithSeparator)) {
+    return undefined;
+  }
+  return resolved;
+}
+
+async function existingFilePath(filePath: string) {
+  try {
+    const fileStat = await stat(filePath);
+    return fileStat.isFile() ? filePath : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function contentTypeFor(filePath: string) {
+  switch (extname(filePath).toLowerCase()) {
+    case ".html":
+      return "text/html; charset=utf-8";
+    case ".js":
+      return "text/javascript; charset=utf-8";
+    case ".css":
+      return "text/css; charset=utf-8";
+    case ".json":
+      return "application/json; charset=utf-8";
+    case ".svg":
+      return "image/svg+xml";
+    case ".png":
+      return "image/png";
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".webp":
+      return "image/webp";
+    case ".ico":
+      return "image/x-icon";
+    case ".webmanifest":
+      return "application/manifest+json; charset=utf-8";
+    default:
+      return "application/octet-stream";
+  }
 }
 
 function sendNoContent(res: ServerResponse, status: number) {
