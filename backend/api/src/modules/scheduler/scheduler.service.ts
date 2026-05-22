@@ -3,9 +3,12 @@ import type {
   SchedulerAvailabilityCreateInput,
   SchedulerCoverageRuleCreateInput,
   SchedulerGenerateInput,
+  SchedulerPreferenceRequestCreateInput,
+  SchedulerPreferenceRequestResolveInput,
   SchedulerPublishInput,
   SchedulerRequestCreateInput,
-  SchedulerRequestResolveInput
+  SchedulerRequestResolveInput,
+  SchedulerSettingsUpdateInput
 } from "@gym-platform/validation";
 import { randomUUID } from "node:crypto";
 import { badRequest, conflict, notFound } from "../../http/errors.js";
@@ -14,6 +17,8 @@ import type {
   Role,
   SchedulerAvailability,
   SchedulerCoverageRule,
+  SchedulerPreferenceRequest,
+  SchedulerSettings,
   SchedulerRequest,
   StaffShift
 } from "../../infrastructure/store/entities.js";
@@ -47,6 +52,30 @@ export interface PublicSchedulerAvailability {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PublicSchedulerSettings {
+  gymId: string;
+  planningHorizonDays: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicSchedulerPreferenceRequest {
+  id: string;
+  gymId: string;
+  userId: string;
+  daysOfWeek: number[];
+  startTime: string;
+  endTime: string;
+  preference: SchedulerAvailability["preference"];
+  notes?: string;
+  status: SchedulerPreferenceRequest["status"];
+  resolutionNote?: string;
+  resolvedByUserId?: string;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt?: string;
 }
 
 export interface PublicSchedulerRequest {
@@ -94,11 +123,40 @@ interface Candidate {
   assignedMinutes: number;
 }
 
+const DEFAULT_PLANNING_HORIZON_DAYS = 14;
+
 export class SchedulerService {
   constructor(
     private readonly repositories: Repositories,
     private readonly clock: Clock
   ) {}
+
+  async getSettings(gymId: string) {
+    const settings = await this.repositories.scheduler.getSettings(gymId);
+    if (settings) {
+      return toPublicSettings(settings);
+    }
+    const now = this.clock.now();
+    const fallback: SchedulerSettings = {
+      gymId,
+      planningHorizonDays: DEFAULT_PLANNING_HORIZON_DAYS,
+      createdAt: now,
+      updatedAt: now
+    };
+    return toPublicSettings(await this.repositories.scheduler.upsertSettings(fallback));
+  }
+
+  async updateSettings(gymId: string, input: SchedulerSettingsUpdateInput) {
+    const current = await this.repositories.scheduler.getSettings(gymId);
+    const now = this.clock.now();
+    const settings: SchedulerSettings = {
+      gymId,
+      planningHorizonDays: input.planningHorizonDays,
+      createdAt: current?.createdAt ?? now,
+      updatedAt: now
+    };
+    return toPublicSettings(await this.repositories.scheduler.upsertSettings(settings));
+  }
 
   async listCoverageRules(gymId: string) {
     const rules = await this.repositories.scheduler.listCoverageRulesForGym(gymId);
@@ -157,6 +215,83 @@ export class SchedulerService {
     return toPublicAvailability(await this.repositories.scheduler.createAvailability(availability));
   }
 
+  async listPreferenceRequests(gymId: string, userIds?: Set<string>) {
+    const requests = await this.repositories.scheduler.listPreferenceRequestsForGym(gymId);
+    return requests.filter((request) => !userIds || userIds.has(request.userId)).map(toPublicPreferenceRequest);
+  }
+
+  async listPreferenceRequestsForStaff(gymId: string, userId: string) {
+    const requests = await this.repositories.scheduler.listPreferenceRequestsForStaff(gymId, userId);
+    return requests.map(toPublicPreferenceRequest);
+  }
+
+  async createPreferenceRequest(
+    gymId: string,
+    userId: string,
+    input: SchedulerPreferenceRequestCreateInput
+  ) {
+    await this.ensureActiveStaff(gymId, userId);
+    const now = this.clock.now();
+    const request: SchedulerPreferenceRequest = {
+      id: randomUUID(),
+      gymId,
+      userId,
+      daysOfWeek: [...new Set(input.daysOfWeek)].sort(),
+      startTime: input.startTime,
+      endTime: input.endTime,
+      preference: input.preference,
+      ...(input.notes ? { notes: input.notes } : {}),
+      status: "open",
+      createdAt: now,
+      updatedAt: now
+    };
+    return toPublicPreferenceRequest(await this.repositories.scheduler.createPreferenceRequest(request));
+  }
+
+  async resolvePreferenceRequest(
+    gymId: string,
+    requestId: string,
+    actorUserId: string,
+    input: SchedulerPreferenceRequestResolveInput
+  ) {
+    const request = await this.repositories.scheduler.getPreferenceRequest(requestId);
+    if (!request || request.gymId !== gymId) {
+      throw notFound("Preference request was not found.");
+    }
+    if (request.status !== "open") {
+      throw conflict("Preference request has already been reviewed.", "preference_request_closed");
+    }
+    const now = this.clock.now();
+    if (input.decision === "approve") {
+      const availability: SchedulerAvailability = {
+        id: randomUUID(),
+        gymId,
+        userId: request.userId,
+        daysOfWeek: request.daysOfWeek,
+        startTime: request.startTime,
+        endTime: request.endTime,
+        preference: request.preference,
+        ...(request.notes ? { notes: request.notes } : {}),
+        createdAt: now,
+        updatedAt: now
+      };
+      await this.repositories.scheduler.replaceAvailabilitiesForStaff(gymId, request.userId, [availability]);
+    }
+    const reviewed: SchedulerPreferenceRequest = {
+      ...request,
+      status: input.decision === "approve" ? "approved" : "declined",
+      resolutionNote:
+        input.resolutionNote ??
+        (input.decision === "approve"
+          ? "Long-term scheduling preference approved."
+          : "Long-term scheduling preference declined."),
+      resolvedByUserId: actorUserId,
+      resolvedAt: now,
+      updatedAt: now
+    };
+    return toPublicPreferenceRequest(await this.repositories.scheduler.updatePreferenceRequest(reviewed));
+  }
+
   async listRequests(gymId: string, userIds?: Set<string>) {
     const requests = await this.repositories.scheduler.listRequestsForGym(gymId);
     return requests.filter((request) => !userIds || userIds.has(request.userId)).map(toPublicRequest);
@@ -193,6 +328,7 @@ export class SchedulerService {
   }
 
   async generateDraft(gymId: string, input: SchedulerGenerateInput): Promise<ScheduleDraft> {
+    const endsOn = input.endsOn ?? await this.defaultEndsOn(gymId, input.startsOn);
     const rules = (await this.repositories.scheduler.listCoverageRulesForGym(gymId)).filter(
       (rule) => !input.locationId || rule.locationId === input.locationId
     );
@@ -206,7 +342,7 @@ export class SchedulerService {
     const assignedMinutes = new Map<string, number>();
     const warnings: string[] = [];
 
-    for (const date of datesBetween(input.startsOn, input.endsOn)) {
+    for (const date of datesBetween(input.startsOn, endsOn)) {
       const day = date.getUTCDay();
       for (const rule of rules.filter((candidate) => candidate.daysOfWeek.includes(day))) {
         for (let slot = 0; slot < rule.requiredStaff; slot += 1) {
@@ -260,7 +396,7 @@ export class SchedulerService {
         }
       }
     }
-    return { startsOn: input.startsOn, endsOn: input.endsOn, assignments, warnings };
+    return { startsOn: input.startsOn, endsOn, assignments, warnings };
   }
 
   async publishGeneratedSchedule(
@@ -301,10 +437,22 @@ export class SchedulerService {
       throw notFound("Schedule request was not found.");
     }
     const now = this.clock.now();
+    if (input.decision === "decline") {
+      const declined: SchedulerRequest = {
+        ...request,
+        status: "declined",
+        resolutionNote: input.resolutionNote ?? "Declined by scheduler.",
+        resolvedByUserId: actorUserId,
+        updatedAt: now,
+        resolvedAt: now
+      };
+      return toPublicRequest(await this.repositories.scheduler.updateRequest(declined));
+    }
     const replacement = request.shiftId
       ? await this.findReplacementForShift(gymId, request.shiftId, request.userId)
       : undefined;
-    if (input.autoAssignReplacement && request.shiftId && replacement) {
+    const appliedReplacement = input.autoAssignReplacement && request.shiftId ? replacement : undefined;
+    if (appliedReplacement) {
       const shift = (await this.repositories.staffShifts.listStaffShiftsForGym(gymId)).find(
         (candidate) => candidate.id === request.shiftId
       );
@@ -313,23 +461,25 @@ export class SchedulerService {
       }
       await this.repositories.staffShifts.updateStaffShift({
         ...shift,
-        userId: replacement.membership.userId,
+        userId: appliedReplacement.membership.userId,
         notes: `${shift.notes ? `${shift.notes}\n` : ""}Auto-resolved request ${request.id}: replacement assigned.`,
         updatedAt: now
       });
     }
     const resolved: SchedulerRequest = {
       ...request,
-      status: replacement || !request.shiftId ? "resolved" : "open",
-      ...(replacement ? { suggestedReplacementUserId: replacement.membership.userId } : {}),
+      status: appliedReplacement || !request.shiftId ? "resolved" : "open",
+      ...(appliedReplacement ? { suggestedReplacementUserId: appliedReplacement.membership.userId } : {}),
       resolutionNote:
         input.resolutionNote ??
-        (replacement
-          ? `Replacement found: ${replacement.reason}`
-          : "No eligible replacement was found. Manager review needed."),
+        (!request.shiftId
+          ? "Reviewed by scheduler."
+          : appliedReplacement
+            ? `Replacement found: ${appliedReplacement.reason}`
+            : "No eligible replacement was found. Manager review needed."),
       resolvedByUserId: actorUserId,
       updatedAt: now,
-      ...(replacement || !request.shiftId ? { resolvedAt: now } : {})
+      ...(appliedReplacement || !request.shiftId ? { resolvedAt: now } : {})
     };
     return toPublicRequest(await this.repositories.scheduler.updateRequest(resolved));
   }
@@ -367,6 +517,17 @@ export class SchedulerService {
       const role = roleById.get(membership.roleId);
       return membership.status === UserStatus.Active && role && role.name !== RoleName.Member;
     });
+  }
+
+  private async defaultEndsOn(gymId: string, startsOn: string) {
+    const settings = await this.repositories.scheduler.getSettings(gymId);
+    const horizonDays = settings?.planningHorizonDays ?? DEFAULT_PLANNING_HORIZON_DAYS;
+    const start = new Date(`${startsOn}T00:00:00.000Z`);
+    if (Number.isNaN(start.getTime())) {
+      throw badRequest("Schedule start date is invalid.", "scheduler_date_invalid");
+    }
+    start.setUTCDate(start.getUTCDate() + horizonDays - 1);
+    return formatDate(start);
   }
 
   private scoreCandidate(
@@ -489,6 +650,34 @@ function toPublicAvailability(availability: SchedulerAvailability): PublicSchedu
   };
 }
 
+function toPublicSettings(settings: SchedulerSettings): PublicSchedulerSettings {
+  return {
+    gymId: settings.gymId,
+    planningHorizonDays: settings.planningHorizonDays,
+    createdAt: settings.createdAt.toISOString(),
+    updatedAt: settings.updatedAt.toISOString()
+  };
+}
+
+function toPublicPreferenceRequest(request: SchedulerPreferenceRequest): PublicSchedulerPreferenceRequest {
+  return {
+    id: request.id,
+    gymId: request.gymId,
+    userId: request.userId,
+    daysOfWeek: request.daysOfWeek,
+    startTime: request.startTime,
+    endTime: request.endTime,
+    preference: request.preference,
+    ...(request.notes ? { notes: request.notes } : {}),
+    status: request.status,
+    ...(request.resolutionNote ? { resolutionNote: request.resolutionNote } : {}),
+    ...(request.resolvedByUserId ? { resolvedByUserId: request.resolvedByUserId } : {}),
+    createdAt: request.createdAt.toISOString(),
+    updatedAt: request.updatedAt.toISOString(),
+    ...(request.resolvedAt ? { resolvedAt: request.resolvedAt.toISOString() } : {})
+  };
+}
+
 function toPublicRequest(request: SchedulerRequest): PublicSchedulerRequest {
   return {
     id: request.id,
@@ -518,8 +707,8 @@ function datesBetween(startsOn: string, endsOn: string) {
     dates.push(new Date(cursor));
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
-  if (dates.length > 31) {
-    throw badRequest("Generate at most 31 days at a time.", "scheduler_range_too_large");
+  if (dates.length > 90) {
+    throw badRequest("Generate at most 90 days at a time.", "scheduler_range_too_large");
   }
   return dates;
 }

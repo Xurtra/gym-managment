@@ -107,12 +107,72 @@ describe("SchedulerService", () => {
       gymId,
       request.id,
       owner.user.id,
-      { autoAssignReplacement: true }
+      { decision: "apply", autoAssignReplacement: true }
     );
     expect(resolved.status).toBe("resolved");
     expect(resolved.suggestedReplacementUserId).toBe(secondStaff.user.id);
     await expect(services.staffScheduleService.listShifts(gymId)).resolves.toMatchObject([
       { userId: secondStaff.user.id }
     ]);
+
+    await services.schedulerService.updateSettings(gymId, { planningHorizonDays: 2 });
+    const horizonDraft = await services.schedulerService.generateDraft(gymId, {
+      startsOn: "2026-05-18",
+      locationId: location.id
+    });
+    expect(horizonDraft.endsOn).toBe("2026-05-19");
+
+    const noNotePreferenceRequest = await services.schedulerService.createPreferenceRequest(
+      gymId,
+      firstStaff.user.id,
+      {
+        daysOfWeek: [2],
+        startTime: "09:00",
+        endTime: "12:00",
+        preference: "preferred"
+      }
+    );
+    expect(noNotePreferenceRequest.status).toBe("open");
+
+    const preferenceRequest = await services.schedulerService.createPreferenceRequest(
+      gymId,
+      secondStaff.user.id,
+      {
+        daysOfWeek: [1, 3],
+        startTime: "13:00",
+        endTime: "18:00",
+        preference: "unavailable",
+        notes: "Afternoons conflict with school."
+      }
+    );
+    const approvedPreference = await services.schedulerService.resolvePreferenceRequest(
+      gymId,
+      preferenceRequest.id,
+      owner.user.id,
+      { decision: "approve", resolutionNote: "Approved for future drafts." }
+    );
+    expect(approvedPreference.status).toBe("approved");
+    await expect(
+      services.schedulerService.listAvailabilities(gymId, new Set([secondStaff.user.id]))
+    ).resolves.toMatchObject([
+      {
+        userId: secondStaff.user.id,
+        daysOfWeek: [1, 3],
+        preference: "unavailable"
+      }
+    ]);
+
+    const declinedRequest = await services.schedulerService.createRequest(gymId, secondStaff.user.id, {
+      requestType: "time_off",
+      message: "I would like next Monday off."
+    });
+    const declined = await services.schedulerService.resolveRequest(
+      gymId,
+      declinedRequest.id,
+      owner.user.id,
+      { decision: "decline", autoAssignReplacement: false, resolutionNote: "Coverage is already thin." }
+    );
+    expect(declined.status).toBe("declined");
+    expect(declined.resolutionNote).toBe("Coverage is already thin.");
   });
 });

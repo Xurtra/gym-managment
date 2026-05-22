@@ -193,6 +193,24 @@ export const schedulerAvailabilityCreateSchema = z
     .refine((value) => value.endTime > value.startTime, {
     message: "Availability end time must be after start time."
 });
+export const schedulerSettingsUpdateSchema = z.object({
+    planningHorizonDays: z.number().int().min(1).max(90)
+});
+export const schedulerPreferenceRequestCreateSchema = z
+    .object({
+    daysOfWeek: z.array(schedulerDay).min(1).max(7),
+    startTime: schedulerTime,
+    endTime: schedulerTime,
+    preference: z.enum(["available", "preferred", "unavailable"]).default("preferred"),
+    notes: trimmed.max(1000).optional()
+})
+    .refine((value) => value.endTime > value.startTime, {
+    message: "Preferred end time must be after start time."
+});
+export const schedulerPreferenceRequestResolveSchema = z.object({
+    decision: z.enum(["approve", "decline"]),
+    resolutionNote: trimmed.max(1000).optional()
+});
 export const schedulerRequestCreateSchema = z.object({
     shiftId: id.optional(),
     requestType: z.enum(["time_off", "swap", "complaint"]).default("complaint"),
@@ -200,19 +218,20 @@ export const schedulerRequestCreateSchema = z.object({
 });
 const schedulerGenerateBaseSchema = z.object({
     startsOn: z.string().date(),
-    endsOn: z.string().date(),
+    endsOn: z.string().date().optional(),
     locationId: id.optional()
 });
-export const schedulerGenerateSchema = schedulerGenerateBaseSchema.refine((value) => value.endsOn >= value.startsOn, {
+export const schedulerGenerateSchema = schedulerGenerateBaseSchema.refine((value) => !value.endsOn || value.endsOn >= value.startsOn, {
     message: "Schedule end date must be on or after start date."
 });
 export const schedulerPublishSchema = schedulerGenerateBaseSchema.extend({
     replaceExisting: z.boolean().default(false)
-}).refine((value) => value.endsOn >= value.startsOn, {
+}).refine((value) => !value.endsOn || value.endsOn >= value.startsOn, {
     message: "Schedule end date must be on or after start date."
 });
 export const schedulerRequestResolveSchema = z.object({
     resolutionNote: trimmed.max(1000).optional(),
+    decision: z.enum(["apply", "decline"]).default("apply"),
     autoAssignReplacement: z.boolean().default(true)
 });
 export const memberCreateSchema = z.object({

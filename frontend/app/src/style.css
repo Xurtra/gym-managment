@@ -2355,7 +2355,8 @@ html[data-theme="dark"] .empty-state {
   flex-wrap: wrap;
 }
 
-.scheduler-page textarea {
+.scheduler-page textarea,
+.staff-schedule-request-modal textarea {
   width: 100%;
   min-height: 96px;
   border: 1px solid var(--line);
@@ -2409,6 +2410,38 @@ html[data-theme="dark"] .empty-state {
   gap: 12px;
 }
 
+.staff-request-summary {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.staff-request-summary-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #d9e6f1;
+  background: rgba(248, 251, 255, 0.8);
+}
+
+.staff-request-summary-row p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.staff-request-summary-row small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 .staff-calendar-backdrop {
   position: fixed;
   inset: 0;
@@ -2431,6 +2464,42 @@ html[data-theme="dark"] .empty-state {
   border: 1px solid var(--line);
   background: var(--panel-strong);
   box-shadow: var(--shadow);
+}
+
+.staff-schedule-request-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 78;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, 0.68);
+  backdrop-filter: blur(4px);
+}
+
+.staff-schedule-request-modal {
+  width: min(560px, 96vw);
+  max-height: 92vh;
+  overflow: auto;
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: var(--panel-strong);
+  box-shadow: var(--shadow);
+}
+
+.staff-schedule-request-form {
+  display: grid;
+  gap: 12px;
+}
+
+.staff-schedule-request-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .staff-calendar-toolbar {
@@ -2783,6 +2852,11 @@ html[data-theme="dark"] .staff-role-row {
   background: #0f172a;
 }
 
+html[data-theme="dark"] .staff-request-summary-row {
+  border-color: #223248;
+  background: #0f172a;
+}
+
 html[data-theme="dark"] .staff-status-chip {
   background: rgba(148, 163, 184, 0.14);
   color: #dbe4ef;
@@ -2820,6 +2894,7 @@ html[data-theme="dark"] .staff-clock-chip.active {
 
 html[data-theme="dark"] .staff-clock-modal,
 html[data-theme="dark"] .staff-clock-person,
+html[data-theme="dark"] .staff-schedule-request-modal,
 html[data-theme="dark"] .staff-calendar-modal,
 html[data-theme="dark"] .staff-calendar-day {
   background: #0f172a;

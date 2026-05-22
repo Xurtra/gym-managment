@@ -26,9 +26,12 @@ import type {
   SchedulerAvailabilityCreateInput,
   SchedulerCoverageRuleCreateInput,
   SchedulerGenerateInput,
+  SchedulerPreferenceRequestCreateInput,
+  SchedulerPreferenceRequestResolveInput,
   SchedulerPublishInput,
   SchedulerRequestCreateInput,
   SchedulerRequestResolveInput,
+  SchedulerSettingsUpdateInput,
   StaffAccessRemoveInput,
   StaffClockInInput,
   StaffClockOutInput,
@@ -227,6 +230,42 @@ export class GymApiClient {
 
   createSchedulerAvailability(gymId: string, input: SchedulerAvailabilityCreateInput) {
     return this.request("POST", `/gyms/${gymId}/scheduler/availability`, input);
+  }
+
+  listMySchedulerAvailability(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/scheduler/availability/me`);
+  }
+
+  getSchedulerSettings(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/scheduler/settings`);
+  }
+
+  updateSchedulerSettings(gymId: string, input: SchedulerSettingsUpdateInput) {
+    return this.request("PATCH", `/gyms/${gymId}/scheduler/settings`, input);
+  }
+
+  listSchedulerPreferenceRequests(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/scheduler/preference-requests`);
+  }
+
+  listMySchedulerPreferenceRequests(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/scheduler/preference-requests/me`);
+  }
+
+  createSchedulerPreferenceRequest(gymId: string, input: SchedulerPreferenceRequestCreateInput) {
+    return this.request("POST", `/gyms/${gymId}/scheduler/preference-requests`, input);
+  }
+
+  resolveSchedulerPreferenceRequest(
+    gymId: string,
+    requestId: string,
+    input: SchedulerPreferenceRequestResolveInput
+  ) {
+    return this.request(
+      "POST",
+      `/gyms/${gymId}/scheduler/preference-requests/${requestId}/resolve`,
+      input
+    );
   }
 
   listSchedulerRequests(gymId: string) {

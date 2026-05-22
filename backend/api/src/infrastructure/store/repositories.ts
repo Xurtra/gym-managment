@@ -18,6 +18,8 @@ import type {
   Role,
   SchedulerAvailability,
   SchedulerCoverageRule,
+  SchedulerPreferenceRequest,
+  SchedulerSettings,
   SchedulerRequest,
   StaffAuditLog,
   StaffInvite,
@@ -90,11 +92,23 @@ export interface StaffTimeEntryRepository {
 }
 
 export interface SchedulerRepository {
+  getSettings(gymId: string): RepositoryResult<SchedulerSettings | undefined>;
+  upsertSettings(settings: SchedulerSettings): RepositoryResult<SchedulerSettings>;
   createCoverageRule(rule: SchedulerCoverageRule): RepositoryResult<SchedulerCoverageRule>;
   listCoverageRulesForGym(gymId: string): RepositoryResult<SchedulerCoverageRule[]>;
   createAvailability(availability: SchedulerAvailability): RepositoryResult<SchedulerAvailability>;
+  replaceAvailabilitiesForStaff(
+    gymId: string,
+    userId: string,
+    availabilities: SchedulerAvailability[]
+  ): RepositoryResult<SchedulerAvailability[]>;
   listAvailabilitiesForGym(gymId: string): RepositoryResult<SchedulerAvailability[]>;
   listAvailabilitiesForStaff(gymId: string, userId: string): RepositoryResult<SchedulerAvailability[]>;
+  createPreferenceRequest(request: SchedulerPreferenceRequest): RepositoryResult<SchedulerPreferenceRequest>;
+  updatePreferenceRequest(request: SchedulerPreferenceRequest): RepositoryResult<SchedulerPreferenceRequest>;
+  getPreferenceRequest(requestId: string): RepositoryResult<SchedulerPreferenceRequest | undefined>;
+  listPreferenceRequestsForGym(gymId: string): RepositoryResult<SchedulerPreferenceRequest[]>;
+  listPreferenceRequestsForStaff(gymId: string, userId: string): RepositoryResult<SchedulerPreferenceRequest[]>;
   createRequest(request: SchedulerRequest): RepositoryResult<SchedulerRequest>;
   updateRequest(request: SchedulerRequest): RepositoryResult<SchedulerRequest>;
   getRequest(requestId: string): RepositoryResult<SchedulerRequest | undefined>;

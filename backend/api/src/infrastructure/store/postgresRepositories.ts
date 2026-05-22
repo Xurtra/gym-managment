@@ -21,6 +21,8 @@ import type {
   Role,
   SchedulerAvailability,
   SchedulerCoverageRule,
+  SchedulerPreferenceRequest,
+  SchedulerSettings,
   SchedulerRequest,
   StaffAuditLog,
   StaffInvite,
@@ -180,6 +182,30 @@ interface SchedulerAvailabilityRow extends QueryResultRow {
   end_time: string;
   preference: SchedulerAvailability["preference"];
   notes: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface SchedulerSettingsRow extends QueryResultRow {
+  gym_id: string;
+  planning_horizon_days: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface SchedulerPreferenceRequestRow extends QueryResultRow {
+  id: string;
+  gym_id: string;
+  user_id: string;
+  days_of_week: unknown;
+  start_time: string;
+  end_time: string;
+  preference: SchedulerAvailability["preference"];
+  notes: string | null;
+  status: SchedulerPreferenceRequest["status"];
+  resolution_note: string | null;
+  resolved_by_user_id: string | null;
+  resolved_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -476,13 +502,28 @@ export class PostgresRepositories implements Repositories {
   };
 
   readonly scheduler = {
+    getSettings: (gymId: string) => this.getSchedulerSettings(gymId),
+    upsertSettings: (settings: SchedulerSettings) => this.upsertSchedulerSettings(settings),
     createCoverageRule: (rule: SchedulerCoverageRule) => this.createCoverageRule(rule),
     listCoverageRulesForGym: (gymId: string) => this.listCoverageRulesForGym(gymId),
     createAvailability: (availability: SchedulerAvailability) =>
       this.createAvailability(availability),
+    replaceAvailabilitiesForStaff: (
+      gymId: string,
+      userId: string,
+      availabilities: SchedulerAvailability[]
+    ) => this.replaceAvailabilitiesForStaff(gymId, userId, availabilities),
     listAvailabilitiesForGym: (gymId: string) => this.listAvailabilitiesForGym(gymId),
     listAvailabilitiesForStaff: (gymId: string, userId: string) =>
       this.listAvailabilitiesForStaff(gymId, userId),
+    createPreferenceRequest: (request: SchedulerPreferenceRequest) =>
+      this.createPreferenceRequest(request),
+    updatePreferenceRequest: (request: SchedulerPreferenceRequest) =>
+      this.updatePreferenceRequest(request),
+    getPreferenceRequest: (requestId: string) => this.getPreferenceRequest(requestId),
+    listPreferenceRequestsForGym: (gymId: string) => this.listPreferenceRequestsForGym(gymId),
+    listPreferenceRequestsForStaff: (gymId: string, userId: string) =>
+      this.listPreferenceRequestsForStaff(gymId, userId),
     createRequest: (request: SchedulerRequest) => this.createRequest(request),
     updateRequest: (request: SchedulerRequest) => this.updateRequest(request),
     getRequest: (requestId: string) => this.getRequest(requestId),
@@ -1136,6 +1177,33 @@ export class PostgresRepositories implements Repositories {
     return result.rows[0] ? mapStaffTimeEntry(result.rows[0]) : undefined;
   }
 
+  async getSchedulerSettings(gymId: string) {
+    const result = await this.executor.query<SchedulerSettingsRow>(
+      "SELECT * FROM scheduler_settings WHERE gym_id = $1",
+      [gymId]
+    );
+    return result.rows[0] ? mapSchedulerSettings(result.rows[0]) : undefined;
+  }
+
+  async upsertSchedulerSettings(settings: SchedulerSettings) {
+    const result = await this.executor.query<SchedulerSettingsRow>(
+      `INSERT INTO scheduler_settings (
+        gym_id, planning_horizon_days, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4)
+      ON CONFLICT (gym_id) DO UPDATE
+        SET planning_horizon_days = EXCLUDED.planning_horizon_days,
+            updated_at = EXCLUDED.updated_at
+      RETURNING *`,
+      [
+        settings.gymId,
+        settings.planningHorizonDays,
+        settings.createdAt,
+        settings.updatedAt
+      ]
+    );
+    return mapSchedulerSettings(one(result));
+  }
+
   async createCoverageRule(rule: SchedulerCoverageRule) {
     const result = await this.executor.query<SchedulerCoverageRuleRow>(
       `INSERT INTO scheduler_coverage_rules (
@@ -1192,6 +1260,22 @@ export class PostgresRepositories implements Repositories {
     return mapSchedulerAvailability(one(result));
   }
 
+  async replaceAvailabilitiesForStaff(
+    gymId: string,
+    userId: string,
+    availabilities: SchedulerAvailability[]
+  ) {
+    await this.executor.query(
+      "DELETE FROM scheduler_availabilities WHERE gym_id = $1 AND user_id = $2",
+      [gymId, userId]
+    );
+    const created: SchedulerAvailability[] = [];
+    for (const availability of availabilities) {
+      created.push(await this.createAvailability(availability));
+    }
+    return created;
+  }
+
   async listAvailabilitiesForGym(gymId: string) {
     const result = await this.executor.query<SchedulerAvailabilityRow>(
       "SELECT * FROM scheduler_availabilities WHERE gym_id = $1 ORDER BY user_id, start_time",
@@ -1208,6 +1292,81 @@ export class PostgresRepositories implements Repositories {
       [gymId, userId]
     );
     return result.rows.map(mapSchedulerAvailability);
+  }
+
+  async createPreferenceRequest(request: SchedulerPreferenceRequest) {
+    const result = await this.executor.query<SchedulerPreferenceRequestRow>(
+      `INSERT INTO scheduler_preference_requests (
+        id, gym_id, user_id, days_of_week, start_time, end_time, preference,
+        notes, status, resolution_note, resolved_by_user_id, resolved_at, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      RETURNING *`,
+      [
+        request.id,
+        request.gymId,
+        request.userId,
+        JSON.stringify(request.daysOfWeek),
+        request.startTime,
+        request.endTime,
+        request.preference,
+        request.notes ?? null,
+        request.status,
+        request.resolutionNote ?? null,
+        request.resolvedByUserId ?? null,
+        request.resolvedAt ?? null,
+        request.createdAt,
+        request.updatedAt
+      ]
+    );
+    return mapSchedulerPreferenceRequest(one(result));
+  }
+
+  async updatePreferenceRequest(request: SchedulerPreferenceRequest) {
+    const result = await this.executor.query<SchedulerPreferenceRequestRow>(
+      `UPDATE scheduler_preference_requests
+       SET status = $2,
+           resolution_note = $3,
+           resolved_by_user_id = $4,
+           resolved_at = $5,
+           updated_at = $6
+       WHERE id = $1
+       RETURNING *`,
+      [
+        request.id,
+        request.status,
+        request.resolutionNote ?? null,
+        request.resolvedByUserId ?? null,
+        request.resolvedAt ?? null,
+        request.updatedAt
+      ]
+    );
+    return mapSchedulerPreferenceRequest(one(result));
+  }
+
+  async getPreferenceRequest(requestId: string) {
+    const result = await this.executor.query<SchedulerPreferenceRequestRow>(
+      "SELECT * FROM scheduler_preference_requests WHERE id = $1",
+      [requestId]
+    );
+    return result.rows[0] ? mapSchedulerPreferenceRequest(result.rows[0]) : undefined;
+  }
+
+  async listPreferenceRequestsForGym(gymId: string) {
+    const result = await this.executor.query<SchedulerPreferenceRequestRow>(
+      "SELECT * FROM scheduler_preference_requests WHERE gym_id = $1 ORDER BY created_at DESC",
+      [gymId]
+    );
+    return result.rows.map(mapSchedulerPreferenceRequest);
+  }
+
+  async listPreferenceRequestsForStaff(gymId: string, userId: string) {
+    const result = await this.executor.query<SchedulerPreferenceRequestRow>(
+      `SELECT * FROM scheduler_preference_requests
+       WHERE gym_id = $1 AND user_id = $2
+       ORDER BY created_at DESC`,
+      [gymId, userId]
+    );
+    return result.rows.map(mapSchedulerPreferenceRequest);
   }
 
   async createRequest(request: SchedulerRequest) {
@@ -2309,6 +2468,43 @@ function mapSchedulerAvailability(row: SchedulerAvailabilityRow): SchedulerAvail
     availability.notes = row.notes;
   }
   return availability;
+}
+
+function mapSchedulerSettings(row: SchedulerSettingsRow): SchedulerSettings {
+  return {
+    gymId: row.gym_id,
+    planningHorizonDays: row.planning_horizon_days,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function mapSchedulerPreferenceRequest(row: SchedulerPreferenceRequestRow): SchedulerPreferenceRequest {
+  const request: SchedulerPreferenceRequest = {
+    id: row.id,
+    gymId: row.gym_id,
+    userId: row.user_id,
+    daysOfWeek: numberArray(row.days_of_week),
+    startTime: row.start_time,
+    endTime: row.end_time,
+    preference: row.preference,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+  if (row.notes) {
+    request.notes = row.notes;
+  }
+  if (row.resolution_note) {
+    request.resolutionNote = row.resolution_note;
+  }
+  if (row.resolved_by_user_id) {
+    request.resolvedByUserId = row.resolved_by_user_id;
+  }
+  if (row.resolved_at) {
+    request.resolvedAt = row.resolved_at;
+  }
+  return request;
 }
 
 function mapSchedulerRequest(row: SchedulerRequestRow): SchedulerRequest {

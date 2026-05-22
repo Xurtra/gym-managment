@@ -929,6 +929,54 @@ export declare const schedulerAvailabilityCreateSchema: z.ZodEffects<z.ZodObject
     notes?: string | undefined;
     preference?: "available" | "preferred" | "unavailable" | undefined;
 }>;
+export declare const schedulerSettingsUpdateSchema: z.ZodObject<{
+    planningHorizonDays: z.ZodNumber;
+}, "strip", z.ZodTypeAny, {
+    planningHorizonDays: number;
+}, {
+    planningHorizonDays: number;
+}>;
+export declare const schedulerPreferenceRequestCreateSchema: z.ZodEffects<z.ZodObject<{
+    daysOfWeek: z.ZodArray<z.ZodNumber, "many">;
+    startTime: z.ZodString;
+    endTime: z.ZodString;
+    preference: z.ZodDefault<z.ZodEnum<["available", "preferred", "unavailable"]>>;
+    notes: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    daysOfWeek: number[];
+    startTime: string;
+    endTime: string;
+    preference: "available" | "preferred" | "unavailable";
+    notes?: string | undefined;
+}, {
+    daysOfWeek: number[];
+    startTime: string;
+    endTime: string;
+    notes?: string | undefined;
+    preference?: "available" | "preferred" | "unavailable" | undefined;
+}>, {
+    daysOfWeek: number[];
+    startTime: string;
+    endTime: string;
+    preference: "available" | "preferred" | "unavailable";
+    notes?: string | undefined;
+}, {
+    daysOfWeek: number[];
+    startTime: string;
+    endTime: string;
+    notes?: string | undefined;
+    preference?: "available" | "preferred" | "unavailable" | undefined;
+}>;
+export declare const schedulerPreferenceRequestResolveSchema: z.ZodObject<{
+    decision: z.ZodEnum<["approve", "decline"]>;
+    resolutionNote: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    decision: "approve" | "decline";
+    resolutionNote?: string | undefined;
+}, {
+    decision: "approve" | "decline";
+    resolutionNote?: string | undefined;
+}>;
 export declare const schedulerRequestCreateSchema: z.ZodObject<{
     shiftId: z.ZodOptional<z.ZodString>;
     requestType: z.ZodDefault<z.ZodEnum<["time_off", "swap", "complaint"]>>;
@@ -944,59 +992,62 @@ export declare const schedulerRequestCreateSchema: z.ZodObject<{
 }>;
 export declare const schedulerGenerateSchema: z.ZodEffects<z.ZodObject<{
     startsOn: z.ZodString;
-    endsOn: z.ZodString;
+    endsOn: z.ZodOptional<z.ZodString>;
     locationId: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     startsOn: string;
-    endsOn: string;
     locationId?: string | undefined;
+    endsOn?: string | undefined;
 }, {
     startsOn: string;
-    endsOn: string;
     locationId?: string | undefined;
+    endsOn?: string | undefined;
 }>, {
     startsOn: string;
-    endsOn: string;
     locationId?: string | undefined;
+    endsOn?: string | undefined;
 }, {
     startsOn: string;
-    endsOn: string;
     locationId?: string | undefined;
+    endsOn?: string | undefined;
 }>;
 export declare const schedulerPublishSchema: z.ZodEffects<z.ZodObject<{
     startsOn: z.ZodString;
-    endsOn: z.ZodString;
+    endsOn: z.ZodOptional<z.ZodString>;
     locationId: z.ZodOptional<z.ZodString>;
 } & {
     replaceExisting: z.ZodDefault<z.ZodBoolean>;
 }, "strip", z.ZodTypeAny, {
     startsOn: string;
-    endsOn: string;
     replaceExisting: boolean;
     locationId?: string | undefined;
+    endsOn?: string | undefined;
 }, {
     startsOn: string;
-    endsOn: string;
     locationId?: string | undefined;
+    endsOn?: string | undefined;
     replaceExisting?: boolean | undefined;
 }>, {
     startsOn: string;
-    endsOn: string;
     replaceExisting: boolean;
     locationId?: string | undefined;
+    endsOn?: string | undefined;
 }, {
     startsOn: string;
-    endsOn: string;
     locationId?: string | undefined;
+    endsOn?: string | undefined;
     replaceExisting?: boolean | undefined;
 }>;
 export declare const schedulerRequestResolveSchema: z.ZodObject<{
     resolutionNote: z.ZodOptional<z.ZodString>;
+    decision: z.ZodDefault<z.ZodEnum<["apply", "decline"]>>;
     autoAssignReplacement: z.ZodDefault<z.ZodBoolean>;
 }, "strip", z.ZodTypeAny, {
+    decision: "decline" | "apply";
     autoAssignReplacement: boolean;
     resolutionNote?: string | undefined;
 }, {
+    decision?: "decline" | "apply" | undefined;
     resolutionNote?: string | undefined;
     autoAssignReplacement?: boolean | undefined;
 }>;
@@ -1630,6 +1681,9 @@ export type StaffSelfClockInInput = z.infer<typeof staffSelfClockInSchema>;
 export type StaffSelfClockOutInput = z.infer<typeof staffSelfClockOutSchema>;
 export type SchedulerCoverageRuleCreateInput = z.infer<typeof schedulerCoverageRuleCreateSchema>;
 export type SchedulerAvailabilityCreateInput = z.infer<typeof schedulerAvailabilityCreateSchema>;
+export type SchedulerSettingsUpdateInput = z.infer<typeof schedulerSettingsUpdateSchema>;
+export type SchedulerPreferenceRequestCreateInput = z.infer<typeof schedulerPreferenceRequestCreateSchema>;
+export type SchedulerPreferenceRequestResolveInput = z.infer<typeof schedulerPreferenceRequestResolveSchema>;
 export type SchedulerRequestCreateInput = z.infer<typeof schedulerRequestCreateSchema>;
 export type SchedulerGenerateInput = z.infer<typeof schedulerGenerateSchema>;
 export type SchedulerPublishInput = z.infer<typeof schedulerPublishSchema>;

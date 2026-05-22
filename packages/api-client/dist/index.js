@@ -130,6 +130,27 @@ export class GymApiClient {
     createSchedulerAvailability(gymId, input) {
         return this.request("POST", `/gyms/${gymId}/scheduler/availability`, input);
     }
+    listMySchedulerAvailability(gymId) {
+        return this.request("GET", `/gyms/${gymId}/scheduler/availability/me`);
+    }
+    getSchedulerSettings(gymId) {
+        return this.request("GET", `/gyms/${gymId}/scheduler/settings`);
+    }
+    updateSchedulerSettings(gymId, input) {
+        return this.request("PATCH", `/gyms/${gymId}/scheduler/settings`, input);
+    }
+    listSchedulerPreferenceRequests(gymId) {
+        return this.request("GET", `/gyms/${gymId}/scheduler/preference-requests`);
+    }
+    listMySchedulerPreferenceRequests(gymId) {
+        return this.request("GET", `/gyms/${gymId}/scheduler/preference-requests/me`);
+    }
+    createSchedulerPreferenceRequest(gymId, input) {
+        return this.request("POST", `/gyms/${gymId}/scheduler/preference-requests`, input);
+    }
+    resolveSchedulerPreferenceRequest(gymId, requestId, input) {
+        return this.request("POST", `/gyms/${gymId}/scheduler/preference-requests/${requestId}/resolve`, input);
+    }
     listSchedulerRequests(gymId) {
         return this.request("GET", `/gyms/${gymId}/scheduler/requests`);
     }

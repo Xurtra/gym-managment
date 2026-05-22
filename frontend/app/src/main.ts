@@ -1,4 +1,4 @@
-﻿import { GymApiClient, ApiError, type ApiTokenStore } from "@gym-platform/api-client";
+import { GymApiClient, ApiError, type ApiTokenStore } from "@gym-platform/api-client";
 import {
   AccessDeviceType,
   BillingInterval,
@@ -535,6 +535,25 @@ interface SchedulerAvailabilityRecord {
   notes?: string;
 }
 
+interface SchedulerSettingsRecord {
+  gymId: string;
+  planningHorizonDays: number;
+}
+
+interface SchedulerPreferenceRequestRecord {
+  id: string;
+  gymId: string;
+  userId: string;
+  daysOfWeek: number[];
+  startTime: string;
+  endTime: string;
+  preference: "available" | "preferred" | "unavailable";
+  notes?: string;
+  status: "open" | "approved" | "declined";
+  resolutionNote?: string;
+  createdAt: string;
+}
+
 interface SchedulerRequestRecord {
   id: string;
   gymId: string;
@@ -660,14 +679,21 @@ interface AppState {
   selectedRoleId: string;
   staffShifts: StaffShiftRecord[];
   staffTimeEntries: StaffTimeEntryRecord[];
+  schedulerSettings: SchedulerSettingsRecord | null;
   schedulerRules: SchedulerCoverageRuleRecord[];
   schedulerAvailability: SchedulerAvailabilityRecord[];
+  mySchedulerAvailability: SchedulerAvailabilityRecord[];
+  schedulerPreferenceRequests: SchedulerPreferenceRequestRecord[];
+  mySchedulerPreferenceRequests: SchedulerPreferenceRequestRecord[];
   schedulerRequests: SchedulerRequestRecord[];
+  mySchedulerRequests: SchedulerRequestRecord[];
   schedulerDraft?: ScheduleDraftRecord;
   staffAccessSearch: string;
   staffAccessRoleFilter: string;
   staffScheduleCalendarOpen: boolean;
   staffScheduleCalendarMonth: string;
+  staffScheduleRequestModalOpen: boolean;
+  staffPreferenceRequestModalOpen: boolean;
   staffClockModalOpen: boolean;
   staffRemovalUserId?: string;
   banner?: { tone: BannerTone; text: string };
@@ -759,14 +785,21 @@ const state: AppState = {
   selectedRoleId: "",
   staffShifts: [],
   staffTimeEntries: [],
+  schedulerSettings: null,
   schedulerRules: [],
   schedulerAvailability: [],
+  mySchedulerAvailability: [],
+  schedulerPreferenceRequests: [],
+  mySchedulerPreferenceRequests: [],
   schedulerRequests: [],
+  mySchedulerRequests: [],
   schedulerDraft: undefined,
   staffAccessSearch: "",
   staffAccessRoleFilter: "",
   staffScheduleCalendarOpen: false,
   staffScheduleCalendarMonth: toMonthKey(new Date()),
+  staffScheduleRequestModalOpen: false,
+  staffPreferenceRequestModalOpen: false,
   staffClockModalOpen: false,
   staffRemovalUserId: undefined,
   dashboardView: initialRoute.dashboardView,
@@ -898,12 +931,15 @@ function normalizeInitialPublicSlug(wasExplicitSlug: boolean) {
   }
 }
 
-async function refreshDashboard() {
+async function refreshDashboard(options: { silent?: boolean; renderAfter?: boolean } = {}) {
   if (!state.session) {
     return;
   }
-  state.dashboardLoading = true;
-  render();
+  const shouldRenderAfter = options.renderAfter ?? true;
+  if (!options.silent) {
+    state.dashboardLoading = true;
+    render();
+  }
   try {
     const me = (await client.me()) as MeResponse;
     state.me = me;
@@ -1017,7 +1053,21 @@ async function refreshDashboard() {
       state.staff = staffResponse.staff ?? [];
       state.staffShifts = staffShiftResponse.shifts ?? [];
       state.staffTimeEntries = staffTimeEntryResponse.entries ?? [];
-      const [schedulerRulesResponse, schedulerAvailabilityResponse, schedulerRequestsResponse] = await Promise.all([
+      const [
+        schedulerSettingsResponse,
+        schedulerRulesResponse,
+        schedulerAvailabilityResponse,
+        mySchedulerAvailabilityResponse,
+        schedulerPreferenceRequestsResponse,
+        mySchedulerPreferenceRequestsResponse,
+        schedulerRequestsResponse,
+        mySchedulerRequestsResponse
+      ] = await Promise.all([
+        loadPermittedDashboardData(
+          canReadScheduler,
+          () => client.getSchedulerSettings(state.gym!.id) as Promise<SchedulerSettingsRecord>,
+          null
+        ),
         loadPermittedDashboardData(
           canReadScheduler,
           () => client.listSchedulerRules(state.gym!.id) as Promise<{ rules?: SchedulerCoverageRuleRecord[] }>,
@@ -1029,14 +1079,39 @@ async function refreshDashboard() {
           { availability: [] }
         ),
         loadPermittedDashboardData(
+          canReadOwnShifts,
+          () => client.listMySchedulerAvailability(state.gym!.id) as Promise<{ availability?: SchedulerAvailabilityRecord[] }>,
+          { availability: [] }
+        ),
+        loadPermittedDashboardData(
+          canReadScheduler,
+          () => client.listSchedulerPreferenceRequests(state.gym!.id) as Promise<{ requests?: SchedulerPreferenceRequestRecord[] }>,
+          { requests: [] }
+        ),
+        loadPermittedDashboardData(
+          canReadOwnShifts,
+          () => client.listMySchedulerPreferenceRequests(state.gym!.id) as Promise<{ requests?: SchedulerPreferenceRequestRecord[] }>,
+          { requests: [] }
+        ),
+        loadPermittedDashboardData(
           hasPermission(Permission.ScheduleRequestsManage),
           () => client.listSchedulerRequests(state.gym!.id) as Promise<{ requests?: SchedulerRequestRecord[] }>,
           { requests: [] }
+        ),
+        loadPermittedDashboardData(
+          canReadOwnShifts,
+          () => client.listMySchedulerRequests(state.gym!.id) as Promise<{ requests?: SchedulerRequestRecord[] }>,
+          { requests: [] }
         )
       ]);
+      state.schedulerSettings = schedulerSettingsResponse;
       state.schedulerRules = schedulerRulesResponse.rules ?? [];
       state.schedulerAvailability = schedulerAvailabilityResponse.availability ?? [];
+      state.mySchedulerAvailability = mySchedulerAvailabilityResponse.availability ?? [];
+      state.schedulerPreferenceRequests = schedulerPreferenceRequestsResponse.requests ?? [];
+      state.mySchedulerPreferenceRequests = mySchedulerPreferenceRequestsResponse.requests ?? [];
       state.schedulerRequests = schedulerRequestsResponse.requests ?? [];
+      state.mySchedulerRequests = mySchedulerRequestsResponse.requests ?? [];
       const [devicesResponse, rulesResponse, eventsResponse] = (await Promise.all([
         loadPermittedDashboardData(
           canReadAccess,
@@ -1090,7 +1165,9 @@ async function refreshDashboard() {
     setBanner("error", describeError(error));
   } finally {
     state.dashboardLoading = false;
-    render();
+    if (shouldRenderAfter) {
+      render();
+    }
   }
 }
 
@@ -2072,6 +2149,8 @@ function renderStaffView() {
         ${staffTools ? `<div class="section-stack">${staffTools}</div>` : ""}
       </div>
       ${state.staffScheduleCalendarOpen ? renderStaffShiftCalendarModal() : ""}
+      ${state.staffScheduleRequestModalOpen ? renderStaffScheduleRequestModal() : ""}
+      ${state.staffPreferenceRequestModalOpen ? renderStaffPreferenceRequestModal() : ""}
       ${state.staffRemovalUserId ? renderStaffRemovalModal() : ""}
     </section>
   `;
@@ -2081,10 +2160,8 @@ function renderSchedulerView() {
   const canRead = hasPermission(Permission.ScheduleRead);
   const canCreate = hasPermission(Permission.ScheduleCreate);
   const canPublish = hasPermission(Permission.SchedulePublish);
-  const canResolve = hasPermission(Permission.ScheduleAutoResolve);
-  const staffOptions = staffDirectoryRows()
-    .filter((staff) => staff.status === UserStatus.Active)
-    .map((staff) => ({ value: staff.userId, label: staffFullName(staff) }));
+  const canManageRequests = hasPermission(Permission.ScheduleRequestsManage);
+  const canAutoResolve = hasPermission(Permission.ScheduleAutoResolve);
   const roleOptions = staffAssignableRoles().map((role) => ({
     value: role.id,
     label: formatRoleLabel(role.name)
@@ -2094,7 +2171,9 @@ function renderSchedulerView() {
     ...locationSelectOptions()
   ];
   const today = toDateInputValue(new Date());
-  const nextWeek = toDateInputValue(new Date(Date.now() + 6 * 24 * 60 * 60 * 1000));
+  const horizonDays = state.schedulerSettings?.planningHorizonDays ?? 14;
+  const openScheduleRequests = state.schedulerRequests.filter((request) => request.status === "open").length;
+  const openPreferenceRequests = state.schedulerPreferenceRequests.filter((request) => request.status === "open").length;
   if (!canRead) {
     return `
       <section class="club-panel club-page">
@@ -2112,7 +2191,7 @@ function renderSchedulerView() {
           <h2>Automated schedule builder</h2>
           <p class="club-copy">Create coverage rules, track availability, generate a draft schedule, then publish shifts to staff.</p>
         </div>
-        <span>${state.schedulerRules.length} rules · ${state.schedulerRequests.filter((request) => request.status === "open").length} open requests</span>
+        <span>${state.schedulerRules.length} rules · ${openScheduleRequests + openPreferenceRequests} open requests</span>
       </div>
       <div class="club-page-split">
         <div class="section-stack">
@@ -2125,10 +2204,10 @@ function renderSchedulerView() {
             </div>
             <form id="scheduler-generate-form" class="scheduler-inline-form">
               ${renderInput("startsOn", "Starts on", "date", today)}
-              ${renderInput("endsOn", "Ends on", "date", nextWeek)}
               ${renderSelect("locationId", "Location", locationOptions, "")}
               <button type="submit" ${canCreate ? "" : "disabled"}>Create schedule</button>
             </form>
+            <p class="muted">Uses the saved planning horizon: ${horizonDays} days from the start date.</p>
             ${state.schedulerDraft ? renderSchedulerDraft(canPublish) : `<div class="settings-placeholder"><strong>No draft yet</strong><p>Create a schedule to preview assignments and coverage warnings.</p></div>`}
           </div>
           <div class="club-panel">
@@ -2138,15 +2217,26 @@ function renderSchedulerView() {
                 <p class="club-copy">Employee complaints, swap requests, and time-off notes land here for manager review.</p>
               </div>
             </div>
-            ${renderSchedulerRequests(canResolve)}
+            ${renderSchedulerRequests(canAutoResolve, canManageRequests)}
+          </div>
+          <div class="club-panel">
+            <div class="card-head">
+              <div>
+                <h3>Long-term preference requests</h3>
+                <p class="club-copy">Approve or decline staff schedule preferences before the algorithm uses them.</p>
+              </div>
+              <span>${openPreferenceRequests} open</span>
+            </div>
+            ${renderSchedulerPreferenceRequests(canManageRequests)}
           </div>
         </div>
         <div class="section-stack">
+          ${renderSchedulerSettingsCard(canCreate, horizonDays)}
           <details class="form-card expandable-card" ${canCreate ? "" : "open"}>
             <summary class="expandable-summary">
               <span>
-                <h3>Coverage rule</h3>
-                <p class="muted">Tell the scheduler what role is needed and when.</p>
+                <h3>Business staffing need</h3>
+                <p class="muted">Tell the scheduler what role needs coverage and at what time.</p>
               </span>
               <span class="expandable-action">Expand</span>
             </summary>
@@ -2164,24 +2254,14 @@ function renderSchedulerView() {
           <details class="form-card expandable-card">
             <summary class="expandable-summary">
               <span>
-                <h3>Availability</h3>
-                <p class="muted">Add preferred or blocked working windows for staff.</p>
+                <h3>Active staff preferences</h3>
+                <p class="muted">Approved long-term preferences the algorithm considers.</p>
               </span>
               <span class="expandable-action">Expand</span>
             </summary>
-            <form id="scheduler-availability-form" class="expandable-body">
-              ${renderSelect("userId", "Staff member", staffOptions.length ? staffOptions : [{ value: "", label: "No active staff" }], staffOptions[0]?.value ?? "")}
-              ${renderSelect("preference", "Preference", [
-                { value: "available", label: "Available" },
-                { value: "preferred", label: "Preferred" },
-                { value: "unavailable", label: "Unavailable" }
-              ], "available")}
-              ${renderSchedulerDayPicker()}
-              ${renderInput("startTime", "Start time", "time", "09:00")}
-              ${renderInput("endTime", "End time", "time", "17:00")}
-              ${renderInput("notes", "Notes", "text", "")}
-              <button type="submit" ${canCreate && staffOptions.length ? "" : "disabled"}>Save availability</button>
-            </form>
+            <div class="expandable-body">
+              ${renderSchedulerAvailabilitySummary()}
+            </div>
           </details>
           <details class="form-card expandable-card">
             <summary class="expandable-summary">
@@ -2192,19 +2272,73 @@ function renderSchedulerView() {
               <span class="expandable-action">Expand</span>
             </summary>
             <form id="scheduler-request-form" class="expandable-body">
-              ${renderSelect("shiftId", "Related shift", signedInStaffShifts().length ? [{ value: "", label: "No specific shift" }, ...signedInStaffShifts().map((shift) => ({ value: shift.id, label: `${new Date(shift.startsAt).toLocaleDateString()} ${new Date(shift.startsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` }))] : [{ value: "", label: "No specific shift" }], "")}
-              ${renderSelect("requestType", "Request type", [
-                { value: "complaint", label: "Complaint / conflict" },
-                { value: "swap", label: "Need a replacement" },
-                { value: "time_off", label: "Time off" }
-              ], "complaint")}
-              <label class="field"><span>Message</span><textarea name="message" rows="4" placeholder="Explain what needs to change"></textarea></label>
+              ${renderSchedulerRequestFields()}
               <button type="submit">Send request</button>
             </form>
           </details>
         </div>
       </div>
     </section>
+  `;
+}
+
+function renderSchedulerSettingsCard(canCreate: boolean, horizonDays: number) {
+  return `
+    <details class="form-card expandable-card" open>
+      <summary class="expandable-summary">
+        <span>
+          <h3>Schedule planning setup</h3>
+          <p class="muted">Controls how far into the future the generator builds.</p>
+        </span>
+        <span class="expandable-action">Expand</span>
+      </summary>
+      <form id="scheduler-settings-form" class="expandable-body">
+        ${renderInput("planningHorizonDays", "Generate this many days", "number", String(horizonDays))}
+        <p class="muted">Allowed range is 1 to 90 days. Coverage rules decide which times need staff during that range.</p>
+        <button type="submit" ${canCreate ? "" : "disabled"}>Save planning setup</button>
+      </form>
+    </details>
+  `;
+}
+
+function renderSchedulerRequestFields() {
+  const shiftOptions = [
+    { value: "", label: "No specific shift" },
+    ...signedInStaffShifts().map((shift) => ({
+      value: shift.id,
+      label: `${shiftTimeLabel(shift)}${shift.locationId ? ` · ${locationName(shift.locationId)}` : ""}`
+    }))
+  ];
+  return `
+    ${renderSelect("shiftId", "Related shift", shiftOptions, "")}
+    ${renderSelect("requestType", "Request type", [
+      { value: "complaint", label: "Schedule conflict or concern" },
+      { value: "swap", label: "Need someone to cover this shift" },
+      { value: "time_off", label: "Time off request" }
+    ], "complaint")}
+    <label class="field">
+      <span>Message</span>
+      <textarea name="message" rows="4" placeholder="Explain what needs to change and when"></textarea>
+    </label>
+    <p class="muted">This sends a request to the scheduler team. Your published schedule stays the same until someone with scheduler access applies a change.</p>
+  `;
+}
+
+function renderSchedulerPreferenceRequestFields() {
+  return `
+    ${renderSelect("preference", "Preference type", [
+      { value: "preferred", label: "I prefer being scheduled then" },
+      { value: "available", label: "I am available then" },
+      { value: "unavailable", label: "Please avoid scheduling me then" }
+    ], "preferred")}
+    ${renderSchedulerDayPicker()}
+    ${renderInput("startTime", "Start time", "time", "09:00")}
+    ${renderInput("endTime", "End time", "time", "17:00")}
+    <label class="field">
+      <span>Reason / notes</span>
+      <textarea name="notes" rows="4" placeholder="Example: I prefer afternoon shifts because mornings conflict with classes."></textarea>
+    </label>
+    <p class="muted">Schedulers approve or decline this before the algorithm starts using it for future schedules.</p>
   `;
 }
 
@@ -2259,7 +2393,7 @@ function renderSchedulerDraft(canPublish: boolean) {
   `;
 }
 
-function renderSchedulerRequests(canResolve: boolean) {
+function renderSchedulerRequests(canAutoResolve: boolean, canManageRequests: boolean) {
   const requests = state.schedulerRequests;
   if (requests.length === 0) {
     return `<div class="settings-placeholder"><strong>No requests yet</strong><p>Employees can submit schedule issues from this tab.</p></div>`;
@@ -2269,6 +2403,7 @@ function renderSchedulerRequests(canResolve: boolean) {
       ${requests.slice(0, 8).map((request) => {
         const staff = staffByUserId(request.userId);
         const replacement = request.suggestedReplacementUserId ? staffByUserId(request.suggestedReplacementUserId) : undefined;
+        const canApplyRequest = request.shiftId ? canAutoResolve : canManageRequests;
         return `
           <article class="staff-role-row">
             <div class="staff-role-copy">
@@ -2281,7 +2416,62 @@ function renderSchedulerRequests(canResolve: boolean) {
               ${request.resolutionNote ? `<span class="staff-clock-chip">${escapeHtml(request.resolutionNote)}</span>` : ""}
             </div>
             <div class="staff-role-actions">
-              <button type="button" class="ghost-button" data-scheduler-resolve="${escapeAttribute(request.id)}" ${canResolve && request.status === "open" ? "" : "disabled"}>Auto resolve</button>
+              <button type="button" class="ghost-button" data-scheduler-resolve="${escapeAttribute(request.id)}" data-scheduler-resolve-auto="${request.shiftId ? "true" : "false"}" ${canApplyRequest && request.status === "open" ? "" : "disabled"}>${request.shiftId ? "Apply change" : "Mark reviewed"}</button>
+              <button type="button" class="ghost-button danger" data-scheduler-decline="${escapeAttribute(request.id)}" ${canManageRequests && request.status === "open" ? "" : "disabled"}>Decline</button>
+            </div>
+          </article>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function renderSchedulerPreferenceRequests(canManageRequests: boolean) {
+  const requests = state.schedulerPreferenceRequests;
+  if (requests.length === 0) {
+    return `<div class="settings-placeholder"><strong>No preference requests yet</strong><p>Employees can request long-term schedule preferences from their Staff page.</p></div>`;
+  }
+  return `
+    <div class="staff-role-list">
+      ${requests.slice(0, 8).map((request) => {
+        const staff = staffByUserId(request.userId);
+        return `
+          <article class="staff-role-row">
+            <div class="staff-role-copy">
+              <div class="staff-role-title">
+                <strong>${escapeHtml(staff ? staffFullName(staff) : "Employee")}</strong>
+                <span class="staff-status-chip">${escapeHtml(formatRoleLabel(request.status))}</span>
+              </div>
+              <p>${escapeHtml(formatPreferenceLabel(request.preference))} · ${escapeHtml(daysOfWeekLabel(request.daysOfWeek))} · ${escapeHtml(timeRangeLabel(request.startTime, request.endTime))}</p>
+              ${request.notes ? `<span class="staff-clock-chip">${escapeHtml(request.notes)}</span>` : ""}
+              ${request.resolutionNote ? `<span class="staff-clock-chip">${escapeHtml(request.resolutionNote)}</span>` : ""}
+            </div>
+            <div class="staff-role-actions">
+              <button type="button" class="ghost-button" data-scheduler-preference-approve="${escapeAttribute(request.id)}" ${canManageRequests && request.status === "open" ? "" : "disabled"}>Approve</button>
+              <button type="button" class="ghost-button danger" data-scheduler-preference-decline="${escapeAttribute(request.id)}" ${canManageRequests && request.status === "open" ? "" : "disabled"}>Decline</button>
+            </div>
+          </article>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function renderSchedulerAvailabilitySummary() {
+  if (state.schedulerAvailability.length === 0) {
+    return `<div class="settings-placeholder"><strong>No active preferences saved</strong><p>Approved employee preferences and manually saved availability will appear here.</p></div>`;
+  }
+  return `
+    <div class="staff-request-summary">
+      ${state.schedulerAvailability.slice(0, 6).map((availability) => {
+        const staff = staffByUserId(availability.userId);
+        return `
+          <article class="staff-request-summary-row">
+            <span class="staff-status-chip">${escapeHtml(formatPreferenceLabel(availability.preference))}</span>
+            <div>
+              <strong>${escapeHtml(staff ? staffFullName(staff) : "Staff")}</strong>
+              <p>${escapeHtml(daysOfWeekLabel(availability.daysOfWeek))} · ${escapeHtml(timeRangeLabel(availability.startTime, availability.endTime))}</p>
+              ${availability.notes ? `<small>${escapeHtml(availability.notes)}</small>` : ""}
             </div>
           </article>
         `;
@@ -3304,6 +3494,8 @@ function formatDuration(durationMs: number) {
 function renderStaffShiftList() {
   const shifts = upcomingStaffShifts();
   const myShifts = signedInStaffShifts();
+  const openRequests = state.mySchedulerRequests.filter((request) => request.status === "open");
+  const openPreferenceRequests = state.mySchedulerPreferenceRequests.filter((request) => request.status === "open");
   return `
     <div class="club-panel">
       <div class="card-head">
@@ -3313,6 +3505,12 @@ function renderStaffShiftList() {
         </div>
         <div class="staff-shift-head-actions">
           <span>${shifts.length} upcoming</span>
+          <button type="button" class="ghost-button" data-staff-schedule-request-open>
+            Request change${openRequests.length ? ` (${openRequests.length})` : ""}
+          </button>
+          <button type="button" class="ghost-button" data-staff-preference-request-open>
+            Request preferences${openPreferenceRequests.length ? ` (${openPreferenceRequests.length})` : ""}
+          </button>
           <button type="button" class="ghost-button" data-staff-calendar-open>
             My calendar${myShifts.length ? ` (${myShifts.length})` : ""}
           </button>
@@ -3331,6 +3529,69 @@ function renderStaffShiftList() {
               </article>
             `).join("")}
       </div>
+      ${renderMySchedulerRequestsSummary()}
+      ${renderMySchedulerPreferencesSummary()}
+    </div>
+  `;
+}
+
+function renderMySchedulerRequestsSummary() {
+  const requests = state.mySchedulerRequests;
+  if (requests.length === 0) {
+    return "";
+  }
+  return `
+    <div class="staff-request-summary">
+      <div class="staff-shift-head-actions">
+        <strong>My schedule requests</strong>
+        <span>${requests.filter((request) => request.status === "open").length} open</span>
+      </div>
+      ${requests.slice(0, 3).map((request) => `
+        <article class="staff-request-summary-row">
+          <span class="staff-status-chip">${escapeHtml(formatRoleLabel(request.status))}</span>
+          <div>
+            <strong>${escapeHtml(formatRoleLabel(request.requestType))}</strong>
+            <p>${escapeHtml(request.message)}</p>
+            ${request.resolutionNote ? `<small>${escapeHtml(request.resolutionNote)}</small>` : ""}
+          </div>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderMySchedulerPreferencesSummary() {
+  const activePreferences = state.mySchedulerAvailability;
+  const requests = state.mySchedulerPreferenceRequests;
+  if (activePreferences.length === 0 && requests.length === 0) {
+    return "";
+  }
+  return `
+    <div class="staff-request-summary">
+      <div class="staff-shift-head-actions">
+        <strong>My long-term preferences</strong>
+        <span>${requests.filter((request) => request.status === "open").length} pending</span>
+      </div>
+      ${activePreferences.slice(0, 3).map((availability) => `
+        <article class="staff-request-summary-row">
+          <span class="staff-status-chip">${escapeHtml(formatPreferenceLabel(availability.preference))}</span>
+          <div>
+            <strong>Approved preference</strong>
+            <p>${escapeHtml(daysOfWeekLabel(availability.daysOfWeek))} · ${escapeHtml(timeRangeLabel(availability.startTime, availability.endTime))}</p>
+            ${availability.notes ? `<small>${escapeHtml(availability.notes)}</small>` : ""}
+          </div>
+        </article>
+      `).join("")}
+      ${requests.slice(0, 3).map((request) => `
+        <article class="staff-request-summary-row">
+          <span class="staff-status-chip">${escapeHtml(formatRoleLabel(request.status))}</span>
+          <div>
+            <strong>${escapeHtml(formatPreferenceLabel(request.preference))}</strong>
+            <p>${escapeHtml(daysOfWeekLabel(request.daysOfWeek))} · ${escapeHtml(timeRangeLabel(request.startTime, request.endTime))}</p>
+            ${request.resolutionNote ? `<small>${escapeHtml(request.resolutionNote)}</small>` : request.notes ? `<small>${escapeHtml(request.notes)}</small>` : ""}
+          </div>
+        </article>
+      `).join("")}
     </div>
   `;
 }
@@ -3366,6 +3627,62 @@ function renderStaffShiftCalendarModal() {
         ${myShifts.length === 0
           ? `<div class="settings-placeholder"><strong>No shifts assigned to you</strong><p>When your account is scheduled, those shifts will appear on this calendar.</p></div>`
           : ""}
+      </section>
+    </div>
+  `;
+}
+
+function renderStaffScheduleRequestModal() {
+  const openRequests = state.mySchedulerRequests.filter((request) => request.status === "open");
+  return `
+    <div class="staff-schedule-request-backdrop" data-staff-schedule-request-close>
+      <section class="staff-schedule-request-modal" role="dialog" aria-modal="true" aria-label="Request schedule change">
+        <div class="card-head">
+          <div>
+            <p class="eyebrow">My Schedule</p>
+            <h3>Request schedule change</h3>
+            <p class="club-copy">Send a schedule issue to the people who can edit and publish shifts.</p>
+          </div>
+          <button type="button" class="ghost-button" data-staff-schedule-request-close>Close</button>
+        </div>
+        ${openRequests.length
+          ? `<div class="staff-clock-status-card"><span>Open requests</span><strong>${openRequests.length}</strong><small>Your schedule stays unchanged until a scheduler applies a change.</small></div>`
+          : ""}
+        <form id="scheduler-request-form" class="staff-schedule-request-form" data-scheduler-request-modal="true">
+          ${renderSchedulerRequestFields()}
+          <div class="staff-schedule-request-actions">
+            <button type="button" class="ghost-button" data-staff-schedule-request-close>Cancel</button>
+            <button type="submit">Send request</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  `;
+}
+
+function renderStaffPreferenceRequestModal() {
+  const openRequests = state.mySchedulerPreferenceRequests.filter((request) => request.status === "open");
+  return `
+    <div class="staff-schedule-request-backdrop" data-staff-preference-request-close>
+      <section class="staff-schedule-request-modal" role="dialog" aria-modal="true" aria-label="Request long-term scheduling preferences">
+        <div class="card-head">
+          <div>
+            <p class="eyebrow">My Schedule</p>
+            <h3>Request long-term preferences</h3>
+            <p class="club-copy">Ask the scheduler to save preferred or blocked working windows for future schedules.</p>
+          </div>
+          <button type="button" class="ghost-button" data-staff-preference-request-close>Close</button>
+        </div>
+        ${openRequests.length
+          ? `<div class="staff-clock-status-card"><span>Pending preference requests</span><strong>${openRequests.length}</strong><small>Approved preferences replace your currently saved long-term preference.</small></div>`
+          : ""}
+        <form id="scheduler-preference-request-form" class="staff-schedule-request-form">
+          ${renderSchedulerPreferenceRequestFields()}
+          <div class="staff-schedule-request-actions">
+            <button type="button" class="ghost-button" data-staff-preference-request-close>Cancel</button>
+            <button type="submit">Send preferences</button>
+          </div>
+        </form>
       </section>
     </div>
   `;
@@ -3670,6 +3987,32 @@ function shiftTimeOnlyLabel(shift: StaffShiftRecord) {
   const startsAt = new Date(shift.startsAt);
   const endsAt = new Date(shift.endsAt);
   return `${startsAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} - ${endsAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+}
+
+function timeRangeLabel(startTime: string, endTime: string) {
+  const date = toDateInputValue(new Date());
+  const start = new Date(`${date}T${startTime}:00`);
+  const end = new Date(`${date}T${endTime}:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return `${startTime} - ${endTime}`;
+  }
+  return `${start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} - ${end.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+}
+
+function daysOfWeekLabel(days: number[]) {
+  const labels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const normalized = [...new Set(days)].filter((day) => day >= 0 && day <= 6).sort();
+  return normalized.length ? normalized.map((day) => labels[day] ?? String(day)).join(", ") : "No days selected";
+}
+
+function formatPreferenceLabel(preference: SchedulerAvailabilityRecord["preference"]) {
+  if (preference === "preferred") {
+    return "Preferred";
+  }
+  if (preference === "unavailable") {
+    return "Avoid";
+  }
+  return "Available";
 }
 
 function shiftDurationMinutes(shift: StaffShiftRecord) {
@@ -5125,7 +5468,7 @@ function bindEvents() {
         if (error instanceof ApiError && error.status === 404 && error.code === "not_found") {
           removeCheckInLocally(checkInId, record);
           setBanner("info", `Check-in for ${label} was already removed on the server, so it was cleared from the screen.`);
-          await refreshDashboard();
+          await refreshDashboard({ silent: true });
           render();
           return;
         }
@@ -5187,7 +5530,7 @@ function bindEvents() {
       try {
         await client.deleteCustomRole(state.gym.id, role.id);
         setBanner("success", "Role deleted from the authorization tree.");
-        await refreshDashboard();
+        await refreshDashboard({ silent: true });
         navigateDashboardView("staff", { preserveContext: true });
       } catch (error) {
         setBanner("error", describeError(error));
@@ -5205,7 +5548,7 @@ function bindEvents() {
         });
         setBanner("success", "Generated schedule published to staff shifts.");
         state.schedulerDraft = undefined;
-        await refreshDashboard();
+        await refreshDashboard({ silent: true });
         navigateDashboardView("scheduler", { preserveContext: true });
       } catch (error) {
         setBanner("error", describeError(error));
@@ -5217,12 +5560,73 @@ function bindEvents() {
       if (!state.gym) return;
       const requestId = button.dataset.schedulerResolve;
       if (!requestId) return;
+      const autoAssignReplacement = button.dataset.schedulerResolveAuto === "true";
       try {
         await client.resolveSchedulerRequest(state.gym.id, requestId, {
-          autoAssignReplacement: true
+          decision: "apply",
+          autoAssignReplacement
         });
-        setBanner("success", "Schedule request reviewed and replacement search completed.");
-        await refreshDashboard();
+        setBanner("success", "Schedule request reviewed and change applied when a replacement was available.");
+        await refreshDashboard({ silent: true });
+        navigateDashboardView("scheduler", { preserveContext: true });
+      } catch (error) {
+        setBanner("error", describeError(error));
+      }
+    });
+  });
+  app.querySelectorAll<HTMLButtonElement>("[data-scheduler-decline]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!state.gym) return;
+      const requestId = button.dataset.schedulerDecline;
+      if (!requestId) return;
+      const resolutionNote = window.prompt("Why is this schedule request being declined?", "Declined after scheduler review.");
+      if (resolutionNote === null) return;
+      try {
+        await client.resolveSchedulerRequest(state.gym.id, requestId, {
+          decision: "decline",
+          autoAssignReplacement: false,
+          resolutionNote: resolutionNote.trim() || "Declined after scheduler review."
+        });
+        setBanner("success", "Schedule request declined.");
+        await refreshDashboard({ silent: true });
+        navigateDashboardView("scheduler", { preserveContext: true });
+      } catch (error) {
+        setBanner("error", describeError(error));
+      }
+    });
+  });
+  app.querySelectorAll<HTMLButtonElement>("[data-scheduler-preference-approve]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!state.gym) return;
+      const requestId = button.dataset.schedulerPreferenceApprove;
+      if (!requestId) return;
+      try {
+        await client.resolveSchedulerPreferenceRequest(state.gym.id, requestId, {
+          decision: "approve",
+          resolutionNote: "Approved for future schedule generation."
+        });
+        setBanner("success", "Long-term preference approved and saved.");
+        await refreshDashboard({ silent: true });
+        navigateDashboardView("scheduler", { preserveContext: true });
+      } catch (error) {
+        setBanner("error", describeError(error));
+      }
+    });
+  });
+  app.querySelectorAll<HTMLButtonElement>("[data-scheduler-preference-decline]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!state.gym) return;
+      const requestId = button.dataset.schedulerPreferenceDecline;
+      if (!requestId) return;
+      const resolutionNote = window.prompt("Why is this long-term preference being declined?", "Preference is too restrictive for coverage needs.");
+      if (resolutionNote === null) return;
+      try {
+        await client.resolveSchedulerPreferenceRequest(state.gym.id, requestId, {
+          decision: "decline",
+          resolutionNote: resolutionNote.trim() || "Preference is too restrictive for coverage needs."
+        });
+        setBanner("success", "Long-term preference declined.");
+        await refreshDashboard({ silent: true });
         navigateDashboardView("scheduler", { preserveContext: true });
       } catch (error) {
         setBanner("error", describeError(error));
@@ -5262,6 +5666,37 @@ function bindEvents() {
   app.querySelectorAll<HTMLButtonElement>("[data-staff-calendar-today]").forEach((button) => {
     button.addEventListener("click", () => {
       state.staffScheduleCalendarMonth = toMonthKey(new Date());
+      render();
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-staff-schedule-request-open]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.staffScheduleRequestModalOpen = true;
+      render();
+    });
+  });
+  app.querySelectorAll<HTMLElement>("[data-staff-schedule-request-close]").forEach((element) => {
+    element.addEventListener("click", (event) => {
+      if (element.classList.contains("staff-schedule-request-backdrop") && event.target !== element) {
+        return;
+      }
+      state.staffScheduleRequestModalOpen = false;
+      render();
+    });
+  });
+  app.querySelectorAll<HTMLButtonElement>("[data-staff-preference-request-open]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.staffPreferenceRequestModalOpen = true;
+      render();
+    });
+  });
+  app.querySelectorAll<HTMLElement>("[data-staff-preference-request-close]").forEach((element) => {
+    element.addEventListener("click", (event) => {
+      if (element.classList.contains("staff-schedule-request-backdrop") && event.target !== element) {
+        return;
+      }
+      state.staffPreferenceRequestModalOpen = false;
       render();
     });
   });
@@ -5323,7 +5758,7 @@ function bindEvents() {
         });
         state.staffClockModalOpen = false;
         setBanner("success", `${employee.firstName} ${employee.lastName} clocked ${action === "clock-in" ? "in" : "out"}.`);
-        await refreshDashboard();
+        await refreshDashboard({ silent: true });
         render();
       } catch (error) {
         setBanner("error", describeError(error));
@@ -5347,7 +5782,7 @@ function bindEvents() {
           });
         }
         setBanner("success", "Staff member clocked in.");
-        await refreshDashboard();
+        await refreshDashboard({ silent: true });
         navigateDashboardView("staff", { preserveContext: true });
       } catch (error) {
         setBanner("error", describeError(error));
@@ -5366,7 +5801,7 @@ function bindEvents() {
           await client.clockStaffOut(state.gym.id, { userId });
         }
         setBanner("success", "Staff member clocked out.");
-        await refreshDashboard();
+        await refreshDashboard({ silent: true });
         navigateDashboardView("staff", { preserveContext: true });
       } catch (error) {
         setBanner("error", describeError(error));
@@ -5384,7 +5819,7 @@ function bindEvents() {
       try {
         await client.assignStaffRole(state.gym.id, { userId, roleId });
         setBanner("success", "Staff role updated.");
-        await refreshDashboard();
+        await refreshDashboard({ silent: true });
       } catch (error) {
         setBanner("error", describeError(error));
       }
@@ -5480,7 +5915,7 @@ function bindEvents() {
     });
     state.selectedMemberId = memberId;
     navigateDashboardView("check_in", { preserveContext: true });
-    await refreshDashboard();
+    await refreshDashboard({ silent: true });
   });
 
   bindForm("create-role-form", async (form) => {
@@ -5499,7 +5934,7 @@ function bindEvents() {
       permissions
     });
     setBanner("success", "Custom role created.");
-    await refreshDashboard();
+    await refreshDashboard({ silent: true });
   });
 
   bindForm("create-staff-role-form", async (form) => {
@@ -5523,7 +5958,7 @@ function bindEvents() {
     })) as RoleRecord;
     state.selectedRoleId = role.id ?? state.selectedRoleId;
     setBanner("success", "Role saved. You can assign it from the staff directory.");
-    await refreshDashboard();
+    await refreshDashboard({ silent: true });
     navigateDashboardView("staff", { preserveContext: true });
   });
 
@@ -5543,7 +5978,7 @@ function bindEvents() {
       permissions
     });
     setBanner("success", "Role updated.");
-    await refreshDashboard();
+    await refreshDashboard({ silent: true });
   });
 
   bindForm("create-staff-form", async (form) => {
@@ -5570,7 +6005,7 @@ function bindEvents() {
       password: data.password
     });
     setBanner("success", "Staff account created and assigned to this gym.");
-    await refreshDashboard();
+    await refreshDashboard({ silent: true });
     navigateDashboardView("staff", { preserveContext: true });
   });
 
@@ -5590,7 +6025,7 @@ function bindEvents() {
     await client.removeStaffAccess(state.gym.id, staff.userId, { reason });
     state.staffRemovalUserId = undefined;
     setBanner("success", `Removed gym access for ${staffFullName(staff)}.`);
-    await refreshDashboard();
+    await refreshDashboard({ silent: true });
     navigateDashboardView("staff", { preserveContext: true });
   });
 
@@ -5613,7 +6048,7 @@ function bindEvents() {
       ...(data.notes?.trim() ? { notes: data.notes.trim() } : {})
     });
     setBanner("success", "Staff shift scheduled.");
-    await refreshDashboard();
+    await refreshDashboard({ silent: true });
     navigateDashboardView("staff", { preserveContext: true });
   });
 
@@ -5634,7 +6069,19 @@ function bindEvents() {
       requiredStaff: Number(data.requiredStaff || 1)
     });
     setBanner("success", "Scheduler coverage rule saved.");
-    await refreshDashboard();
+    await refreshDashboard({ silent: true });
+    navigateDashboardView("scheduler", { preserveContext: true });
+  });
+
+  bindForm("scheduler-settings-form", async (form) => {
+    if (!state.gym) return;
+    const data = formData(form);
+    const planningHorizonDays = Number(data.planningHorizonDays || 14);
+    await client.updateSchedulerSettings(state.gym.id, {
+      planningHorizonDays
+    });
+    setBanner("success", "Scheduler planning setup saved.");
+    await refreshDashboard({ silent: true });
     navigateDashboardView("scheduler", { preserveContext: true });
   });
 
@@ -5654,8 +6101,29 @@ function bindEvents() {
       ...(data.notes?.trim() ? { notes: data.notes.trim() } : {})
     });
     setBanner("success", "Availability saved.");
-    await refreshDashboard();
+    await refreshDashboard({ silent: true });
     navigateDashboardView("scheduler", { preserveContext: true });
+  });
+
+  bindForm("scheduler-preference-request-form", async (form) => {
+    if (!state.gym) return;
+    const data = formData(form);
+    const daysOfWeek = schedulerDaysFromForm(form);
+    if (daysOfWeek.length === 0) {
+      throw new Error("Choose at least one day for the preference request.");
+    }
+    await client.createSchedulerPreferenceRequest(state.gym.id, {
+      daysOfWeek,
+      startTime: data.startTime,
+      endTime: data.endTime,
+      preference: data.preference as "available" | "preferred" | "unavailable",
+      ...(data.notes?.trim() ? { notes: data.notes.trim() } : {})
+    });
+    const returnToScheduler = hasPermission(Permission.ScheduleRead) && state.dashboardView === "scheduler";
+    state.staffPreferenceRequestModalOpen = false;
+    setBanner("success", "Long-term preference request sent.");
+    await refreshDashboard({ silent: true });
+    navigateDashboardView(returnToScheduler ? "scheduler" : "staff", { preserveContext: true });
   });
 
   bindForm("scheduler-generate-form", async (form) => {
@@ -5663,7 +6131,6 @@ function bindEvents() {
     const data = formData(form);
     const draft = (await client.generateSchedule(state.gym.id, {
       startsOn: data.startsOn,
-      endsOn: data.endsOn,
       ...(data.locationId ? { locationId: data.locationId } : {})
     })) as ScheduleDraftRecord;
     state.schedulerDraft = draft;
@@ -5682,9 +6149,11 @@ function bindEvents() {
       requestType: data.requestType as "time_off" | "swap" | "complaint",
       message: data.message.trim()
     });
+    const returnToScheduler = hasPermission(Permission.ScheduleRead) && state.dashboardView === "scheduler";
+    state.staffScheduleRequestModalOpen = false;
     setBanner("success", "Schedule request sent.");
-    await refreshDashboard();
-    navigateDashboardView("scheduler", { preserveContext: true });
+    await refreshDashboard({ silent: true });
+    navigateDashboardView(returnToScheduler ? "scheduler" : "staff", { preserveContext: true });
   });
 
   // Check-in forms
@@ -5798,7 +6267,7 @@ function bindEvents() {
     });
     state.selectedMemberId = memberId;
     state.editingMemberId = memberId;
-    await refreshDashboard();
+    await refreshDashboard({ silent: true });
     navigateDashboardView("customer_profile", { preserveContext: true });
   });
 
@@ -5814,7 +6283,7 @@ function bindEvents() {
     await client.updateMember(state.gym.id, memberId, {
       barcode: data.barcode || undefined
     });
-    await refreshDashboard();
+    await refreshDashboard({ silent: true });
     navigateDashboardView("customer_profile", { preserveContext: true });
   });
 
@@ -5833,7 +6302,7 @@ function bindEvents() {
       status: (data.status as MembershipStatus) || MembershipStatus.Active,
       startsAt: new Date().toISOString()
     });
-    await refreshDashboard();
+    await refreshDashboard({ silent: true });
     navigateDashboardView("customer_profile", { preserveContext: true });
   });
 
@@ -5893,7 +6362,7 @@ function bindEvents() {
       if (state.publicSlug) {
         await refreshPublic(state.publicSlug, false);
       }
-      await refreshDashboard();
+      await refreshDashboard({ silent: true });
     } catch (error) {
       setBanner("error", describeError(error));
       render();
@@ -5918,7 +6387,7 @@ function bindEvents() {
       localStorage.setItem(PUBLIC_SLUG_STORAGE_KEY, state.publicSlug);
     }
     setBanner("success", "Account created. Dashboard data is loading.");
-    await refreshDashboard();
+    await refreshDashboard({ silent: true });
   });
 
   bindForm("login-form", async (form) => {
@@ -5938,7 +6407,7 @@ function bindEvents() {
       refreshToken: response.refreshToken
     });
     setBanner("success", "Logged in successfully.");
-    await refreshDashboard();
+    await refreshDashboard({ silent: true });
   });
 
   bindForm("create-gym-form", async (form) => {
@@ -5950,7 +6419,7 @@ function bindEvents() {
       featureFlags: []
     });
     setBanner("success", "Gym created.");
-    await refreshDashboard();
+    await refreshDashboard({ silent: true });
   });
 
   bindForm("create-plan-form", async (form) => {
@@ -5969,7 +6438,7 @@ function bindEvents() {
       isPublic: true
     });
     setBanner("success", "Public plan created.");
-    await refreshDashboard();
+    await refreshDashboard({ silent: true });
   });
 
   bindForm("create-location-form", async (form) => {
@@ -6002,7 +6471,7 @@ function bindEvents() {
       operatingHours: {}
     });
     setBanner("success", "Location created.");
-    await refreshDashboard();
+    await refreshDashboard({ silent: true });
     navigateDashboardView(state.dashboardView === "locations" ? "locations" : "settings", { preserveContext: true });
   });
 
@@ -6027,7 +6496,7 @@ function bindEvents() {
         ? `Access device registered. New API key: ${response.apiKey}`
         : "Access device registered."
     );
-    await refreshDashboard();
+    await refreshDashboard({ silent: true });
     navigateDashboardView("access_control", { preserveContext: true });
   });
 
@@ -6052,7 +6521,7 @@ function bindEvents() {
       ...(planId && !allowAllActiveMembers ? { planId } : {})
     });
     setBanner("success", "Access rule created.");
-    await refreshDashboard();
+    await refreshDashboard({ silent: true });
     navigateDashboardView("access_control", { preserveContext: true });
   });
 
@@ -6072,7 +6541,7 @@ function bindEvents() {
       tagNames: []
     });
     setBanner("success", "Customer created.");
-    await refreshDashboard();
+    await refreshDashboard({ silent: true });
   });
 
   bindForm("public-slug-form", async (form) => {
@@ -6096,7 +6565,7 @@ function bindEvents() {
     state.publicSuccess = `Signup completed for ${response.member.firstName} ${response.member.lastName}.`;
     setBanner("success", "Public signup completed and saved to the backend.");
     if (state.gym?.slug === state.publicSlug && state.session) {
-      await refreshDashboard();
+      await refreshDashboard({ silent: true });
     } else {
       render();
     }
@@ -6359,14 +6828,21 @@ function clearDashboardState() {
   state.staff = [];
   state.staffShifts = [];
   state.staffTimeEntries = [];
+  state.schedulerSettings = null;
   state.schedulerRules = [];
   state.schedulerAvailability = [];
+  state.mySchedulerAvailability = [];
+  state.schedulerPreferenceRequests = [];
+  state.mySchedulerPreferenceRequests = [];
   state.schedulerRequests = [];
+  state.mySchedulerRequests = [];
   state.schedulerDraft = undefined;
   state.staffAccessSearch = "";
   state.staffAccessRoleFilter = "";
   state.staffScheduleCalendarOpen = false;
   state.staffScheduleCalendarMonth = toMonthKey(new Date());
+  state.staffScheduleRequestModalOpen = false;
+  state.staffPreferenceRequestModalOpen = false;
   state.staffClockModalOpen = false;
   state.staffRemovalUserId = undefined;
   state.roles = [];

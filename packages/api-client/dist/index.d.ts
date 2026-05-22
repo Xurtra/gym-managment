@@ -1,4 +1,4 @@
-import type { AccessDeviceCreateInput, AccessDeviceEventInput, AccessDeviceHeartbeatInput, AccessRuleCreateInput, ClassBookingCreateInput, CheckInCreateInput, ClassSessionCreateInput, ClassTypeCreateInput, CustomRoleCreateInput, CustomRoleUpdateInput, GymCreateInput, GymUpdateInput, LocationCreateInput, LocationUpdateInput, LoginInput, MemberCreateInput, MemberMembershipAssignInput, MemberUpdateInput, MembershipPlanCreateInput, MembershipPlanUpdateInput, PublicSignupInput, RegisterInput, ResetPasswordInput, RoleAssignmentInput, SchedulerAvailabilityCreateInput, SchedulerCoverageRuleCreateInput, SchedulerGenerateInput, SchedulerPublishInput, SchedulerRequestCreateInput, SchedulerRequestResolveInput, StaffAccessRemoveInput, StaffClockInInput, StaffClockOutInput, StaffInviteAcceptInput, StaffInviteCreateInput, StaffShiftCreateInput, StaffSelfClockInInput, StaffSelfClockOutInput, StaffManualBookingInput } from "@gym-platform/validation";
+import type { AccessDeviceCreateInput, AccessDeviceEventInput, AccessDeviceHeartbeatInput, AccessRuleCreateInput, ClassBookingCreateInput, CheckInCreateInput, ClassSessionCreateInput, ClassTypeCreateInput, CustomRoleCreateInput, CustomRoleUpdateInput, GymCreateInput, GymUpdateInput, LocationCreateInput, LocationUpdateInput, LoginInput, MemberCreateInput, MemberMembershipAssignInput, MemberUpdateInput, MembershipPlanCreateInput, MembershipPlanUpdateInput, PublicSignupInput, RegisterInput, ResetPasswordInput, RoleAssignmentInput, SchedulerAvailabilityCreateInput, SchedulerCoverageRuleCreateInput, SchedulerGenerateInput, SchedulerPreferenceRequestCreateInput, SchedulerPreferenceRequestResolveInput, SchedulerPublishInput, SchedulerRequestCreateInput, SchedulerRequestResolveInput, SchedulerSettingsUpdateInput, StaffAccessRemoveInput, StaffClockInInput, StaffClockOutInput, StaffInviteAcceptInput, StaffInviteCreateInput, StaffShiftCreateInput, StaffSelfClockInInput, StaffSelfClockOutInput, StaffManualBookingInput } from "@gym-platform/validation";
 export interface ApiClientOptions {
     baseUrl: string;
     accessToken?: string;
@@ -69,6 +69,13 @@ export declare class GymApiClient {
     createSchedulerRule(gymId: string, input: SchedulerCoverageRuleCreateInput): Promise<unknown>;
     listSchedulerAvailability(gymId: string): Promise<unknown>;
     createSchedulerAvailability(gymId: string, input: SchedulerAvailabilityCreateInput): Promise<unknown>;
+    listMySchedulerAvailability(gymId: string): Promise<unknown>;
+    getSchedulerSettings(gymId: string): Promise<unknown>;
+    updateSchedulerSettings(gymId: string, input: SchedulerSettingsUpdateInput): Promise<unknown>;
+    listSchedulerPreferenceRequests(gymId: string): Promise<unknown>;
+    listMySchedulerPreferenceRequests(gymId: string): Promise<unknown>;
+    createSchedulerPreferenceRequest(gymId: string, input: SchedulerPreferenceRequestCreateInput): Promise<unknown>;
+    resolveSchedulerPreferenceRequest(gymId: string, requestId: string, input: SchedulerPreferenceRequestResolveInput): Promise<unknown>;
     listSchedulerRequests(gymId: string): Promise<unknown>;
     listMySchedulerRequests(gymId: string): Promise<unknown>;
     createSchedulerRequest(gymId: string, input: SchedulerRequestCreateInput): Promise<unknown>;

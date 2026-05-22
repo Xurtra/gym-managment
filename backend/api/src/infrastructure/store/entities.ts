@@ -177,6 +177,30 @@ export interface SchedulerAvailability {
   updatedAt: Date;
 }
 
+export interface SchedulerSettings {
+  gymId: string;
+  planningHorizonDays: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SchedulerPreferenceRequest {
+  id: string;
+  gymId: string;
+  userId: string;
+  daysOfWeek: number[];
+  startTime: string;
+  endTime: string;
+  preference: SchedulerAvailability["preference"];
+  notes?: string;
+  status: "open" | "approved" | "declined";
+  resolutionNote?: string;
+  resolvedByUserId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  resolvedAt?: Date;
+}
+
 export interface SchedulerRequest {
   id: string;
   gymId: string;
@@ -437,6 +461,8 @@ export interface StoreSnapshot {
   staffTimeEntries: StaffTimeEntry[];
   schedulerCoverageRules: SchedulerCoverageRule[];
   schedulerAvailabilities: SchedulerAvailability[];
+  schedulerSettings: SchedulerSettings[];
+  schedulerPreferenceRequests: SchedulerPreferenceRequest[];
   schedulerRequests: SchedulerRequest[];
   locations: Location[];
   members: Member[];
