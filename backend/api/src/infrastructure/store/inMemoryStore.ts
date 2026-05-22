@@ -9,13 +9,16 @@ import type {
   CheckIn,
   ClassSession,
   ClassType,
+  FacilityReservation,
   Location,
   Member,
   MemberMembership,
   MembershipPlan,
   NotificationEvent,
   PurposeToken,
+  ReservableResource,
   RefreshToken,
+  ResourceAllocation,
   Role,
   StaffAuditLog,
   StaffInvite,
@@ -36,6 +39,7 @@ import type {
   MemberMembershipRepository,
   MembershipPlanRepository,
   NotificationRepository,
+  ReservationResourceRepository,
   Repositories,
   RoleRepository,
   StaffAuditLogRepository,
@@ -62,6 +66,9 @@ export class InMemoryStore implements Repositories {
   private readonly classTypeRecords = new Map<string, ClassType>();
   private readonly classSessionRecords = new Map<string, ClassSession>();
   private readonly classBookingRecords = new Map<string, ClassBooking>();
+  private readonly reservableResourceRecords = new Map<string, ReservableResource>();
+  private readonly resourceAllocationRecords = new Map<string, ResourceAllocation>();
+  private readonly facilityReservationRecords = new Map<string, FacilityReservation>();
   private readonly notificationEventRecords = new Map<string, NotificationEvent>();
   private readonly checkInRecords = new Map<string, CheckIn>();
   private readonly accessDeviceRecords = new Map<string, AccessDevice>();
@@ -177,6 +184,22 @@ export class InMemoryStore implements Repositories {
       this.listClassBookingsForSession(classSessionId),
     listClassBookingsForMember: (memberId) => this.listClassBookingsForMember(memberId),
     updateClassBooking: (booking) => this.updateClassBooking(booking)
+  };
+
+  readonly reservationResources: ReservationResourceRepository = {
+    createResource: (resource) => this.createResource(resource),
+    getResource: (resourceId) => this.getResource(resourceId),
+    listResourcesForGym: (gymId) => this.listResourcesForGym(gymId),
+    updateResource: (resource) => this.updateResource(resource),
+    createAllocation: (allocation) => this.createAllocation(allocation),
+    getAllocation: (allocationId) => this.getAllocation(allocationId),
+    listAllocationsForGym: (gymId) => this.listAllocationsForGym(gymId),
+    listAllocationsForResource: (resourceId) => this.listAllocationsForResource(resourceId),
+    updateAllocation: (allocation) => this.updateAllocation(allocation),
+    createFacilityReservation: (reservation) => this.createFacilityReservation(reservation),
+    getFacilityReservation: (reservationId) => this.getFacilityReservation(reservationId),
+    listFacilityReservationsForGym: (gymId) => this.listFacilityReservationsForGym(gymId),
+    updateFacilityReservation: (reservation) => this.updateFacilityReservation(reservation)
   };
 
   readonly notifications: NotificationRepository = {
@@ -538,6 +561,72 @@ export class InMemoryStore implements Repositories {
     return booking;
   }
 
+  async createResource(resource: ReservableResource) {
+    this.reservableResourceRecords.set(resource.id, resource);
+    return resource;
+  }
+
+  async getResource(resourceId: string) {
+    return this.reservableResourceRecords.get(resourceId);
+  }
+
+  async listResourcesForGym(gymId: string) {
+    return [...this.reservableResourceRecords.values()]
+      .filter((resource) => resource.gymId === gymId)
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  async updateResource(resource: ReservableResource) {
+    this.reservableResourceRecords.set(resource.id, resource);
+    return resource;
+  }
+
+  async createAllocation(allocation: ResourceAllocation) {
+    this.resourceAllocationRecords.set(allocation.id, allocation);
+    return allocation;
+  }
+
+  async getAllocation(allocationId: string) {
+    return this.resourceAllocationRecords.get(allocationId);
+  }
+
+  async listAllocationsForGym(gymId: string) {
+    return [...this.resourceAllocationRecords.values()]
+      .filter((allocation) => allocation.gymId === gymId)
+      .sort(compareAllocations);
+  }
+
+  async listAllocationsForResource(resourceId: string) {
+    return [...this.resourceAllocationRecords.values()]
+      .filter((allocation) => allocation.resourceId === resourceId)
+      .sort(compareAllocations);
+  }
+
+  async updateAllocation(allocation: ResourceAllocation) {
+    this.resourceAllocationRecords.set(allocation.id, allocation);
+    return allocation;
+  }
+
+  async createFacilityReservation(reservation: FacilityReservation) {
+    this.facilityReservationRecords.set(reservation.id, reservation);
+    return reservation;
+  }
+
+  async getFacilityReservation(reservationId: string) {
+    return this.facilityReservationRecords.get(reservationId);
+  }
+
+  async listFacilityReservationsForGym(gymId: string) {
+    return [...this.facilityReservationRecords.values()]
+      .filter((reservation) => reservation.gymId === gymId)
+      .sort((left, right) => left.startsAt.getTime() - right.startsAt.getTime());
+  }
+
+  async updateFacilityReservation(reservation: FacilityReservation) {
+    this.facilityReservationRecords.set(reservation.id, reservation);
+    return reservation;
+  }
+
   async createNotificationEvent(event: NotificationEvent) {
     this.notificationEventRecords.set(event.id, event);
     return event;
@@ -668,6 +757,9 @@ export class InMemoryStore implements Repositories {
       classTypes: [...this.classTypeRecords.values()],
       classSessions: [...this.classSessionRecords.values()],
       classBookings: [...this.classBookingRecords.values()],
+      reservableResources: [...this.reservableResourceRecords.values()],
+      resourceAllocations: [...this.resourceAllocationRecords.values()],
+      facilityReservations: [...this.facilityReservationRecords.values()],
       notificationEvents: [...this.notificationEventRecords.values()],
       checkIns: [...this.checkInRecords.values()],
       accessDevices: [...this.accessDeviceRecords.values()],
@@ -685,4 +777,8 @@ function compareBookings(left: ClassBooking, right: ClassBooking) {
       (right.waitlistPosition ?? Number.MAX_SAFE_INTEGER) ||
     left.createdAt.getTime() - right.createdAt.getTime()
   );
+}
+
+function compareAllocations(left: ResourceAllocation, right: ResourceAllocation) {
+  return left.startsAt.getTime() - right.startsAt.getTime() || left.id.localeCompare(right.id);
 }

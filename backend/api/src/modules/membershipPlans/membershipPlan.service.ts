@@ -1,10 +1,10 @@
-import { PlanStatus } from "@gym-platform/constants";
+import { BillingInterval, PlanStatus } from "@gym-platform/constants";
 import type {
   MembershipPlanCreateInput,
   MembershipPlanUpdateInput
 } from "@gym-platform/validation";
 import { randomUUID } from "node:crypto";
-import { conflict, notFound } from "../../http/errors.js";
+import { badRequest, conflict, notFound } from "../../http/errors.js";
 import type { MembershipPlan } from "../../infrastructure/store/entities.js";
 import type { Repositories } from "../../infrastructure/store/repositories.js";
 import type { Clock } from "../../shared/time.js";
@@ -22,23 +22,24 @@ export class MembershipPlanService {
   }
 
   async create(gymId: string, input: MembershipPlanCreateInput) {
+    const normalizedInput = normalizePlanInput(input);
     await this.ensureUniqueName(gymId, input.name);
     const now = this.clock.now();
     const plan: MembershipPlan = {
       id: randomUUID(),
       gymId,
-      name: input.name,
-      billingInterval: input.billingInterval,
-      priceCents: input.priceCents,
-      signupFeeCents: input.signupFeeCents,
-      trialDays: input.trialDays,
-      autoRenew: input.autoRenew,
-      isPublic: input.isPublic,
+      name: normalizedInput.name,
+      billingInterval: normalizedInput.billingInterval,
+      priceCents: normalizedInput.priceCents,
+      signupFeeCents: normalizedInput.signupFeeCents,
+      trialDays: normalizedInput.trialDays,
+      autoRenew: normalizedInput.autoRenew,
+      isPublic: normalizedInput.isPublic,
       status: PlanStatus.Active,
       createdAt: now,
       updatedAt: now
     };
-    applyOptionalPlanFields(plan, input);
+    applyOptionalPlanFields(plan, normalizedInput);
     return this.repositories.membershipPlans.createMembershipPlan(plan);
   }
 
@@ -59,6 +60,7 @@ export class MembershipPlanService {
       updatedAt: this.clock.now()
     };
     applyOptionalPlanFields(updated, input);
+    normalizeExistingPlan(updated);
     return this.repositories.membershipPlans.updateMembershipPlan(updated);
   }
 
@@ -93,6 +95,25 @@ export class MembershipPlanService {
     if (duplicate) {
       throw conflict("A membership plan with this name already exists.", "plan_name_exists");
     }
+  }
+}
+
+function normalizePlanInput(input: MembershipPlanCreateInput): MembershipPlanCreateInput {
+  if (input.billingInterval === BillingInterval.Package && input.classAccessLimit === undefined) {
+    throw badRequest("Package plans require a class access limit.", "package_class_limit_required");
+  }
+  if (input.billingInterval === BillingInterval.OneTime && input.classAccessLimit === undefined) {
+    return { ...input, classAccessLimit: 1 };
+  }
+  return input;
+}
+
+function normalizeExistingPlan(plan: MembershipPlan) {
+  if (plan.billingInterval === BillingInterval.Package && plan.classAccessLimit === undefined) {
+    throw badRequest("Package plans require a class access limit.", "package_class_limit_required");
+  }
+  if (plan.billingInterval === BillingInterval.OneTime && plan.classAccessLimit === undefined) {
+    plan.classAccessLimit = 1;
   }
 }
 

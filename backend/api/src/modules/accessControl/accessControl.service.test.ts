@@ -70,6 +70,58 @@ describe("AccessControlService", () => {
     expect(events.map((event) => event.reason)).toContain("member_status_frozen");
   });
 
+  it("does not grant all-active facility access to customer-only one-time entitlements", async () => {
+    const services = createServices(testConfig, mutableClock("2026-05-16T12:00:00.000Z"));
+    const { gymId, locationId } = await createAccessFixture(services);
+    const customer = await createMember(
+      services,
+      gymId,
+      "Casey",
+      "ACCESS-DROPIN",
+      MemberStatus.Active
+    );
+    const dropIn = await services.membershipPlanService.create(gymId, {
+      name: "Drop In",
+      billingInterval: BillingInterval.OneTime,
+      priceCents: 2500,
+      signupFeeCents: 0,
+      trialDays: 0,
+      autoRenew: false,
+      isPublic: true
+    });
+    await services.memberMembershipService.assignPlan(gymId, customer.id, {
+      planId: dropIn.id,
+      status: MembershipStatus.Active
+    });
+    const registered = await services.accessControlService.registerDevice(gymId, {
+      name: "Front Door",
+      locationId
+    });
+    await services.accessControlService.createRule(gymId, {
+      name: "All active members",
+      locationId,
+      allowAllActiveMembers: true
+    });
+
+    const denied = await services.accessControlService.authorizeDoor({
+      apiKey: registered.apiKey,
+      barcode: customer.barcode
+    });
+    await services.accessControlService.createRule(gymId, {
+      name: "Drop-in explicit door access",
+      locationId,
+      planId: dropIn.id
+    });
+    const allowed = await services.accessControlService.authorizeDoor({
+      apiKey: registered.apiKey,
+      barcode: customer.barcode
+    });
+
+    expect(denied.unlock).toBe(false);
+    expect(denied.reason).toBe("access_rule_not_matched");
+    expect(allowed.unlock).toBe(true);
+  });
+
   it("tracks heartbeats, detects offline devices, and rotates API keys", async () => {
     const clock = mutableClock("2026-05-16T12:00:00.000Z");
     const services = createServices(testConfig, clock);

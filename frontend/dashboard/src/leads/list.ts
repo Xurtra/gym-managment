@@ -1,7 +1,8 @@
-import { MemberStatus, Permission } from "@gym-platform/constants";
+import { Permission } from "@gym-platform/constants";
 import { button, emptyState, input, table } from "@gym-platform/ui";
 import type { ButtonModel, EmptyStateModel, InputModel, TableModel } from "@gym-platform/ui";
 import { matchesMemberDirectoryQuery } from "../members/search.js";
+import { isLeadConsumer } from "../members/segments.js";
 import { buildMemberStatusBadge, type MemberStatusBadge } from "../members/statusBadges.js";
 import type { MemberView } from "../members/types.js";
 
@@ -53,19 +54,23 @@ export function buildLeadListPage(inputModel: {
   members: MemberView[];
   permissions: string[];
   filters?: LeadListFilters;
+  detailBasePath?: string;
+  editBasePath?: string;
 }): LeadListPage {
   const query = normalizeText(inputModel.filters?.query).toLowerCase();
   const filters: LeadListPage["filters"] = {
     query,
     ...(inputModel.filters?.tagName ? { tagName: normalizeText(inputModel.filters.tagName) } : {})
   };
-  const leads = inputModel.members.filter((member) => member.status === MemberStatus.Lead);
+  const leads = inputModel.members.filter(isLeadConsumer);
   const canWriteMembers = inputModel.permissions.includes(Permission.MemberWrite);
+  const detailBasePath = inputModel.detailBasePath ?? "/leads";
+  const editBasePath = inputModel.editBasePath ?? "/members";
   const tagOptions = buildTagOptions(leads, filters.tagName);
   const rows = leads
     .filter((member) => matchesFilters(member, filters))
     .sort(compareLeads)
-    .map((member) => buildLeadListRow(member, canWriteMembers));
+    .map((member) => buildLeadListRow(member, canWriteMembers, detailBasePath, editBasePath));
   const empty =
     rows.length === 0
       ? emptyState({
@@ -125,7 +130,14 @@ function matchesFilters(member: MemberView, filters: LeadListPage["filters"]) {
   return matchesMemberDirectoryQuery(member, filters.query);
 }
 
-function buildLeadListRow(member: MemberView, canWriteMembers: boolean): LeadListRow {
+function buildLeadListRow(
+  member: MemberView,
+  canWriteMembers: boolean,
+  detailBasePath: string,
+  editBasePath: string
+): LeadListRow {
+  const detailHref = `${detailBasePath}/${member.id}`;
+  const editHref = `${editBasePath}/${member.id}/edit`;
   return {
     ...member,
     fullName: memberName(member),
@@ -133,16 +145,16 @@ function buildLeadListRow(member: MemberView, canWriteMembers: boolean): LeadLis
     contactLabel: member.email ?? member.phone ?? "No contact",
     tagLabel: member.tagNames.length > 0 ? member.tagNames.join(", ") : "No tags",
     statusBadge: buildMemberStatusBadge(member.status),
-    detailHref: `/leads/${member.id}`,
+    detailHref,
     actions: [
       {
         key: "view",
-        href: `/leads/${member.id}`,
+        href: detailHref,
         button: button({ label: "View", icon: "eye", intent: "secondary" })
       },
       {
         key: "edit",
-        href: `/members/${member.id}/edit`,
+        href: editHref,
         button: button({
           label: "Edit",
           icon: "pencil",

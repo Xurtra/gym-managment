@@ -116,6 +116,7 @@ export function buildGlobalGymSearch(inputModel: {
 function buildRouteSearchItems(context: DashboardPermissionContext): GlobalSearchItem[] {
   return dashboardRoutes
     .filter((route) => route.protected)
+    .filter((route) => route.navigation !== false)
     .filter((route) => canAccessDashboardRoute(route, context))
     .map((route) => ({
       id: `route:${route.path}`,

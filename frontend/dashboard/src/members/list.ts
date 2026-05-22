@@ -2,6 +2,7 @@ import { MemberStatus, Permission } from "@gym-platform/constants";
 import { button, emptyState, input, table } from "@gym-platform/ui";
 import type { ButtonModel, EmptyStateModel, InputModel, TableModel } from "@gym-platform/ui";
 import { matchesMemberDirectoryQuery } from "./search.js";
+import { consumerSegmentLabel, consumerSegments } from "./segments.js";
 import {
   buildMemberStatusBadge,
   memberStatusLabel,
@@ -38,6 +39,7 @@ export interface MemberListRow extends MemberView {
   initials: string;
   contactLabel: string;
   statusLabel: string;
+  segmentLabel: string;
   statusBadge: MemberStatusBadge;
   tagLabel: string;
   active: boolean;
@@ -48,6 +50,8 @@ export interface MemberListRow extends MemberView {
 export interface MemberListSummary {
   totalCount: number;
   leadCount: number;
+  customerCount: number;
+  memberCount: number;
   trialCount: number;
   activeCount: number;
   pastDueCount: number;
@@ -59,7 +63,7 @@ export interface MemberListSummary {
 }
 
 export interface MemberListPage {
-  screen: "member_list";
+  screen: "member_list" | "consumer_list";
   filters: Required<Pick<MemberListFilters, "query">> & Omit<MemberListFilters, "query">;
   searchField: InputModel;
   statusOptions: MemberListStatusFilterOption[];
@@ -81,6 +85,9 @@ export function buildMemberListPage(inputModel: {
   members: MemberView[];
   permissions: string[];
   filters?: MemberListFilters;
+  surface?: "member" | "consumer";
+  detailBasePath?: string;
+  editBasePath?: string;
 }): MemberListPage {
   const query = normalizeText(inputModel.filters?.query).toLowerCase();
   const filters: MemberListPage["filters"] = {
@@ -88,6 +95,10 @@ export function buildMemberListPage(inputModel: {
     ...(inputModel.filters?.status ? { status: inputModel.filters.status } : {}),
     ...(inputModel.filters?.tagName ? { tagName: normalizeText(inputModel.filters.tagName) } : {})
   };
+  const surface = inputModel.surface ?? "member";
+  const surfaceLabel = surface === "consumer" ? "consumer" : "member";
+  const detailBasePath = inputModel.detailBasePath ?? "/members";
+  const editBasePath = inputModel.editBasePath ?? detailBasePath;
   const canWriteMembers = inputModel.permissions.includes(Permission.MemberWrite);
   const statusOptions = Object.values(MemberStatus).map((status) => ({
     value: status,
@@ -98,23 +109,25 @@ export function buildMemberListPage(inputModel: {
   const rows = inputModel.members
     .filter((member) => matchesFilters(member, filters))
     .sort(compareMembers)
-    .map((member) => buildMemberListRow(member, canWriteMembers));
+    .map((member) => buildMemberListRow(member, canWriteMembers, detailBasePath, editBasePath));
   const empty =
     rows.length === 0
       ? emptyState({
-          title: hasActiveFilters(filters) ? "No members match your filters" : "No members",
+          title: hasActiveFilters(filters)
+            ? `No ${surfaceLabel}s match your filters`
+            : `No ${surfaceLabel}s`,
           body: hasActiveFilters(filters)
-            ? "Adjust the member filters and try again."
-            : "Create or import members to start managing member profiles."
+            ? `Adjust the ${surfaceLabel} filters and try again.`
+            : `Create or import ${surfaceLabel}s to start managing profiles.`
         })
       : undefined;
 
   return {
-    screen: "member_list",
+    screen: surface === "consumer" ? "consumer_list" : "member_list",
     filters,
     searchField: input({
-      name: "memberSearch",
-      label: "Search members",
+      name: `${surfaceLabel}Search`,
+      label: `Search ${surfaceLabel}s`,
       value: query,
       type: "text",
       required: false
@@ -122,7 +135,7 @@ export function buildMemberListPage(inputModel: {
     statusOptions,
     tagOptions: tagFilterOptions,
     summary: buildSummary(inputModel.members, rows.length),
-    summaryLabel: `Showing ${rows.length} of ${inputModel.members.length} members`,
+    summaryLabel: `Showing ${rows.length} of ${inputModel.members.length} ${surfaceLabel}s`,
     rowCount: rows.length,
     activeFilterCount: countActiveFilters(filters),
     statusOptionCount: statusOptions.length,
@@ -132,6 +145,7 @@ export function buildMemberListPage(inputModel: {
       columns: [
         { key: "fullName", label: "Name" },
         { key: "contactLabel", label: "Contact" },
+        { key: "segmentLabel", label: "Segments" },
         { key: "statusLabel", label: "Status" },
         { key: "tagLabel", label: "Tags" }
       ],
@@ -140,12 +154,12 @@ export function buildMemberListPage(inputModel: {
     }),
     ...(empty ? { empty } : {}),
     createMemberAction: button({
-      label: "Create member",
+      label: `Create ${surfaceLabel}`,
       icon: "user-plus",
       disabled: !canWriteMembers
     }),
     importMembersAction: button({
-      label: "Import members",
+      label: `Import ${surfaceLabel}s`,
       icon: "upload",
       intent: "secondary",
       disabled: !canWriteMembers
@@ -153,28 +167,36 @@ export function buildMemberListPage(inputModel: {
   };
 }
 
-function buildMemberListRow(member: MemberView, canWriteMembers: boolean): MemberListRow {
+function buildMemberListRow(
+  member: MemberView,
+  canWriteMembers: boolean,
+  detailBasePath: string,
+  editBasePath: string
+): MemberListRow {
   const fullName = memberName(member);
   const archived = member.status === MemberStatus.Archived || Boolean(member.archivedAt);
+  const detailHref = `${detailBasePath}/${member.id}`;
+  const editHref = `${editBasePath}/${member.id}/edit`;
   return {
     ...member,
     fullName,
     initials: buildInitials(member.firstName, member.lastName, member.email),
     contactLabel: contactLabel(member),
     statusLabel: memberStatusLabel(member.status),
+    segmentLabel: segmentLabel(member),
     statusBadge: buildMemberStatusBadge(member.status),
     tagLabel: member.tagNames.length > 0 ? member.tagNames.join(", ") : "No tags",
     active: member.status === MemberStatus.Active,
-    detailHref: `/members/${member.id}`,
+    detailHref,
     actions: [
       {
         key: "view",
-        href: `/members/${member.id}`,
+        href: detailHref,
         button: button({ label: "View", icon: "eye", intent: "secondary" })
       },
       {
         key: "edit",
-        href: `/members/${member.id}/edit`,
+        href: editHref,
         button: button({
           label: "Edit",
           icon: "pencil",
@@ -232,7 +254,9 @@ function compareMembers(left: MemberView, right: MemberView) {
 function buildSummary(members: MemberView[], visibleCount: number): MemberListSummary {
   return {
     totalCount: members.length,
-    leadCount: countByStatus(members, MemberStatus.Lead),
+    leadCount: members.filter((member) => consumerSegments(member).includes("lead")).length,
+    customerCount: members.filter((member) => consumerSegments(member).includes("customer")).length,
+    memberCount: members.filter((member) => consumerSegments(member).includes("member")).length,
     trialCount: countByStatus(members, MemberStatus.Trial),
     activeCount: countByStatus(members, MemberStatus.Active),
     pastDueCount: countByStatus(members, MemberStatus.PastDue),
@@ -242,6 +266,11 @@ function buildSummary(members: MemberView[], visibleCount: number): MemberListSu
     archivedCount: countByStatus(members, MemberStatus.Archived),
     visibleCount
   };
+}
+
+function segmentLabel(member: MemberView) {
+  const segments = consumerSegments(member);
+  return segments.length > 0 ? segments.map(consumerSegmentLabel).join(", ") : "Unsegmented";
 }
 
 function tagOptions(members: MemberView[], selectedTag: string | undefined) {

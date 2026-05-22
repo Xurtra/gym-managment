@@ -4,12 +4,17 @@
     "lib": ["ES2022"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "ignoreDeprecations": "5.0",
+    "customConditions": ["development"],
     "baseUrl": ".",
     "paths": {
       "@gym-platform/constants": ["packages/constants/src/index.ts"],
       "@gym-platform/ui": ["packages/ui/src/index.ts"],
       "@gym-platform/validation": ["packages/validation/src/index.ts"],
-      "@gym-platform/api-client": ["packages/api-client/src/index.ts"]
+      "@gym-platform/api-client": ["packages/api-client/src/index.ts"],
+      "@gym-platform/dashboard": ["frontend/dashboard/src/index.ts"],
+      "@gym-platform/member-portal": ["frontend/member-portal/src/index.ts"],
+      "@gym-platform/website-renderer": ["frontend/website-renderer/src/index.ts"]
     },
     "strict": true,
     "esModuleInterop": true,

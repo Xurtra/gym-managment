@@ -54,7 +54,7 @@ export function buildDashboardHomePage(inputModel: {
     });
   const primaryActions = [
     button({
-      label: "Add member",
+      label: "Add consumer",
       disabled: !permissions.includes(Permission.MemberWrite)
     }),
     button({
@@ -119,7 +119,7 @@ const summaryMetrics: DashboardSummaryMetric[] = [
     key: "activeMembers",
     label: "Active members",
     value: 0,
-    href: "/members",
+    href: "/consumers?segment=members",
     requiredPermissions: [Permission.MemberRead]
   },
   {

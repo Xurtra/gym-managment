@@ -36,6 +36,25 @@ export declare const MembershipStatus: {
     readonly Expired: "expired";
 };
 export type MembershipStatus = (typeof MembershipStatus)[keyof typeof MembershipStatus];
+export declare const ConsumerRecordStatus: {
+    readonly Active: "active";
+    readonly Inactive: "inactive";
+    readonly Archived: "archived";
+};
+export type ConsumerRecordStatus = (typeof ConsumerRecordStatus)[keyof typeof ConsumerRecordStatus];
+export declare const LeadStage: {
+    readonly None: "none";
+    readonly Open: "open";
+    readonly Converted: "converted";
+    readonly Closed: "closed";
+};
+export type LeadStage = (typeof LeadStage)[keyof typeof LeadStage];
+export declare const ConsumerSegment: {
+    readonly Lead: "lead";
+    readonly Customer: "customer";
+    readonly Member: "member";
+};
+export type ConsumerSegment = (typeof ConsumerSegment)[keyof typeof ConsumerSegment];
 export declare const MemberStatus: {
     readonly Lead: "lead";
     readonly Trial: "trial";
@@ -76,6 +95,40 @@ export declare const BookingSource: {
     readonly Staff: "staff";
 };
 export type BookingSource = (typeof BookingSource)[keyof typeof BookingSource];
+export declare const ReservableResourceStatus: {
+    readonly Active: "active";
+    readonly Archived: "archived";
+};
+export type ReservableResourceStatus = (typeof ReservableResourceStatus)[keyof typeof ReservableResourceStatus];
+export declare const ResourceAllocationSource: {
+    readonly ClassSession: "class_session";
+    readonly FacilityReservation: "facility_reservation";
+};
+export type ResourceAllocationSource = (typeof ResourceAllocationSource)[keyof typeof ResourceAllocationSource];
+export declare const FacilityReservationStatus: {
+    readonly Pending: "pending";
+    readonly Confirmed: "confirmed";
+    readonly Cancelled: "cancelled";
+};
+export type FacilityReservationStatus = (typeof FacilityReservationStatus)[keyof typeof FacilityReservationStatus];
+export declare const ReservationPaymentRequirement: {
+    readonly Free: "free";
+    readonly PayUpfront: "pay_upfront";
+    readonly PayLater: "pay_later";
+};
+export type ReservationPaymentRequirement = (typeof ReservationPaymentRequirement)[keyof typeof ReservationPaymentRequirement];
+export declare const ReservationPaymentStatus: {
+    readonly NotRequired: "not_required";
+    readonly Unpaid: "unpaid";
+    readonly Paid: "paid";
+    readonly Refunded: "refunded";
+};
+export type ReservationPaymentStatus = (typeof ReservationPaymentStatus)[keyof typeof ReservationPaymentStatus];
+export declare const ReservationConfirmationMode: {
+    readonly Automatic: "automatic";
+    readonly StaffApproval: "staff_approval";
+};
+export type ReservationConfirmationMode = (typeof ReservationConfirmationMode)[keyof typeof ReservationConfirmationMode];
 export declare const NotificationEventStatus: {
     readonly Pending: "pending";
     readonly Sent: "sent";

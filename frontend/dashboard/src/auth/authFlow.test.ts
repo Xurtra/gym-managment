@@ -32,17 +32,17 @@ describe("dashboard auth and routing", () => {
   });
 
   it("protects authenticated dashboard routes", () => {
-    expect(buildProtectedRoute({ path: "/members", authenticated: false }).redirectTo).toBe("/login");
+    expect(buildProtectedRoute({ path: "/consumers", authenticated: false }).redirectTo).toBe("/login");
     expect(
       buildProtectedRoute({
-        path: "/members",
+        path: "/consumers",
         authenticated: true,
         permissions: [Permission.MemberRead]
       }).allowed
     ).toBe(true);
     expect(
       buildProtectedRoute({
-        path: "/members",
+        path: "/consumers",
         authenticated: true,
         permissions: [Permission.ClassRead]
       }).redirectTo
@@ -73,7 +73,7 @@ describe("dashboard auth and routing", () => {
       ]
     });
 
-    expect(trainerNav.map((item) => item.href)).toEqual(["/", "/locations", "/members", "/classes"]);
+    expect(trainerNav.map((item) => item.href)).toEqual(["/", "/locations", "/consumers", "/classes"]);
     expect(frontDeskLayout.navItems.map((item) => item.href)).toContain("/check-ins");
     expect(frontDeskLayout.navItems.map((item) => item.href)).toContain("/access-control");
     expect(frontDeskLayout.navItems.map((item) => item.href)).not.toContain("/settings");

@@ -2,6 +2,7 @@ import {
   BookingSource,
   BookingStatus,
   ClassSessionStatus,
+  ConsumerRecordStatus,
   MemberStatus,
   MembershipStatus,
   NotificationEventStatus,
@@ -197,7 +198,12 @@ export class BookingService {
 
   private async getBookableMember(repositories: Repositories, gymId: string, memberId: string) {
     const member = await repositories.members.getMember(memberId);
-    if (!member || member.gymId !== gymId || member.status === MemberStatus.Archived) {
+    if (
+      !member ||
+      member.gymId !== gymId ||
+      member.status === MemberStatus.Archived ||
+      member.recordStatus === ConsumerRecordStatus.Archived
+    ) {
       throw notFound("Member was not found.");
     }
     if (!bookableMemberStatuses.has(member.status)) {
@@ -367,7 +373,12 @@ export class BookingService {
   ) {
     try {
       const member = await repositories.members.getMember(memberId);
-      if (!member || member.gymId !== gymId || member.status === MemberStatus.Archived) {
+      if (
+        !member ||
+        member.gymId !== gymId ||
+        member.status === MemberStatus.Archived ||
+        member.recordStatus === ConsumerRecordStatus.Archived
+      ) {
         return false;
       }
       if (!bookableMemberStatuses.has(member.status)) {

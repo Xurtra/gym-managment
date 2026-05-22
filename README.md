@@ -32,6 +32,8 @@ npm run tracker:summary
 
 The API defaults to `http://0.0.0.0:4000`. Copy `.env.example` to `.env` when local secrets or service URLs need to differ. `PERSISTENCE_DRIVER=memory` is the local default; set `PERSISTENCE_DRIVER=postgres` with `DATABASE_URL` to run against Postgres.
 
+Consumer profile image uploads can be backed by Cloudflare R2 by setting `R2_BUCKET`, `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and optionally `MEDIA_BASE_URL`. The API stores the binary in R2 and serves it back through `/media/member-images/:assetId`, so the bucket does not need to be public.
+
 `npm run test:postgres` requires Docker. It starts a disposable Postgres container on port `55432`, runs migrations, executes the Postgres-backed API flow test, and removes the container.
 
 ## Backend Milestone 1

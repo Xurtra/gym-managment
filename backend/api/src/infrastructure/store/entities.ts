@@ -8,8 +8,11 @@ import type {
   CheckInMethod,
   CheckInStatus,
   ClassSessionStatus,
+  ConsumerRecordStatus,
+  ConsumerSegment,
   FeatureFlag,
   GymStatus,
+  LeadStage,
   LocationStatus,
   MemberStatus,
   MembershipStatus,
@@ -17,6 +20,12 @@ import type {
   NotificationEventType,
   Permission,
   PlanStatus,
+  FacilityReservationStatus,
+  ReservableResourceStatus,
+  ReservationConfirmationMode,
+  ReservationPaymentRequirement,
+  ReservationPaymentStatus,
+  ResourceAllocationSource,
   RoleName,
   StaffAuditAction,
   StaffInviteStatus,
@@ -47,6 +56,7 @@ export interface Gym {
   timezone: string;
   locale: string;
   logoUrl?: string;
+  stripeAccountId?: string;
   brandColors?: BrandColors;
   businessInfo?: GymBusinessInfo;
   operatingHours: OperatingHours;
@@ -197,12 +207,21 @@ export interface Member {
   barcode?: string;
   profileImageUrl?: string;
   status: MemberStatus;
+  recordStatus: ConsumerRecordStatus;
+  leadStage: LeadStage;
   emergencyContact?: EmergencyContact;
   notes?: string;
   tagNames: string[];
   createdAt: Date;
   updatedAt: Date;
   archivedAt?: Date;
+}
+
+export interface Consumer extends Member {
+  segments: ConsumerSegment[];
+  isLead: boolean;
+  isCustomer: boolean;
+  isMember: boolean;
 }
 
 export interface MembershipPlan {
@@ -287,6 +306,87 @@ export interface ClassBooking {
   staffOverride: boolean;
   overrideReason?: string;
   promotedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ResourceSlotRules {
+  minDurationMinutes: number;
+  maxDurationMinutes: number;
+  incrementMinutes: number;
+  bufferBeforeMinutes: number;
+  bufferAfterMinutes: number;
+}
+
+export interface ResourcePricingConfig {
+  amountCents: number;
+}
+
+export interface ResourceCancellationPolicy {
+  cutoffMinutes: number;
+  feeCents: number;
+}
+
+export interface ReservableResource {
+  id: string;
+  gymId: string;
+  locationId: string;
+  parentResourceId?: string;
+  name: string;
+  resourceType: string;
+  status: ReservableResourceStatus;
+  isBookable: boolean;
+  isExclusive: boolean;
+  capacity: number;
+  amenities: string[];
+  rentableHours?: OperatingHours;
+  slotRules: ResourceSlotRules;
+  pricing: ResourcePricingConfig;
+  paymentRequirement: ReservationPaymentRequirement;
+  confirmationMode: ReservationConfirmationMode;
+  cancellationPolicy: ResourceCancellationPolicy;
+  createdAt: Date;
+  updatedAt: Date;
+  archivedAt?: Date;
+}
+
+export interface ResourceAllocation {
+  id: string;
+  gymId: string;
+  resourceId: string;
+  source: ResourceAllocationSource;
+  classSessionId?: string;
+  facilityReservationId?: string;
+  startsAt: Date;
+  endsAt: Date;
+  bufferBeforeMinutes: number;
+  bufferAfterMinutes: number;
+  staffOverride: boolean;
+  overrideReason?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface FacilityReservation {
+  id: string;
+  gymId: string;
+  resourceId: string;
+  allocationId?: string;
+  memberId: string;
+  createdByUserId: string;
+  status: FacilityReservationStatus;
+  startsAt: Date;
+  endsAt: Date;
+  amountCents: number;
+  paymentRequirement: ReservationPaymentRequirement;
+  paymentStatus: ReservationPaymentStatus;
+  paymentReference?: string;
+  cancellationFeeCents: number;
+  refundAmountCents: number;
+  cancelledAt?: Date;
+  cancelledByUserId?: string;
+  cancellationReason?: string;
+  note?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -398,6 +498,9 @@ export interface StoreSnapshot {
   classTypes: ClassType[];
   classSessions: ClassSession[];
   classBookings: ClassBooking[];
+  reservableResources: ReservableResource[];
+  resourceAllocations: ResourceAllocation[];
+  facilityReservations: FacilityReservation[];
   notificationEvents: NotificationEvent[];
   checkIns: CheckIn[];
   accessDevices: AccessDevice[];

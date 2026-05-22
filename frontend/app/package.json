@@ -14,7 +14,8 @@
     "@gym-platform/dashboard": "*",
     "@gym-platform/member-portal": "*",
     "@gym-platform/ui": "*",
-    "@gym-platform/website-renderer": "*"
+    "@gym-platform/website-renderer": "*",
+    "@stripe/stripe-js": "^9.6.0"
   },
   "devDependencies": {
     "vite": "5.4.21"

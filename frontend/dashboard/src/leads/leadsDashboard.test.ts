@@ -224,7 +224,8 @@ describe("leads dashboard", () => {
     expect(blocked.action.disabled).toBe(true);
     expect(submission).toEqual({
       memberId: "member-1",
-      status: MemberStatus.Active
+      status: MemberStatus.Active,
+      leadStage: "converted"
     });
   });
 });

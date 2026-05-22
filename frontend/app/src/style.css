@@ -305,6 +305,77 @@ h3 {
   color: var(--muted);
 }
 
+.camera-capture-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.camera-capture-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.camera-capture-status {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.camera-capture-input {
+  display: none;
+}
+
+.camera-capture-preview {
+  width: min(100%, 220px);
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.camera-capture-preview img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+}
+
+.camera-capture-modal {
+  width: min(92vw, 720px);
+}
+
+.camera-capture-shell {
+  display: grid;
+  gap: 16px;
+}
+
+.camera-capture-stage {
+  min-height: 360px;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #020617;
+  display: grid;
+  place-items: center;
+}
+
+.camera-capture-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.camera-capture-error {
+  padding: 24px;
+  color: var(--ink);
+  text-align: center;
+  line-height: 1.5;
+}
+
 button,
 .ghost-button {
   border: 0;
@@ -1419,6 +1490,25 @@ html[data-theme="dark"] .empty-state {
 
 .compact-form {
   gap: 10px;
+}
+
+.pos-stripe-setup-card code {
+  font-family: "IBM Plex Mono", "Cascadia Code", monospace;
+  font-size: 0.92em;
+}
+
+.pos-stripe-setup-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.stripe-card-field {
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 46px;
+  padding: 14px;
 }
 
 .linked-member-chips,
@@ -2979,6 +3069,245 @@ html[data-theme="dark"] .club-staff-page td {
   color: #dbe4ef;
 }
 
+.consumer-page {
+  gap: 10px;
+  padding: 16px;
+}
+
+.consumer-page .card-head {
+  align-items: center;
+  gap: 12px;
+}
+
+.consumer-page .card-head h2 {
+  line-height: 1.1;
+}
+
+.consumer-page .club-kicker {
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.consumer-segment-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+
+.consumer-segment-tabs .tab-btn {
+  align-items: center;
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  display: inline-flex;
+  gap: 6px;
+  min-height: 34px;
+  padding: 7px 10px;
+}
+
+.consumer-segment-tabs .tab-btn.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.consumer-tab-count {
+  align-items: center;
+  background: var(--accent-soft);
+  border-radius: 999px;
+  color: var(--ink);
+  display: inline-flex;
+  font-size: 0.72rem;
+  justify-content: center;
+  min-width: 20px;
+  padding: 2px 6px;
+}
+
+.consumer-page .club-page-split {
+  align-items: start;
+  gap: 12px;
+  grid-template-columns: minmax(320px, 0.95fr) minmax(380px, 1.05fr);
+}
+
+.consumer-card-grid {
+  align-content: start;
+  gap: 8px;
+  margin-top: 0;
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.consumer-card-grid .club-customer-card {
+  align-items: center;
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: none;
+  color: var(--ink);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  min-height: 58px;
+  padding: 9px 12px;
+  text-align: left;
+}
+
+.consumer-card-grid .club-customer-card:hover,
+.consumer-card-grid .club-customer-card:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.consumer-card-grid .club-customer-avatar {
+  background: var(--accent-soft);
+  border-radius: 8px;
+  color: var(--ink);
+  height: 40px;
+  width: 40px;
+}
+
+.consumer-card-grid .club-customer-card strong {
+  color: var(--ink);
+  font-size: 0.95rem;
+  grid-column: auto;
+  justify-self: start;
+  min-width: 0;
+}
+
+.consumer-card-grid .consumer-card-segments {
+  color: var(--muted);
+  font-size: 0.8rem;
+  grid-column: auto;
+  justify-self: end;
+  line-height: 1.25;
+  max-width: 180px;
+  text-align: right;
+}
+
+.consumer-detail-panel {
+  background: var(--panel);
+  gap: 10px;
+  padding: 10px;
+}
+
+.consumer-detail-panel .club-focus-card.compact {
+  align-items: center;
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: none;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  min-height: 0;
+  padding: 10px;
+}
+
+.consumer-detail-panel .club-focus-photo {
+  background: var(--accent-soft);
+  border-radius: 8px;
+  color: var(--ink);
+  height: 46px;
+  width: 46px;
+}
+
+.consumer-detail-panel .club-focus-copy {
+  gap: 2px;
+  min-width: 0;
+}
+
+.consumer-detail-panel .club-focus-copy h3 {
+  color: var(--ink);
+  font-size: 0.98rem;
+  line-height: 1.2;
+}
+
+.consumer-detail-panel .club-focus-copy p {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.3;
+  margin: 0;
+}
+
+.consumer-detail-panel .club-focus-copy .eyebrow {
+  font-size: 0.68rem;
+}
+
+.consumer-card-actions {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 0;
+}
+
+.consumer-card-actions .ghost-button {
+  background: var(--accent-soft);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  min-height: 32px;
+  padding: 7px 9px;
+  white-space: nowrap;
+}
+
+.consumer-detail-panel .data-card {
+  background: var(--panel-strong);
+  border-color: var(--line);
+  border-radius: 8px;
+  box-shadow: none;
+  color: var(--ink);
+  overflow: hidden;
+  padding: 0;
+}
+
+.consumer-detail-panel .table-wrap {
+  background: var(--panel-strong);
+  border-color: var(--line);
+  border-radius: 8px;
+}
+
+.consumer-detail-panel table {
+  background: var(--panel-strong);
+}
+
+.consumer-detail-panel th,
+.consumer-detail-panel td {
+  border-color: var(--line);
+  font-size: 0.82rem;
+  padding: 7px 9px;
+}
+
+.consumer-detail-panel th {
+  color: var(--muted);
+}
+
+.consumer-detail-panel td {
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .consumer-card-grid .club-customer-card,
+html[data-theme="dark"] .consumer-detail-panel .club-focus-card.compact,
+html[data-theme="dark"] .consumer-detail-panel .data-card,
+html[data-theme="dark"] .consumer-detail-panel .table-wrap,
+html[data-theme="dark"] .consumer-detail-panel table,
+html[data-theme="dark"] .consumer-segment-tabs .tab-btn {
+  background: var(--panel-strong);
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .consumer-card-grid .club-customer-card:hover,
+html[data-theme="dark"] .consumer-card-grid .club-customer-card:focus-visible {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
 @media (max-width: 1100px) {
   .two-up,
   .list-grid,
@@ -3022,6 +3351,14 @@ html[data-theme="dark"] .club-staff-page td {
   .staff-filter-bar {
     grid-template-columns: 1fr;
   }
+
+  .consumer-page .club-page-split {
+    grid-template-columns: 1fr;
+  }
+
+  .consumer-card-grid {
+    max-height: 320px;
+  }
 }
 
 @media (max-width: 680px) {
@@ -3063,5 +3400,41 @@ html[data-theme="dark"] .club-staff-page td {
 
   .club-page-split {
     grid-template-columns: 1fr;
+  }
+
+  .consumer-page {
+    padding: 12px;
+  }
+
+  .consumer-page .card-head {
+    align-items: flex-start;
+  }
+
+  .consumer-page .club-kicker {
+    white-space: normal;
+  }
+
+  .consumer-card-grid .club-customer-card {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .consumer-card-grid .consumer-card-segments {
+    grid-column: 2;
+    justify-self: start;
+    max-width: none;
+    text-align: left;
+  }
+
+  .consumer-detail-panel .club-focus-card.compact {
+    grid-template-columns: 46px minmax(0, 1fr);
+  }
+
+  .consumer-card-grid {
+    max-height: 280px;
+  }
+
+  .consumer-card-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
   }
 }

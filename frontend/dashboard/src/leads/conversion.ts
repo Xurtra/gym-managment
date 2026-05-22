@@ -1,6 +1,7 @@
-import { MemberStatus, Permission } from "@gym-platform/constants";
+import { LeadStage, MemberStatus, Permission } from "@gym-platform/constants";
 import { button } from "@gym-platform/ui";
 import type { ButtonModel } from "@gym-platform/ui";
+import { isLeadConsumer } from "../members/segments.js";
 import { memberStatusLabel } from "../members/statusBadges.js";
 import type { MemberView } from "../members/types.js";
 
@@ -16,6 +17,7 @@ export interface LeadConversionStatusOption {
 export interface LeadConversionSubmission {
   memberId: string;
   status: LeadConversionTargetStatus;
+  leadStage: typeof LeadStage.Converted;
 }
 
 export interface LeadConversionScreen {
@@ -66,7 +68,8 @@ export function createLeadConversionSubmission(inputModel: {
 }): LeadConversionSubmission {
   return {
     memberId: inputModel.memberId,
-    status: inputModel.targetStatus
+    status: inputModel.targetStatus,
+    leadStage: LeadStage.Converted
   };
 }
 
@@ -86,7 +89,7 @@ function conversionBlockedReason(lead: MemberView, canWriteMembers: boolean) {
   if (!canWriteMembers) {
     return "Member write permission is required.";
   }
-  if (lead.status !== MemberStatus.Lead) {
+  if (!isLeadConsumer(lead)) {
     return "Only leads can be converted.";
   }
   if (lead.archivedAt) {

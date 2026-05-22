@@ -66,6 +66,7 @@ describe("TenancyService", () => {
     const updated = await services.tenancyService.updateGym(owner.gym?.id ?? "", {
       name: "Demo Performance Club",
       logoUrl: "https://example.com/logo.png",
+      stripeAccountId: "acct_demoPerformance123",
       brandColors: { primary: "#111827", secondary: "#2563EB" },
       businessInfo: {
         legalName: "Demo Performance Club LLC",
@@ -78,6 +79,7 @@ describe("TenancyService", () => {
 
     expect(updated.name).toBe("Demo Performance Club");
     expect(updated.logoUrl).toBe("https://example.com/logo.png");
+    expect(updated.stripeAccountId).toBe("acct_demoPerformance123");
     expect(updated.brandColors?.primary).toBe("#111827");
     expect(updated.businessInfo?.legalName).toMatch(/Performance/);
     expect(updated.operatingHours.mon?.[0]?.opensAt).toBe("06:00");

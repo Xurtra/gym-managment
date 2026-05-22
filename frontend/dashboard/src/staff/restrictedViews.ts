@@ -77,10 +77,12 @@ function buildRoleRestrictedView(input: {
   const context = { permissions };
   const visibleRoutes = dashboardRoutes
     .filter((route) => route.protected)
+    .filter((route) => route.navigation !== false)
     .filter((route) => canAccessDashboardRoute(route, context))
     .map((route) => route.path);
   const hiddenRoutes = dashboardRoutes
     .filter((route) => route.protected)
+    .filter((route) => route.navigation !== false)
     .filter((route) => !canAccessDashboardRoute(route, context))
     .map((route) => route.path);
 

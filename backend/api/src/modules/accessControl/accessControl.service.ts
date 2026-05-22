@@ -2,6 +2,8 @@ import {
   AccessDeviceStatus,
   AccessDeviceType,
   AccessEventDecision,
+  BillingInterval,
+  ConsumerRecordStatus,
   LocationStatus,
   MemberStatus,
   MembershipStatus,
@@ -15,7 +17,13 @@ import type {
 } from "@gym-platform/validation";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { badRequest, notFound } from "../../http/errors.js";
-import type { AccessDevice, AccessRule, Member } from "../../infrastructure/store/entities.js";
+import type {
+  AccessDevice,
+  AccessRule,
+  Member,
+  MemberMembership,
+  MembershipPlan
+} from "../../infrastructure/store/entities.js";
 import type { Repositories } from "../../infrastructure/store/repositories.js";
 import type { Clock } from "../../shared/time.js";
 
@@ -173,6 +181,16 @@ export class AccessControlService {
     if (activeMemberships.length === 0) {
       return { unlock: false, reason: "active_membership_required" };
     }
+    const activeEntitlements: Array<{ membership: MemberMembership; plan: MembershipPlan }> = [];
+    for (const membership of activeMemberships) {
+      const plan = await this.repositories.membershipPlans.getMembershipPlan(membership.planId);
+      if (plan && plan.gymId === device.gymId && plan.status === PlanStatus.Active) {
+        activeEntitlements.push({ membership, plan });
+      }
+    }
+    if (activeEntitlements.length === 0) {
+      return { unlock: false, reason: "active_membership_required" };
+    }
     const rules = (await this.repositories.accessControl.listAccessRulesForGym(device.gymId)).filter(
       (rule) =>
         rule.locationId === device.locationId &&
@@ -181,8 +199,9 @@ export class AccessControlService {
     );
     const allowed = rules.some(
       (rule) =>
-        rule.allowAllActiveMembers ||
-        activeMemberships.some((membership) => membership.planId === rule.planId)
+        (rule.allowAllActiveMembers &&
+          activeEntitlements.some(({ plan }) => isRecurringPlan(plan.billingInterval))) ||
+        activeEntitlements.some(({ membership }) => membership.planId === rule.planId)
     );
     return allowed
       ? { unlock: true, reason: "access_granted" }
@@ -193,7 +212,10 @@ export class AccessControlService {
     const memberId = input.memberId ?? memberIdFromQrPayload(gymId, input.qrPayload);
     if (memberId) {
       const member = await this.repositories.members.getMember(memberId);
-      return member && member.gymId === gymId && member.status !== MemberStatus.Archived
+      return member &&
+        member.gymId === gymId &&
+        member.status !== MemberStatus.Archived &&
+        member.recordStatus !== ConsumerRecordStatus.Archived
         ? member
         : undefined;
     }
@@ -201,7 +223,10 @@ export class AccessControlService {
       throw badRequest("A member ID, barcode, or QR payload is required.", "member_lookup_required");
     }
     return (await this.repositories.members.listMembersForGym(gymId)).find(
-      (candidate) => candidate.barcode === input.barcode && candidate.status !== MemberStatus.Archived
+      (candidate) =>
+        candidate.barcode === input.barcode &&
+        candidate.status !== MemberStatus.Archived &&
+        candidate.recordStatus !== ConsumerRecordStatus.Archived
     );
   }
 
@@ -235,6 +260,10 @@ export class AccessControlService {
     }
     return device;
   }
+}
+
+function isRecurringPlan(interval: BillingInterval) {
+  return interval === BillingInterval.Monthly || interval === BillingInterval.Yearly;
 }
 
 function createApiKey() {

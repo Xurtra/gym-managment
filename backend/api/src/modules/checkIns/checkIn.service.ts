@@ -1,11 +1,14 @@
 import {
+  BillingInterval,
   BookingStatus,
   CheckInMethod,
   CheckInStatus,
   ClassSessionStatus,
+  ConsumerRecordStatus,
   LocationStatus,
   MemberStatus,
-  MembershipStatus
+  MembershipStatus,
+  PlanStatus
 } from "@gym-platform/constants";
 import type { CheckInCreateInput } from "@gym-platform/validation";
 import { randomUUID } from "node:crypto";
@@ -123,7 +126,11 @@ export class CheckInService {
     const member = (await this.repositories.members.listMembersForGym(gymId)).find(
       (candidate) => candidate.barcode === input.barcode
     );
-    if (!member || member.status === MemberStatus.Archived) {
+    if (
+      !member ||
+      member.status === MemberStatus.Archived ||
+      member.recordStatus === ConsumerRecordStatus.Archived
+    ) {
       throw notFound("Member was not found.");
     }
     return member;
@@ -131,7 +138,12 @@ export class CheckInService {
 
   private async getScopedMember(gymId: string, memberId: string) {
     const member = await this.repositories.members.getMember(memberId);
-    if (!member || member.gymId !== gymId || member.status === MemberStatus.Archived) {
+    if (
+      !member ||
+      member.gymId !== gymId ||
+      member.status === MemberStatus.Archived ||
+      member.recordStatus === ConsumerRecordStatus.Archived
+    ) {
       throw notFound("Member was not found.");
     }
     return member;
@@ -144,7 +156,7 @@ export class CheckInService {
     if (!allowedMemberStatuses.has(member.status)) {
       return "member_not_active";
     }
-    const membershipDenial = await this.getMembershipDenial(member.id, gymId);
+    const membershipDenial = await this.getMembershipDenial(member.id, gymId, Boolean(classSessionId));
     if (membershipDenial) {
       return membershipDenial;
     }
@@ -157,19 +169,25 @@ export class CheckInService {
     return undefined;
   }
 
-  private async getMembershipDenial(memberId: string, gymId: string) {
+  private async getMembershipDenial(memberId: string, gymId: string, classCheckIn: boolean) {
     const now = this.clock.now();
     const memberships = (await this.repositories.memberMemberships.listMemberMembershipsForMember(memberId)).filter(
       (membership) => membership.gymId === gymId
     );
-    const active = memberships.some(
+    const activeEntitlements = memberships.filter(
       (membership) =>
         activeMembershipStatuses.has(membership.status) &&
         membership.startsAt <= now &&
         (!membership.endsAt || membership.endsAt >= now)
     );
-    if (active) {
-      return undefined;
+    for (const membership of activeEntitlements) {
+      const plan = await this.repositories.membershipPlans.getMembershipPlan(membership.planId);
+      if (!plan || plan.gymId !== gymId || plan.status === PlanStatus.Archived) {
+        continue;
+      }
+      if (classCheckIn || isRecurringPlan(plan.billingInterval)) {
+        return undefined;
+      }
     }
     if (memberships.some((membership) => deniedMembershipStatuses.has(membership.status))) {
       return "membership_not_active";
@@ -196,6 +214,10 @@ export class CheckInService {
         booking.classSessionId === classSessionId && booking.status === BookingStatus.Booked
     )?.id;
   }
+}
+
+function isRecurringPlan(interval: BillingInterval) {
+  return interval === BillingInterval.Monthly || interval === BillingInterval.Yearly;
 }
 
 function memberIdFromQrPayload(gymId: string, qrPayload: string | undefined) {

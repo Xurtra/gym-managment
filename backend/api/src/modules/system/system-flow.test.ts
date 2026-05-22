@@ -31,6 +31,7 @@ interface GymResponse {
   id: string;
   name: string;
   logoUrl?: string;
+  stripeAccountId?: string;
   timezone: string;
   locale: string;
   onboardingCompletedSteps: string[];
@@ -172,6 +173,11 @@ interface MemberResponse {
   id: string;
   firstName: string;
   status: string;
+  leadStage?: string;
+  segments?: string[];
+  isLead?: boolean;
+  isCustomer?: boolean;
+  isMember?: boolean;
   phone?: string;
 }
 
@@ -179,6 +185,7 @@ interface PlanResponse {
   id: string;
   name: string;
   priceCents: number;
+  classAccessLimit?: number;
   status: string;
 }
 
@@ -296,6 +303,7 @@ describe("system API flow", () => {
         {
           name: "Demo Performance Club",
           logoUrl: "https://example.com/logo.png",
+          stripeAccountId: "acct_demoPerformance123",
           brandColors: { primary: "#111827", secondary: "#2563EB" },
           businessInfo: { legalName: "Demo Performance Club LLC", email: "hello@example.com" },
           operatingHours: { mon: [{ opensAt: "06:00", closesAt: "22:00" }] },
@@ -308,6 +316,7 @@ describe("system API flow", () => {
     expect(gymSettings.name).toBe("Demo Strength Club");
     expect(updatedGymSettings.name).toBe("Demo Performance Club");
     expect(updatedGymSettings.logoUrl).toBe("https://example.com/logo.png");
+    expect(updatedGymSettings.stripeAccountId).toBe("acct_demoPerformance123");
     expect(updatedGymSettings.onboardingCompletedSteps).toContain("location-details");
 
     const verified = await ok<{ user: { emailVerifiedAt?: string } }>(
@@ -397,6 +406,70 @@ describe("system API flow", () => {
       { headers: authHeaders(outsider.accessToken) },
       403
     );
+  });
+
+  it("creates a subscription member through the consumer endpoints used by the add-consumer form", async () => {
+    const registered = await ok<RegisterResponse>(
+      "/auth/register",
+      json({
+        email: "owner@example.com",
+        password: "Password123",
+        firstName: "Demo",
+        lastName: "Owner",
+        gymName: "Demo Strength Club",
+        timezone: "America/New_York",
+        locale: "en-US"
+      })
+    );
+    const gymId = registered.gym?.id ?? "";
+    const plan = await ok<PlanResponse>(
+      `/gyms/${gymId}/membership-plans`,
+      json(
+        {
+          name: "Monthly Unlimited",
+          billingInterval: "monthly",
+          priceCents: 9900,
+          signupFeeCents: 0,
+          trialDays: 0,
+          autoRenew: true,
+          isPublic: true
+        },
+        registered.accessToken
+      )
+    );
+
+    const created = await ok<MemberResponse>(
+      `/gyms/${gymId}/consumers`,
+      json(
+        {
+          firstName: "Avery",
+          lastName: "Member",
+          email: "avery.member@example.com",
+          status: "active",
+          tagNames: []
+        },
+        registered.accessToken
+      )
+    );
+    const assigned = await ok<MemberMembershipResponse>(
+      `/gyms/${gymId}/consumers/${created.id}/memberships`,
+      json(
+        {
+          planId: plan.id,
+          status: "active"
+        },
+        registered.accessToken
+      )
+    );
+    const consumers = await ok<{ consumers: MemberResponse[] }>(`/gyms/${gymId}/consumers`, {
+      headers: authHeaders(registered.accessToken)
+    });
+    const added = consumers.consumers.find((consumer) => consumer.id === created.id);
+
+    expect(assigned.memberId).toBe(created.id);
+    expect(assigned.planId).toBe(plan.id);
+    expect(added?.isMember).toBe(true);
+    expect(added?.segments).toContain("member");
   });
 
   it("creates gym locations through the location endpoint and rejects duplicates", async () => {
@@ -934,6 +1007,19 @@ describe("system API flow", () => {
     const members = await ok<{ members: MemberResponse[] }>(`/gyms/${gymId}/members`, {
       headers: authHeaders(registered.accessToken)
     });
+    const leadConsumer = await ok<MemberResponse>(
+      `/gyms/${gymId}/consumers`,
+      json(
+        {
+          firstName: "Casey",
+          lastName: "Prospect",
+          email: "casey@example.com",
+          status: "lead",
+          tagNames: ["drop-in-interest"]
+        },
+        registered.accessToken
+      )
+    );
 
     const plan = await ok<PlanResponse>(
       `/gyms/${gymId}/membership-plans`,
@@ -950,6 +1036,21 @@ describe("system API flow", () => {
         registered.accessToken
       )
     );
+    const dropInPlan = await ok<PlanResponse>(
+      `/gyms/${gymId}/membership-plans`,
+      json(
+        {
+          name: "Drop In",
+          billingInterval: "one_time",
+          priceCents: 2500,
+          signupFeeCents: 0,
+          trialDays: 0,
+          autoRenew: false,
+          isPublic: true
+        },
+        registered.accessToken
+      )
+    );
     const updatedPlan = await ok<PlanResponse>(
       `/gyms/${gymId}/membership-plans/${plan.id}`,
       json({ priceCents: 10900 }, registered.accessToken, "PATCH")
@@ -961,6 +1062,16 @@ describe("system API flow", () => {
     await ok<MemberMembershipResponse>(
       `/gyms/${gymId}/members/${waitlistMember.id}/memberships`,
       json({ planId: plan.id }, registered.accessToken)
+    );
+    await ok<MemberMembershipResponse>(
+      `/gyms/${gymId}/consumers/${leadConsumer.id}/memberships`,
+      json({ planId: dropInPlan.id }, registered.accessToken)
+    );
+    const consumers = await ok<{ consumers: MemberResponse[] }>(`/gyms/${gymId}/consumers`, {
+      headers: authHeaders(registered.accessToken)
+    });
+    const overlappingConsumer = consumers.consumers.find(
+      (consumer) => consumer.id === leadConsumer.id
     );
     await ok<MemberMembershipResponse>(
       `/gyms/${gymId}/members/${manualMember.id}/memberships`,
@@ -1129,6 +1240,12 @@ describe("system API flow", () => {
 
     expect(updatedMember.phone).toBe("555-0102");
     expect(members.members).toHaveLength(3);
+    expect(leadConsumer.status).toBe("active");
+    expect(leadConsumer.leadStage).toBe("open");
+    expect(dropInPlan.classAccessLimit).toBe(1);
+    expect(overlappingConsumer?.isLead).toBe(true);
+    expect(overlappingConsumer?.isCustomer).toBe(true);
+    expect(overlappingConsumer?.segments?.sort()).toEqual(["customer", "lead"]);
     expect(updatedPlan.priceCents).toBe(10900);
     expect(memberMembership.planId).toBe(plan.id);
     expect(memberMembership.status).toBe("active");

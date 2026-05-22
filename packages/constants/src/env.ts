@@ -5,13 +5,15 @@ export type RuntimeEnv = "development" | "test" | "staging" | "production";
 
 export function loadEnvironmentFiles(cwd = process.cwd()) {
   const nodeEnv = runtimeEnvFrom(process.env.NODE_ENV);
+  const loadedKeys = new Set<string>();
   // Walk up directories to find the monorepo root .env
   const rootEnv = findRootEnv(cwd);
   if (rootEnv) {
-    loadDotEnvFile(rootEnv);
+    loadDotEnvFile(rootEnv, loadedKeys);
+    loadDotEnvFile(resolve(dirname(rootEnv), ".env.local"), loadedKeys);
   }
   for (const path of envFilePaths(cwd, nodeEnv)) {
-    loadDotEnvFile(path);
+    loadDotEnvFile(path, loadedKeys);
   }
   return nodeEnv;
 }
@@ -44,7 +46,7 @@ function envFilePaths(cwd: string, nodeEnv: RuntimeEnv) {
   return [...base, resolve(cwd, ".env.production")];
 }
 
-function loadDotEnvFile(path: string) {
+function loadDotEnvFile(path: string, loadedKeys: Set<string>) {
   if (!existsSync(path)) {
     return;
   }
@@ -60,9 +62,10 @@ function loadDotEnvFile(path: string) {
     }
     const key = trimmed.slice(0, separator).trim();
     const value = trimmed.slice(separator + 1).trim().replace(/^['"]|['"]$/g, "");
-    if (!(key in process.env)) {
+    if (!(key in process.env) || loadedKeys.has(key)) {
       process.env[key] = value;
     }
+    loadedKeys.add(key);
   }
 }
 

@@ -20,7 +20,7 @@ import {
 
 describe("dashboard shell", () => {
   it("builds grouped navigation from route permissions", () => {
-    const groups = buildGroupedDashboardNavigation("/members", {
+    const groups = buildGroupedDashboardNavigation("/consumers", {
       permissions: [
         Permission.GymRead,
         Permission.LocationRead,
@@ -41,7 +41,7 @@ describe("dashboard shell", () => {
     expect(groups.find((group) => group.key === "people")?.active).toBe(true);
     expect(groups.find((group) => group.key === "workspace")?.active).toBe(false);
     expect(groups.find((group) => group.key === "people")?.items.map((item) => item.href)).toEqual([
-      "/members",
+      "/consumers",
       "/check-ins"
     ]);
     expect(
@@ -51,7 +51,7 @@ describe("dashboard shell", () => {
 
   it("builds shell layout with sidebar, top bar, content region, and account menu", () => {
     const shell = buildDashboardShellLayout({
-      path: "/members",
+      path: "/consumers",
       permissions: [Permission.GymRead, Permission.MemberRead],
       firstName: "Demo",
       lastName: "Owner",
@@ -64,7 +64,7 @@ describe("dashboard shell", () => {
           type: "member",
           title: "Jamie Rivera",
           subtitle: "Member",
-          href: "/members/member-1",
+          href: "/consumers/member-1",
           keywords: ["founding-member"],
           requiredPermissions: [Permission.MemberRead]
         }
@@ -80,22 +80,22 @@ describe("dashboard shell", () => {
     expect(shell.sidebar.activeGroupKey).toBe("people");
     expect(shell.sidebar.groups.flatMap((group) => group.items).map((item) => item.href)).toEqual([
       "/",
-      "/members"
+      "/consumers"
     ]);
-    expect(shell.topBar.title).toBe("Members");
+    expect(shell.topBar.title).toBe("Consumers");
     expect(shell.topBar.searchResultCount).toBe(1);
     expect(shell.topBar.globalSearch.results[0]?.title).toBe("Jamie Rivera");
     expect(shell.topBar.accountMenu.userName).toBe("Demo Owner");
     expect(shell.topBar.accountMenu.items.find((item) => item.key === "settings")?.disabled).toBe(
       true
     );
-    expect(shell.content.id).toBe("members");
-    expect(shell.content.title).toBe("Members");
+    expect(shell.content.id).toBe("consumers");
+    expect(shell.content.title).toBe("Consumers");
     expect(shell.content.loading).toBe(true);
-    expect(shell.content.pageHeader.title).toBe("Members");
+    expect(shell.content.pageHeader.title).toBe("Consumers");
     expect(shell.content.pageHeader.breadcrumbs.map((breadcrumb) => breadcrumb.label)).toEqual([
       "Dashboard",
-      "Members"
+      "Consumers"
     ]);
     expect(shell.mobileNavigation.itemCount).toBe(2);
     expect(shell.mobileMenuAction.icon).toBe("menu");
@@ -187,7 +187,7 @@ describe("dashboard shell", () => {
     expect(home.cards.some((summaryCard) => summaryCard.key === "pendingTasks")).toBe(false);
     expect(home.enabledPrimaryActionCount).toBe(1);
     expect(home.disabledPrimaryActionCount).toBe(1);
-    expect(home.primaryActions.find((action) => action.label === "Add member")?.disabled).toBe(
+    expect(home.primaryActions.find((action) => action.label === "Add consumer")?.disabled).toBe(
       false
     );
     expect(home.primaryActions.find((action) => action.label === "Create class")?.disabled).toBe(
@@ -312,8 +312,8 @@ describe("dashboard shell", () => {
     expect(
       mobileNavigation.groups
         .find((group) => group.key === "people")
-        ?.items.map((item) => item.href)
-    ).toEqual(["/members", "/check-ins"]);
+      ?.items.map((item) => item.href)
+    ).toEqual(["/consumers", "/check-ins"]);
     expect(mobileNavigation.itemCount).toBe(4);
   });
 

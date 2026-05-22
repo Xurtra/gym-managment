@@ -220,6 +220,22 @@ describe("GymApiClient auth refresh", () => {
             email: "trainer@example.com",
             roleId: "00000000-0000-4000-8000-000000000001"
         });
+        await client.createPosPurchase("gym-1", {
+            firstName: "Jordan",
+            lastName: "Walker",
+            email: "jordan@example.com",
+            amountCents: 4500,
+            paymentMethod: "manual_entry"
+        });
+        await client.getPosStripeConfig("gym-1");
+        await client.createPosPaymentIntent("gym-1", {
+            firstName: "Jordan",
+            lastName: "Walker",
+            email: "jordan@example.com",
+            amountCents: 4500,
+            paymentMethod: "manual_entry"
+        });
+        await client.finalizePosPaymentIntent("gym-1", "pi_test_123");
         await publicClient.acceptStaffInvite({
             token: "invite-token-with-enough-length-123456",
             firstName: "Demo",
@@ -316,6 +332,41 @@ describe("GymApiClient auth refresh", () => {
                     email: "trainer@example.com",
                     roleId: "00000000-0000-4000-8000-000000000001"
                 }
+            },
+            {
+                path: "/gyms/gym-1/pos/purchases",
+                method: "POST",
+                authorization: "Bearer token-1",
+                body: {
+                    firstName: "Jordan",
+                    lastName: "Walker",
+                    email: "jordan@example.com",
+                    amountCents: 4500,
+                    paymentMethod: "manual_entry"
+                }
+            },
+            {
+                path: "/gyms/gym-1/pos/stripe/config",
+                method: "GET",
+                authorization: "Bearer token-1"
+            },
+            {
+                path: "/gyms/gym-1/pos/payment-intents",
+                method: "POST",
+                authorization: "Bearer token-1",
+                body: {
+                    firstName: "Jordan",
+                    lastName: "Walker",
+                    email: "jordan@example.com",
+                    amountCents: 4500,
+                    paymentMethod: "manual_entry"
+                }
+            },
+            {
+                path: "/gyms/gym-1/pos/payment-intents/pi_test_123/finalize",
+                method: "POST",
+                authorization: "Bearer token-1",
+                body: {}
             },
             {
                 path: "/staff/invites/accept",
@@ -562,6 +613,104 @@ describe("GymApiClient auth refresh", () => {
                 body: {
                     status: "active"
                 }
+            }
+        ]);
+    });
+    it("builds preferred consumer endpoint requests with legacy member auth semantics", async () => {
+        const calls = [];
+        const client = new GymApiClient({
+            baseUrl: "http://api.local",
+            accessToken: "token-1",
+            fetchImpl: (async (url, init) => {
+                const resolved = url instanceof URL ? url : new URL(String(url));
+                const headers = new Headers(init?.headers);
+                const authorization = headers.get("authorization") ?? undefined;
+                const body = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
+                calls.push({
+                    path: `${resolved.pathname}${resolved.search}`,
+                    method: init?.method ?? "GET",
+                    ...(authorization ? { authorization } : {}),
+                    ...(body !== undefined ? { body } : {})
+                });
+                return jsonResponse({ ok: true });
+            })
+        });
+        await client.listConsumers("gym-1");
+        await client.createConsumer("gym-1", {
+            firstName: "Casey",
+            lastName: "Prospect",
+            email: "casey@example.com",
+            status: "lead",
+            leadStage: "open",
+            tagNames: ["Drop In"]
+        });
+        await client.uploadConsumerProfileImage("gym-1", {
+            consumerId: "consumer-1",
+            fileName: "casey.jpg",
+            contentType: "image/jpeg",
+            base64Data: "aGVsbG8="
+        });
+        await client.updateConsumer("gym-1", "consumer-1", { leadStage: "converted" });
+        await client.listConsumerMemberships("gym-1", "consumer-1");
+        await client.assignConsumerMembership("gym-1", "consumer-1", {
+            planId: "00000000-0000-4000-8000-000000000011",
+            status: "active"
+        });
+        await client.archiveConsumer("gym-1", "consumer-1");
+        expect(calls).toEqual([
+            {
+                path: "/gyms/gym-1/consumers",
+                method: "GET",
+                authorization: "Bearer token-1"
+            },
+            {
+                path: "/gyms/gym-1/consumers",
+                method: "POST",
+                authorization: "Bearer token-1",
+                body: {
+                    firstName: "Casey",
+                    lastName: "Prospect",
+                    email: "casey@example.com",
+                    status: "lead",
+                    leadStage: "open",
+                    tagNames: ["Drop In"]
+                }
+            },
+            {
+                path: "/gyms/gym-1/consumers/profile-image",
+                method: "POST",
+                authorization: "Bearer token-1",
+                body: {
+                    consumerId: "consumer-1",
+                    fileName: "casey.jpg",
+                    contentType: "image/jpeg",
+                    base64Data: "aGVsbG8="
+                }
+            },
+            {
+                path: "/gyms/gym-1/consumers/consumer-1",
+                method: "PATCH",
+                authorization: "Bearer token-1",
+                body: { leadStage: "converted" }
+            },
+            {
+                path: "/gyms/gym-1/consumers/consumer-1/memberships",
+                method: "GET",
+                authorization: "Bearer token-1"
+            },
+            {
+                path: "/gyms/gym-1/consumers/consumer-1/memberships",
+                method: "POST",
+                authorization: "Bearer token-1",
+                body: {
+                    planId: "00000000-0000-4000-8000-000000000011",
+                    status: "active"
+                }
+            },
+            {
+                path: "/gyms/gym-1/consumers/consumer-1",
+                method: "DELETE",
+                authorization: "Bearer token-1"
             }
         ]);
     });
