@@ -23,6 +23,12 @@ import type {
   RegisterInput,
   ResetPasswordInput,
   RoleAssignmentInput,
+  SchedulerAvailabilityCreateInput,
+  SchedulerCoverageRuleCreateInput,
+  SchedulerGenerateInput,
+  SchedulerPublishInput,
+  SchedulerRequestCreateInput,
+  SchedulerRequestResolveInput,
   StaffAccessRemoveInput,
   StaffClockInInput,
   StaffClockOutInput,
@@ -205,6 +211,50 @@ export class GymApiClient {
 
   createStaffShift(gymId: string, input: StaffShiftCreateInput) {
     return this.request("POST", `/gyms/${gymId}/staff/shifts`, input);
+  }
+
+  listSchedulerRules(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/scheduler/rules`);
+  }
+
+  createSchedulerRule(gymId: string, input: SchedulerCoverageRuleCreateInput) {
+    return this.request("POST", `/gyms/${gymId}/scheduler/rules`, input);
+  }
+
+  listSchedulerAvailability(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/scheduler/availability`);
+  }
+
+  createSchedulerAvailability(gymId: string, input: SchedulerAvailabilityCreateInput) {
+    return this.request("POST", `/gyms/${gymId}/scheduler/availability`, input);
+  }
+
+  listSchedulerRequests(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/scheduler/requests`);
+  }
+
+  listMySchedulerRequests(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/scheduler/requests/me`);
+  }
+
+  createSchedulerRequest(gymId: string, input: SchedulerRequestCreateInput) {
+    return this.request("POST", `/gyms/${gymId}/scheduler/requests`, input);
+  }
+
+  generateSchedule(gymId: string, input: SchedulerGenerateInput) {
+    return this.request("POST", `/gyms/${gymId}/scheduler/generate`, input);
+  }
+
+  publishSchedule(gymId: string, input: SchedulerPublishInput) {
+    return this.request("POST", `/gyms/${gymId}/scheduler/publish`, input);
+  }
+
+  resolveSchedulerRequest(
+    gymId: string,
+    requestId: string,
+    input: SchedulerRequestResolveInput
+  ) {
+    return this.request("POST", `/gyms/${gymId}/scheduler/requests/${requestId}/resolve`, input);
   }
 
   listStaffTimeEntries(gymId: string) {

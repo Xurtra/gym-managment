@@ -185,6 +185,11 @@ const permissionLabels: Record<PermissionValue, string> = {
   [Permission.PaymentRead]: "View payments",
   [Permission.PaymentWrite]: "Manage payments",
   [Permission.ReportRead]: "View reports",
+  [Permission.ScheduleRead]: "View scheduler",
+  [Permission.ScheduleCreate]: "Create schedules",
+  [Permission.SchedulePublish]: "Publish schedules",
+  [Permission.ScheduleRequestsManage]: "Manage schedule requests",
+  [Permission.ScheduleAutoResolve]: "Auto-resolve requests",
   [Permission.PlatformAdmin]: "Platform admin"
 };
 
@@ -236,6 +241,17 @@ const permissionGroups: Array<{
       Permission.ClassWrite,
       Permission.BookingRead,
       Permission.BookingWrite
+    ]
+  },
+  {
+    key: "scheduler",
+    label: "Scheduler",
+    permissions: [
+      Permission.ScheduleRead,
+      Permission.ScheduleCreate,
+      Permission.SchedulePublish,
+      Permission.ScheduleRequestsManage,
+      Permission.ScheduleAutoResolve
     ]
   },
   {

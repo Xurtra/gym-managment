@@ -28,6 +28,12 @@ import {
   resendVerificationSchema,
   resetPasswordSchema,
   roleAssignmentSchema,
+  schedulerAvailabilityCreateSchema,
+  schedulerCoverageRuleCreateSchema,
+  schedulerGenerateSchema,
+  schedulerPublishSchema,
+  schedulerRequestCreateSchema,
+  schedulerRequestResolveSchema,
   staffAccessRemoveSchema,
   staffClockInSchema,
   staffClockOutSchema,
@@ -61,6 +67,7 @@ import { LocationService } from "./modules/locations/location.service.js";
 import { MemberService } from "./modules/members/member.service.js";
 import { MembershipPlanService } from "./modules/membershipPlans/membershipPlan.service.js";
 import { RoleService } from "./modules/roles/role.service.js";
+import { SchedulerService } from "./modules/scheduler/scheduler.service.js";
 import { StaffScheduleService } from "./modules/staffSchedule/staffSchedule.service.js";
 import { StaffTimeClockService } from "./modules/staffTimeClock/staffTimeClock.service.js";
 import { TenancyService } from "./modules/tenancy/tenancy.service.js";
@@ -93,6 +100,7 @@ export interface Services {
   clock: Clock;
   authService: AuthService;
   roleService: RoleService;
+  schedulerService: SchedulerService;
   staffScheduleService: StaffScheduleService;
   staffTimeClockService: StaffTimeClockService;
   tenancyService: TenancyService;
@@ -123,6 +131,7 @@ export function createServices(
   const locationService = new LocationService(repositories, clock);
   const staffScheduleService = new StaffScheduleService(repositories, clock);
   const staffTimeClockService = new StaffTimeClockService(repositories, clock);
+  const schedulerService = new SchedulerService(repositories, clock);
   const memberService = new MemberService(repositories, clock);
   const memberMembershipService = new MemberMembershipService(repositories, clock);
   const membershipPlanService = new MembershipPlanService(repositories, clock);
@@ -135,6 +144,7 @@ export function createServices(
     clock,
     authService,
     roleService,
+    schedulerService,
     staffScheduleService,
     staffTimeClockService,
     tenancyService,
@@ -514,6 +524,116 @@ function createRoutes() {
       throw forbidden("Staff can only schedule users below their role branch.");
     }
     return context.services.staffScheduleService.createShift(gymId, auth.sub, input);
+  });
+
+  add("GET", "/gyms/:gymId/scheduler/rules", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.ScheduleRead);
+    return { rules: await context.services.schedulerService.listCoverageRules(gymId) };
+  });
+
+  add("POST", "/gyms/:gymId/scheduler/rules", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.ScheduleCreate);
+    const input = parseWith(schedulerCoverageRuleCreateSchema, context.body);
+    return context.services.schedulerService.createCoverageRule(gymId, auth.sub, input);
+  });
+
+  add("GET", "/gyms/:gymId/scheduler/availability", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.ScheduleRead);
+    const visibleStaffUserIds = await context.services.roleService.visibleStaffUserIds(gymId, auth.sub);
+    return {
+      availability: await context.services.schedulerService.listAvailabilities(
+        gymId,
+        visibleStaffUserIds
+      )
+    };
+  });
+
+  add("POST", "/gyms/:gymId/scheduler/availability", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.ScheduleCreate);
+    const input = parseWith(schedulerAvailabilityCreateSchema, context.body);
+    const visibleStaffUserIds = await context.services.roleService.visibleStaffUserIds(gymId, auth.sub);
+    if (visibleStaffUserIds && !visibleStaffUserIds.has(input.userId)) {
+      throw forbidden("Schedulers can only edit availability for visible staff.");
+    }
+    return context.services.schedulerService.createAvailability(gymId, input);
+  });
+
+  add("GET", "/gyms/:gymId/scheduler/requests", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(
+      gymId,
+      auth.sub,
+      Permission.ScheduleRequestsManage
+    );
+    const visibleStaffUserIds = await context.services.roleService.visibleStaffUserIds(gymId, auth.sub);
+    return {
+      requests: await context.services.schedulerService.listRequests(gymId, visibleStaffUserIds)
+    };
+  });
+
+  add("GET", "/gyms/:gymId/scheduler/requests/me", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    return { requests: await context.services.schedulerService.listRequestsForStaff(gymId, auth.sub) };
+  });
+
+  add("POST", "/gyms/:gymId/scheduler/requests", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    const input = parseWith(schedulerRequestCreateSchema, context.body);
+    return context.services.schedulerService.createRequest(gymId, auth.sub, input);
+  });
+
+  add("POST", "/gyms/:gymId/scheduler/generate", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.ScheduleCreate);
+    const input = parseWith(schedulerGenerateSchema, context.body);
+    return context.services.schedulerService.generateDraft(gymId, input);
+  });
+
+  add("POST", "/gyms/:gymId/scheduler/publish", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.SchedulePublish);
+    const input = parseWith(schedulerPublishSchema, context.body);
+    return context.services.schedulerService.publishGeneratedSchedule(gymId, auth.sub, input);
+  });
+
+  add("POST", "/gyms/:gymId/scheduler/requests/:requestId/resolve", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(
+      gymId,
+      auth.sub,
+      Permission.ScheduleAutoResolve
+    );
+    const input = parseWith(schedulerRequestResolveSchema, context.body);
+    return context.services.schedulerService.resolveRequest(
+      gymId,
+      requiredParam(context, "requestId"),
+      auth.sub,
+      input
+    );
   });
 
   add("GET", "/gyms/:gymId/staff/shifts", async (context) => {

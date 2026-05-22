@@ -16,6 +16,9 @@ import type {
   PurposeToken,
   RefreshToken,
   Role,
+  SchedulerAvailability,
+  SchedulerCoverageRule,
+  SchedulerRequest,
   StaffAuditLog,
   StaffInvite,
   StaffShift,
@@ -73,6 +76,7 @@ export interface StaffAuditLogRepository {
 
 export interface StaffShiftRepository {
   createStaffShift(shift: StaffShift): RepositoryResult<StaffShift>;
+  updateStaffShift(shift: StaffShift): RepositoryResult<StaffShift>;
   listStaffShiftsForGym(gymId: string): RepositoryResult<StaffShift[]>;
   listStaffShiftsForStaff(gymId: string, userId: string): RepositoryResult<StaffShift[]>;
 }
@@ -83,6 +87,19 @@ export interface StaffTimeEntryRepository {
   listStaffTimeEntriesForGym(gymId: string): RepositoryResult<StaffTimeEntry[]>;
   listStaffTimeEntriesForStaff(gymId: string, userId: string): RepositoryResult<StaffTimeEntry[]>;
   findOpenStaffTimeEntry(gymId: string, userId: string): RepositoryResult<StaffTimeEntry | undefined>;
+}
+
+export interface SchedulerRepository {
+  createCoverageRule(rule: SchedulerCoverageRule): RepositoryResult<SchedulerCoverageRule>;
+  listCoverageRulesForGym(gymId: string): RepositoryResult<SchedulerCoverageRule[]>;
+  createAvailability(availability: SchedulerAvailability): RepositoryResult<SchedulerAvailability>;
+  listAvailabilitiesForGym(gymId: string): RepositoryResult<SchedulerAvailability[]>;
+  listAvailabilitiesForStaff(gymId: string, userId: string): RepositoryResult<SchedulerAvailability[]>;
+  createRequest(request: SchedulerRequest): RepositoryResult<SchedulerRequest>;
+  updateRequest(request: SchedulerRequest): RepositoryResult<SchedulerRequest>;
+  getRequest(requestId: string): RepositoryResult<SchedulerRequest | undefined>;
+  listRequestsForGym(gymId: string): RepositoryResult<SchedulerRequest[]>;
+  listRequestsForStaff(gymId: string, userId: string): RepositoryResult<SchedulerRequest[]>;
 }
 
 export interface LocationRepository {
@@ -181,6 +198,7 @@ export interface Repositories {
   staffAuditLogs: StaffAuditLogRepository;
   staffShifts: StaffShiftRepository;
   staffTimeEntries: StaffTimeEntryRepository;
+  scheduler: SchedulerRepository;
   locations: LocationRepository;
   members: MemberRepository;
   membershipPlans: MembershipPlanRepository;

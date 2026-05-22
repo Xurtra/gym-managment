@@ -115,6 +115,21 @@ const STAFF_ROLE_PRESETS = [
       Permission.PaymentRead,
       Permission.PaymentWrite
     ]
+  },
+  {
+    key: "scheduler",
+    label: "Scheduler",
+    defaultName: "Schedule Coordinator",
+    description: "Creates schedules, publishes shifts, and resolves employee scheduling requests.",
+    permissions: [
+      Permission.GymRead,
+      Permission.StaffRead,
+      Permission.ScheduleRead,
+      Permission.ScheduleCreate,
+      Permission.SchedulePublish,
+      Permission.ScheduleRequestsManage,
+      Permission.ScheduleAutoResolve
+    ]
   }
 ] as const;
 const PERMISSION_DETAILS: Record<string, { label: string; description: string }> = {
@@ -209,6 +224,26 @@ const PERMISSION_DETAILS: Record<string, { label: string; description: string }>
   [Permission.ReportRead]: {
     label: "View reports and payroll",
     description: "See reporting, hours worked, and payroll summaries."
+  },
+  [Permission.ScheduleRead]: {
+    label: "View scheduler",
+    description: "See coverage rules, availability, drafts, and schedule requests."
+  },
+  [Permission.ScheduleCreate]: {
+    label: "Create schedules",
+    description: "Create coverage rules, availability, and generated schedule drafts."
+  },
+  [Permission.SchedulePublish]: {
+    label: "Publish schedules",
+    description: "Turn generated drafts into staff shifts."
+  },
+  [Permission.ScheduleRequestsManage]: {
+    label: "Manage schedule requests",
+    description: "Review employee schedule complaints, swaps, and time-off requests."
+  },
+  [Permission.ScheduleAutoResolve]: {
+    label: "Auto-resolve requests",
+    description: "Let the system find and assign eligible replacements."
   }
 };
 const DEFAULT_SIGNATURE_REQUIREMENTS = [
@@ -477,6 +512,63 @@ interface StaffTimeEntryListResponse {
   entries: StaffTimeEntryRecord[];
 }
 
+interface SchedulerCoverageRuleRecord {
+  id: string;
+  gymId: string;
+  name: string;
+  locationId?: string;
+  roleId: string;
+  daysOfWeek: number[];
+  startTime: string;
+  endTime: string;
+  requiredStaff: number;
+}
+
+interface SchedulerAvailabilityRecord {
+  id: string;
+  gymId: string;
+  userId: string;
+  daysOfWeek: number[];
+  startTime: string;
+  endTime: string;
+  preference: "available" | "preferred" | "unavailable";
+  notes?: string;
+}
+
+interface SchedulerRequestRecord {
+  id: string;
+  gymId: string;
+  userId: string;
+  shiftId?: string;
+  requestType: "time_off" | "swap" | "complaint";
+  message: string;
+  status: "open" | "resolved" | "declined";
+  suggestedReplacementUserId?: string;
+  resolutionNote?: string;
+  createdAt: string;
+}
+
+interface ScheduleDraftAssignmentRecord {
+  id: string;
+  ruleId: string;
+  date: string;
+  userId?: string;
+  roleId: string;
+  locationId?: string;
+  startsAt: string;
+  endsAt: string;
+  score: number;
+  reason: string;
+  warnings: string[];
+}
+
+interface ScheduleDraftRecord {
+  startsOn: string;
+  endsOn: string;
+  assignments: ScheduleDraftAssignmentRecord[];
+  warnings: string[];
+}
+
 interface PublicGymResponse {
   gym: GymRecord;
 }
@@ -568,6 +660,10 @@ interface AppState {
   selectedRoleId: string;
   staffShifts: StaffShiftRecord[];
   staffTimeEntries: StaffTimeEntryRecord[];
+  schedulerRules: SchedulerCoverageRuleRecord[];
+  schedulerAvailability: SchedulerAvailabilityRecord[];
+  schedulerRequests: SchedulerRequestRecord[];
+  schedulerDraft?: ScheduleDraftRecord;
   staffAccessSearch: string;
   staffAccessRoleFilter: string;
   staffScheduleCalendarOpen: boolean;
@@ -584,6 +680,7 @@ interface AppState {
     | "customer_edit"
     | "leads"
     | "staff"
+    | "scheduler"
     | "pos"
     | "plans"
     | "locations"
@@ -662,6 +759,10 @@ const state: AppState = {
   selectedRoleId: "",
   staffShifts: [],
   staffTimeEntries: [],
+  schedulerRules: [],
+  schedulerAvailability: [],
+  schedulerRequests: [],
+  schedulerDraft: undefined,
   staffAccessSearch: "",
   staffAccessRoleFilter: "",
   staffScheduleCalendarOpen: false,
@@ -815,6 +916,7 @@ async function refreshDashboard() {
       const canReadStaff = hasPermission(Permission.StaffRead);
       const canReadOwnShifts = hasPermission(Permission.GymRead);
       const canReadAccess = hasPermission(Permission.AccessRead);
+      const canReadScheduler = hasPermission(Permission.ScheduleRead);
       const [members, plans, locations, checkIns, classTypes] = (await Promise.all([
         loadPermittedDashboardData(
           canReadMembers,
@@ -915,6 +1017,26 @@ async function refreshDashboard() {
       state.staff = staffResponse.staff ?? [];
       state.staffShifts = staffShiftResponse.shifts ?? [];
       state.staffTimeEntries = staffTimeEntryResponse.entries ?? [];
+      const [schedulerRulesResponse, schedulerAvailabilityResponse, schedulerRequestsResponse] = await Promise.all([
+        loadPermittedDashboardData(
+          canReadScheduler,
+          () => client.listSchedulerRules(state.gym!.id) as Promise<{ rules?: SchedulerCoverageRuleRecord[] }>,
+          { rules: [] }
+        ),
+        loadPermittedDashboardData(
+          canReadScheduler,
+          () => client.listSchedulerAvailability(state.gym!.id) as Promise<{ availability?: SchedulerAvailabilityRecord[] }>,
+          { availability: [] }
+        ),
+        loadPermittedDashboardData(
+          hasPermission(Permission.ScheduleRequestsManage),
+          () => client.listSchedulerRequests(state.gym!.id) as Promise<{ requests?: SchedulerRequestRecord[] }>,
+          { requests: [] }
+        )
+      ]);
+      state.schedulerRules = schedulerRulesResponse.rules ?? [];
+      state.schedulerAvailability = schedulerAvailabilityResponse.availability ?? [];
+      state.schedulerRequests = schedulerRequestsResponse.requests ?? [];
       const [devicesResponse, rulesResponse, eventsResponse] = (await Promise.all([
         loadPermittedDashboardData(
           canReadAccess,
@@ -1176,6 +1298,9 @@ function renderDashboard() {
     case 'staff':
       content = renderStaffView();
       break;
+    case 'scheduler':
+      content = renderSchedulerView();
+      break;
     case 'pos':
       content = renderPosView();
       break;
@@ -1259,6 +1384,7 @@ function renderDashboard() {
         ${dashboardTab("customers", "Customers")}
         ${dashboardTab("leads", "Leads")}
         ${dashboardTab("staff", "Staff")}
+        ${dashboardTab("scheduler", "Scheduler")}
         ${dashboardTab("pos", "Point Of Sale")}
         ${dashboardTab("plans", "Plans")}
         ${dashboardTab("locations", "Locations")}
@@ -1948,6 +2074,219 @@ function renderStaffView() {
       ${state.staffScheduleCalendarOpen ? renderStaffShiftCalendarModal() : ""}
       ${state.staffRemovalUserId ? renderStaffRemovalModal() : ""}
     </section>
+  `;
+}
+
+function renderSchedulerView() {
+  const canRead = hasPermission(Permission.ScheduleRead);
+  const canCreate = hasPermission(Permission.ScheduleCreate);
+  const canPublish = hasPermission(Permission.SchedulePublish);
+  const canResolve = hasPermission(Permission.ScheduleAutoResolve);
+  const staffOptions = staffDirectoryRows()
+    .filter((staff) => staff.status === UserStatus.Active)
+    .map((staff) => ({ value: staff.userId, label: staffFullName(staff) }));
+  const roleOptions = staffAssignableRoles().map((role) => ({
+    value: role.id,
+    label: formatRoleLabel(role.name)
+  }));
+  const locationOptions = [
+    { value: "", label: "Any location" },
+    ...locationSelectOptions()
+  ];
+  const today = toDateInputValue(new Date());
+  const nextWeek = toDateInputValue(new Date(Date.now() + 6 * 24 * 60 * 60 * 1000));
+  if (!canRead) {
+    return `
+      <section class="club-panel club-page">
+        <p class="eyebrow">Scheduler</p>
+        <h2>Automated scheduling</h2>
+        <div class="settings-placeholder"><strong>No scheduler access</strong><p>Your role needs Scheduler permissions to use this workspace.</p></div>
+      </section>
+    `;
+  }
+  return `
+    <section class="club-panel club-page scheduler-page">
+      <div class="card-head">
+        <div>
+          <p class="eyebrow">Scheduler</p>
+          <h2>Automated schedule builder</h2>
+          <p class="club-copy">Create coverage rules, track availability, generate a draft schedule, then publish shifts to staff.</p>
+        </div>
+        <span>${state.schedulerRules.length} rules · ${state.schedulerRequests.filter((request) => request.status === "open").length} open requests</span>
+      </div>
+      <div class="club-page-split">
+        <div class="section-stack">
+          <div class="club-panel scheduler-generator">
+            <div class="card-head">
+              <div>
+                <h3>Create schedule</h3>
+                <p class="club-copy">Algorithmic draft first. Manager review stays in control before publishing.</p>
+              </div>
+            </div>
+            <form id="scheduler-generate-form" class="scheduler-inline-form">
+              ${renderInput("startsOn", "Starts on", "date", today)}
+              ${renderInput("endsOn", "Ends on", "date", nextWeek)}
+              ${renderSelect("locationId", "Location", locationOptions, "")}
+              <button type="submit" ${canCreate ? "" : "disabled"}>Create schedule</button>
+            </form>
+            ${state.schedulerDraft ? renderSchedulerDraft(canPublish) : `<div class="settings-placeholder"><strong>No draft yet</strong><p>Create a schedule to preview assignments and coverage warnings.</p></div>`}
+          </div>
+          <div class="club-panel">
+            <div class="card-head">
+              <div>
+                <h3>Requests and automatic replacement</h3>
+                <p class="club-copy">Employee complaints, swap requests, and time-off notes land here for manager review.</p>
+              </div>
+            </div>
+            ${renderSchedulerRequests(canResolve)}
+          </div>
+        </div>
+        <div class="section-stack">
+          <details class="form-card expandable-card" ${canCreate ? "" : "open"}>
+            <summary class="expandable-summary">
+              <span>
+                <h3>Coverage rule</h3>
+                <p class="muted">Tell the scheduler what role is needed and when.</p>
+              </span>
+              <span class="expandable-action">Expand</span>
+            </summary>
+            <form id="scheduler-rule-form" class="expandable-body">
+              ${renderInput("name", "Rule name", "text", "Front desk weekday coverage")}
+              ${renderSelect("roleId", "Role needed", roleOptions.length ? roleOptions : [{ value: "", label: "No staff roles available" }], roleOptions[0]?.value ?? "")}
+              ${renderSelect("locationId", "Location", locationOptions, "")}
+              ${renderSchedulerDayPicker()}
+              ${renderInput("startTime", "Start time", "time", "09:00")}
+              ${renderInput("endTime", "End time", "time", "17:00")}
+              ${renderInput("requiredStaff", "Employees needed", "number", "1")}
+              <button type="submit" ${canCreate && roleOptions.length ? "" : "disabled"}>Save rule</button>
+            </form>
+          </details>
+          <details class="form-card expandable-card">
+            <summary class="expandable-summary">
+              <span>
+                <h3>Availability</h3>
+                <p class="muted">Add preferred or blocked working windows for staff.</p>
+              </span>
+              <span class="expandable-action">Expand</span>
+            </summary>
+            <form id="scheduler-availability-form" class="expandable-body">
+              ${renderSelect("userId", "Staff member", staffOptions.length ? staffOptions : [{ value: "", label: "No active staff" }], staffOptions[0]?.value ?? "")}
+              ${renderSelect("preference", "Preference", [
+                { value: "available", label: "Available" },
+                { value: "preferred", label: "Preferred" },
+                { value: "unavailable", label: "Unavailable" }
+              ], "available")}
+              ${renderSchedulerDayPicker()}
+              ${renderInput("startTime", "Start time", "time", "09:00")}
+              ${renderInput("endTime", "End time", "time", "17:00")}
+              ${renderInput("notes", "Notes", "text", "")}
+              <button type="submit" ${canCreate && staffOptions.length ? "" : "disabled"}>Save availability</button>
+            </form>
+          </details>
+          <details class="form-card expandable-card">
+            <summary class="expandable-summary">
+              <span>
+                <h3>Employee request</h3>
+                <p class="muted">Submit a complaint or swap request for the signed-in employee.</p>
+              </span>
+              <span class="expandable-action">Expand</span>
+            </summary>
+            <form id="scheduler-request-form" class="expandable-body">
+              ${renderSelect("shiftId", "Related shift", signedInStaffShifts().length ? [{ value: "", label: "No specific shift" }, ...signedInStaffShifts().map((shift) => ({ value: shift.id, label: `${new Date(shift.startsAt).toLocaleDateString()} ${new Date(shift.startsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` }))] : [{ value: "", label: "No specific shift" }], "")}
+              ${renderSelect("requestType", "Request type", [
+                { value: "complaint", label: "Complaint / conflict" },
+                { value: "swap", label: "Need a replacement" },
+                { value: "time_off", label: "Time off" }
+              ], "complaint")}
+              <label class="field"><span>Message</span><textarea name="message" rows="4" placeholder="Explain what needs to change"></textarea></label>
+              <button type="submit">Send request</button>
+            </form>
+          </details>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderSchedulerDayPicker() {
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  return `
+    <fieldset class="scheduler-day-picker">
+      <legend>Days</legend>
+      <div>
+        ${days.map((day, index) => `
+          <label class="permission-chip active">
+            <input type="checkbox" name="daysOfWeek" value="${index}" ${index >= 1 && index <= 5 ? "checked" : ""} />
+            <span class="permission-chip-copy"><strong>${day}</strong></span>
+          </label>
+        `).join("")}
+      </div>
+    </fieldset>
+  `;
+}
+
+function renderSchedulerDraft(canPublish: boolean) {
+  const draft = state.schedulerDraft;
+  if (!draft) {
+    return "";
+  }
+  return `
+    <div class="scheduler-draft">
+      <div class="staff-shift-head-actions">
+        <span>${draft.assignments.length} draft assignments · ${draft.warnings.length} warnings</span>
+        <button type="button" class="ghost-button" data-scheduler-publish ${canPublish && draft.assignments.some((assignment) => assignment.userId) ? "" : "disabled"}>Publish shifts</button>
+      </div>
+      ${draft.warnings.length
+        ? `<div class="staff-removal-warning"><strong>Coverage warnings</strong><ul>${draft.warnings.slice(0, 4).map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}</ul></div>`
+        : ""}
+      <div class="staff-role-list">
+        ${draft.assignments.slice(0, 12).map((assignment) => {
+          const staff = assignment.userId ? staffByUserId(assignment.userId) : undefined;
+          const role = state.roles.find((candidate) => candidate.id === assignment.roleId);
+          return `
+            <article class="staff-role-row">
+              <div class="staff-role-copy">
+                <strong>${escapeHtml(staff ? staffFullName(staff) : "Unassigned")}</strong>
+                <p>${escapeHtml(new Date(assignment.startsAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" }))} - ${escapeHtml(new Date(assignment.endsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }))}</p>
+                <span class="staff-clock-chip">${escapeHtml(role ? formatRoleLabel(role.name) : "Staff")} · ${escapeHtml(assignment.reason)}</span>
+              </div>
+              <span class="staff-status-chip">${assignment.score}</span>
+            </article>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderSchedulerRequests(canResolve: boolean) {
+  const requests = state.schedulerRequests;
+  if (requests.length === 0) {
+    return `<div class="settings-placeholder"><strong>No requests yet</strong><p>Employees can submit schedule issues from this tab.</p></div>`;
+  }
+  return `
+    <div class="staff-role-list">
+      ${requests.slice(0, 8).map((request) => {
+        const staff = staffByUserId(request.userId);
+        const replacement = request.suggestedReplacementUserId ? staffByUserId(request.suggestedReplacementUserId) : undefined;
+        return `
+          <article class="staff-role-row">
+            <div class="staff-role-copy">
+              <div class="staff-role-title">
+                <strong>${escapeHtml(staff ? staffFullName(staff) : "Employee")}</strong>
+                <span class="staff-status-chip">${escapeHtml(formatRoleLabel(request.status))}</span>
+              </div>
+              <p>${escapeHtml(formatRoleLabel(request.requestType))} · ${escapeHtml(request.message)}</p>
+              ${replacement ? `<span class="staff-clock-chip active">Replacement: ${escapeHtml(staffFullName(replacement))}</span>` : ""}
+              ${request.resolutionNote ? `<span class="staff-clock-chip">${escapeHtml(request.resolutionNote)}</span>` : ""}
+            </div>
+            <div class="staff-role-actions">
+              <button type="button" class="ghost-button" data-scheduler-resolve="${escapeAttribute(request.id)}" ${canResolve && request.status === "open" ? "" : "disabled"}>Auto resolve</button>
+            </div>
+          </article>
+        `;
+      }).join("")}
+    </div>
   `;
 }
 
@@ -2890,6 +3229,10 @@ function staffMatchesAccessFilters(staff: StaffRecord, roleFilter: string, searc
 
 function staffAccessSearchText(staff: StaffRecord) {
   return `${staffFullName(staff)} ${staff.email} ${formatRoleLabel(staff.roleName)} ${staff.status}`.toLowerCase();
+}
+
+function staffByUserId(userId: string) {
+  return staffDirectoryRows().find((staff) => staff.userId === userId);
 }
 
 function openStaffTimeEntry(userId: string) {
@@ -4851,6 +5194,41 @@ function bindEvents() {
       }
     });
   });
+  app.querySelectorAll<HTMLButtonElement>("[data-scheduler-publish]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!state.gym || !state.schedulerDraft) return;
+      try {
+        await client.publishSchedule(state.gym.id, {
+          startsOn: state.schedulerDraft.startsOn,
+          endsOn: state.schedulerDraft.endsOn,
+          replaceExisting: false
+        });
+        setBanner("success", "Generated schedule published to staff shifts.");
+        state.schedulerDraft = undefined;
+        await refreshDashboard();
+        navigateDashboardView("scheduler", { preserveContext: true });
+      } catch (error) {
+        setBanner("error", describeError(error));
+      }
+    });
+  });
+  app.querySelectorAll<HTMLButtonElement>("[data-scheduler-resolve]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!state.gym) return;
+      const requestId = button.dataset.schedulerResolve;
+      if (!requestId) return;
+      try {
+        await client.resolveSchedulerRequest(state.gym.id, requestId, {
+          autoAssignReplacement: true
+        });
+        setBanner("success", "Schedule request reviewed and replacement search completed.");
+        await refreshDashboard();
+        navigateDashboardView("scheduler", { preserveContext: true });
+      } catch (error) {
+        setBanner("error", describeError(error));
+      }
+    });
+  });
 
   app.querySelectorAll<HTMLElement>("[data-staff-calendar-close]").forEach((element) => {
     element.addEventListener("click", (event) => {
@@ -5237,6 +5615,76 @@ function bindEvents() {
     setBanner("success", "Staff shift scheduled.");
     await refreshDashboard();
     navigateDashboardView("staff", { preserveContext: true });
+  });
+
+  bindForm("scheduler-rule-form", async (form) => {
+    if (!state.gym) return;
+    const data = formData(form);
+    const daysOfWeek = schedulerDaysFromForm(form);
+    if (!data.roleId || daysOfWeek.length === 0) {
+      throw new Error("Choose a role and at least one day for the coverage rule.");
+    }
+    await client.createSchedulerRule(state.gym.id, {
+      name: data.name,
+      roleId: data.roleId,
+      ...(data.locationId ? { locationId: data.locationId } : {}),
+      daysOfWeek,
+      startTime: data.startTime,
+      endTime: data.endTime,
+      requiredStaff: Number(data.requiredStaff || 1)
+    });
+    setBanner("success", "Scheduler coverage rule saved.");
+    await refreshDashboard();
+    navigateDashboardView("scheduler", { preserveContext: true });
+  });
+
+  bindForm("scheduler-availability-form", async (form) => {
+    if (!state.gym) return;
+    const data = formData(form);
+    const daysOfWeek = schedulerDaysFromForm(form);
+    if (!data.userId || daysOfWeek.length === 0) {
+      throw new Error("Choose staff and at least one availability day.");
+    }
+    await client.createSchedulerAvailability(state.gym.id, {
+      userId: data.userId,
+      daysOfWeek,
+      startTime: data.startTime,
+      endTime: data.endTime,
+      preference: data.preference as "available" | "preferred" | "unavailable",
+      ...(data.notes?.trim() ? { notes: data.notes.trim() } : {})
+    });
+    setBanner("success", "Availability saved.");
+    await refreshDashboard();
+    navigateDashboardView("scheduler", { preserveContext: true });
+  });
+
+  bindForm("scheduler-generate-form", async (form) => {
+    if (!state.gym) return;
+    const data = formData(form);
+    const draft = (await client.generateSchedule(state.gym.id, {
+      startsOn: data.startsOn,
+      endsOn: data.endsOn,
+      ...(data.locationId ? { locationId: data.locationId } : {})
+    })) as ScheduleDraftRecord;
+    state.schedulerDraft = draft;
+    setBanner("success", "Schedule draft created.");
+    render();
+  });
+
+  bindForm("scheduler-request-form", async (form) => {
+    if (!state.gym) return;
+    const data = formData(form);
+    if (!data.message?.trim()) {
+      throw new Error("Add a message before sending a schedule request.");
+    }
+    await client.createSchedulerRequest(state.gym.id, {
+      ...(data.shiftId ? { shiftId: data.shiftId } : {}),
+      requestType: data.requestType as "time_off" | "swap" | "complaint",
+      message: data.message.trim()
+    });
+    setBanner("success", "Schedule request sent.");
+    await refreshDashboard();
+    navigateDashboardView("scheduler", { preserveContext: true });
   });
 
   // Check-in forms
@@ -5776,6 +6224,12 @@ function formData(form: HTMLFormElement) {
   return Object.fromEntries(values.entries()) as Record<string, string>;
 }
 
+function schedulerDaysFromForm(form: HTMLFormElement) {
+  return Array.from(form.querySelectorAll<HTMLInputElement>('input[name="daysOfWeek"]:checked'))
+    .map((input) => Number(input.value))
+    .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6);
+}
+
 function renderInput(name: string, label: string, type = "text", value = "") {
   return `
     <label class="field">
@@ -5905,6 +6359,10 @@ function clearDashboardState() {
   state.staff = [];
   state.staffShifts = [];
   state.staffTimeEntries = [];
+  state.schedulerRules = [];
+  state.schedulerAvailability = [];
+  state.schedulerRequests = [];
+  state.schedulerDraft = undefined;
   state.staffAccessSearch = "";
   state.staffAccessRoleFilter = "";
   state.staffScheduleCalendarOpen = false;
@@ -5980,6 +6438,8 @@ function parseDashboardRoute(segments: string[]) {
       return { dashboardView: "leads" as const };
     case "staff":
       return { dashboardView: "staff" as const };
+    case "scheduler":
+      return { dashboardView: "scheduler" as const };
     case "point-of-sale":
     case "pos":
       return { dashboardView: "pos" as const };
@@ -6080,6 +6540,8 @@ function dashboardViewToHash(view: AppState["dashboardView"]) {
       return "#/dashboard/leads";
     case "staff":
       return "#/dashboard/staff";
+    case "scheduler":
+      return "#/dashboard/scheduler";
     case "pos":
       return "#/dashboard/point-of-sale";
     case "plans":

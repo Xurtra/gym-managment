@@ -1,4 +1,4 @@
-import type { AccessDeviceCreateInput, AccessDeviceEventInput, AccessDeviceHeartbeatInput, AccessRuleCreateInput, ClassBookingCreateInput, CheckInCreateInput, ClassSessionCreateInput, ClassTypeCreateInput, CustomRoleCreateInput, CustomRoleUpdateInput, GymCreateInput, GymUpdateInput, LocationCreateInput, LocationUpdateInput, LoginInput, MemberCreateInput, MemberMembershipAssignInput, MemberUpdateInput, MembershipPlanCreateInput, MembershipPlanUpdateInput, PublicSignupInput, RegisterInput, ResetPasswordInput, RoleAssignmentInput, StaffAccessRemoveInput, StaffClockInInput, StaffClockOutInput, StaffInviteAcceptInput, StaffInviteCreateInput, StaffShiftCreateInput, StaffSelfClockInInput, StaffSelfClockOutInput, StaffManualBookingInput } from "@gym-platform/validation";
+import type { AccessDeviceCreateInput, AccessDeviceEventInput, AccessDeviceHeartbeatInput, AccessRuleCreateInput, ClassBookingCreateInput, CheckInCreateInput, ClassSessionCreateInput, ClassTypeCreateInput, CustomRoleCreateInput, CustomRoleUpdateInput, GymCreateInput, GymUpdateInput, LocationCreateInput, LocationUpdateInput, LoginInput, MemberCreateInput, MemberMembershipAssignInput, MemberUpdateInput, MembershipPlanCreateInput, MembershipPlanUpdateInput, PublicSignupInput, RegisterInput, ResetPasswordInput, RoleAssignmentInput, SchedulerAvailabilityCreateInput, SchedulerCoverageRuleCreateInput, SchedulerGenerateInput, SchedulerPublishInput, SchedulerRequestCreateInput, SchedulerRequestResolveInput, StaffAccessRemoveInput, StaffClockInInput, StaffClockOutInput, StaffInviteAcceptInput, StaffInviteCreateInput, StaffShiftCreateInput, StaffSelfClockInInput, StaffSelfClockOutInput, StaffManualBookingInput } from "@gym-platform/validation";
 export interface ApiClientOptions {
     baseUrl: string;
     accessToken?: string;
@@ -65,6 +65,16 @@ export declare class GymApiClient {
     listStaffShifts(gymId: string): Promise<unknown>;
     listMyStaffShifts(gymId: string): Promise<unknown>;
     createStaffShift(gymId: string, input: StaffShiftCreateInput): Promise<unknown>;
+    listSchedulerRules(gymId: string): Promise<unknown>;
+    createSchedulerRule(gymId: string, input: SchedulerCoverageRuleCreateInput): Promise<unknown>;
+    listSchedulerAvailability(gymId: string): Promise<unknown>;
+    createSchedulerAvailability(gymId: string, input: SchedulerAvailabilityCreateInput): Promise<unknown>;
+    listSchedulerRequests(gymId: string): Promise<unknown>;
+    listMySchedulerRequests(gymId: string): Promise<unknown>;
+    createSchedulerRequest(gymId: string, input: SchedulerRequestCreateInput): Promise<unknown>;
+    generateSchedule(gymId: string, input: SchedulerGenerateInput): Promise<unknown>;
+    publishSchedule(gymId: string, input: SchedulerPublishInput): Promise<unknown>;
+    resolveSchedulerRequest(gymId: string, requestId: string, input: SchedulerRequestResolveInput): Promise<unknown>;
     listStaffTimeEntries(gymId: string): Promise<unknown>;
     listMyStaffTimeEntries(gymId: string): Promise<unknown>;
     clockStaffIn(gymId: string, input: StaffClockInInput): Promise<unknown>;

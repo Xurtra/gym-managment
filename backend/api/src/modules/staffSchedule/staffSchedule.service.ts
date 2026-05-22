@@ -102,7 +102,7 @@ export class StaffScheduleService {
   }
 }
 
-function toPublicStaffShift(shift: StaffShift): PublicStaffShift {
+export function toPublicStaffShift(shift: StaffShift): PublicStaffShift {
   return {
     id: shift.id,
     gymId: shift.gymId,

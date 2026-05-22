@@ -2355,6 +2355,60 @@ html[data-theme="dark"] .empty-state {
   flex-wrap: wrap;
 }
 
+.scheduler-page textarea {
+  width: 100%;
+  min-height: 96px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  resize: vertical;
+}
+
+.scheduler-inline-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  gap: 10px;
+  align-items: end;
+  margin: 12px 0;
+}
+
+.scheduler-inline-form .field {
+  margin: 0;
+}
+
+.scheduler-day-picker {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.scheduler-day-picker legend {
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin-bottom: 4px;
+}
+
+.scheduler-day-picker > div {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.scheduler-day-picker .permission-chip {
+  justify-content: center;
+  padding: 8px;
+}
+
+.scheduler-draft {
+  display: grid;
+  gap: 12px;
+}
+
 .staff-calendar-backdrop {
   position: fixed;
   inset: 0;
@@ -3021,6 +3075,14 @@ html[data-theme="dark"] .club-staff-page td {
 
   .staff-filter-bar {
     grid-template-columns: 1fr;
+  }
+
+  .scheduler-inline-form {
+    grid-template-columns: 1fr;
+  }
+
+  .scheduler-day-picker > div {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

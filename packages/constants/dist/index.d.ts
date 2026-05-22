@@ -147,6 +147,11 @@ export declare const Permission: {
     readonly PaymentRead: "payment:read";
     readonly PaymentWrite: "payment:write";
     readonly ReportRead: "report:read";
+    readonly ScheduleRead: "schedule:read";
+    readonly ScheduleCreate: "schedule:create";
+    readonly SchedulePublish: "schedule:publish";
+    readonly ScheduleRequestsManage: "schedule:requests_manage";
+    readonly ScheduleAutoResolve: "schedule:auto_resolve";
     readonly PlatformAdmin: "platform:admin";
 };
 export type Permission = (typeof Permission)[keyof typeof Permission];

@@ -118,6 +118,36 @@ export class GymApiClient {
     createStaffShift(gymId, input) {
         return this.request("POST", `/gyms/${gymId}/staff/shifts`, input);
     }
+    listSchedulerRules(gymId) {
+        return this.request("GET", `/gyms/${gymId}/scheduler/rules`);
+    }
+    createSchedulerRule(gymId, input) {
+        return this.request("POST", `/gyms/${gymId}/scheduler/rules`, input);
+    }
+    listSchedulerAvailability(gymId) {
+        return this.request("GET", `/gyms/${gymId}/scheduler/availability`);
+    }
+    createSchedulerAvailability(gymId, input) {
+        return this.request("POST", `/gyms/${gymId}/scheduler/availability`, input);
+    }
+    listSchedulerRequests(gymId) {
+        return this.request("GET", `/gyms/${gymId}/scheduler/requests`);
+    }
+    listMySchedulerRequests(gymId) {
+        return this.request("GET", `/gyms/${gymId}/scheduler/requests/me`);
+    }
+    createSchedulerRequest(gymId, input) {
+        return this.request("POST", `/gyms/${gymId}/scheduler/requests`, input);
+    }
+    generateSchedule(gymId, input) {
+        return this.request("POST", `/gyms/${gymId}/scheduler/generate`, input);
+    }
+    publishSchedule(gymId, input) {
+        return this.request("POST", `/gyms/${gymId}/scheduler/publish`, input);
+    }
+    resolveSchedulerRequest(gymId, requestId, input) {
+        return this.request("POST", `/gyms/${gymId}/scheduler/requests/${requestId}/resolve`, input);
+    }
     listStaffTimeEntries(gymId) {
         return this.request("GET", `/gyms/${gymId}/staff/time-entries`);
     }

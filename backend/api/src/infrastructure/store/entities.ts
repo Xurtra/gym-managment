@@ -149,6 +149,50 @@ export interface StaffTimeEntry {
   updatedAt: Date;
 }
 
+export interface SchedulerCoverageRule {
+  id: string;
+  gymId: string;
+  name: string;
+  locationId?: string;
+  roleId: string;
+  daysOfWeek: number[];
+  startTime: string;
+  endTime: string;
+  requiredStaff: number;
+  createdByUserId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SchedulerAvailability {
+  id: string;
+  gymId: string;
+  userId: string;
+  daysOfWeek: number[];
+  startTime: string;
+  endTime: string;
+  preference: "available" | "preferred" | "unavailable";
+  notes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SchedulerRequest {
+  id: string;
+  gymId: string;
+  userId: string;
+  shiftId?: string;
+  requestType: "time_off" | "swap" | "complaint";
+  message: string;
+  status: "open" | "resolved" | "declined";
+  suggestedReplacementUserId?: string;
+  resolutionNote?: string;
+  resolvedByUserId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  resolvedAt?: Date;
+}
+
 export interface Address {
   line1: string;
   line2?: string;
@@ -391,6 +435,9 @@ export interface StoreSnapshot {
   staffAuditLogs: StaffAuditLog[];
   staffShifts: StaffShift[];
   staffTimeEntries: StaffTimeEntry[];
+  schedulerCoverageRules: SchedulerCoverageRule[];
+  schedulerAvailabilities: SchedulerAvailability[];
+  schedulerRequests: SchedulerRequest[];
   locations: Location[];
   members: Member[];
   membershipPlans: MembershipPlan[];

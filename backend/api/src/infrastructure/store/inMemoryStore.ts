@@ -17,6 +17,9 @@ import type {
   PurposeToken,
   RefreshToken,
   Role,
+  SchedulerAvailability,
+  SchedulerCoverageRule,
+  SchedulerRequest,
   StaffAuditLog,
   StaffInvite,
   StaffShift,
@@ -38,6 +41,7 @@ import type {
   NotificationRepository,
   Repositories,
   RoleRepository,
+  SchedulerRepository,
   StaffAuditLogRepository,
   StaffInviteRepository,
   StaffShiftRepository,
@@ -55,6 +59,9 @@ export class InMemoryStore implements Repositories {
   private readonly staffAuditLogRecords = new Map<string, StaffAuditLog>();
   private readonly staffShiftRecords = new Map<string, StaffShift>();
   private readonly staffTimeEntryRecords = new Map<string, StaffTimeEntry>();
+  private readonly schedulerCoverageRuleRecords = new Map<string, SchedulerCoverageRule>();
+  private readonly schedulerAvailabilityRecords = new Map<string, SchedulerAvailability>();
+  private readonly schedulerRequestRecords = new Map<string, SchedulerRequest>();
   private readonly locationRecords = new Map<string, Location>();
   private readonly memberRecords = new Map<string, Member>();
   private readonly membershipPlanRecords = new Map<string, MembershipPlan>();
@@ -118,6 +125,7 @@ export class InMemoryStore implements Repositories {
 
   readonly staffShifts: StaffShiftRepository = {
     createStaffShift: (shift) => this.createStaffShift(shift),
+    updateStaffShift: (shift) => this.updateStaffShift(shift),
     listStaffShiftsForGym: (gymId) => this.listStaffShiftsForGym(gymId),
     listStaffShiftsForStaff: (gymId, userId) => this.listStaffShiftsForStaff(gymId, userId)
   };
@@ -129,6 +137,19 @@ export class InMemoryStore implements Repositories {
     listStaffTimeEntriesForStaff: (gymId, userId) =>
       this.listStaffTimeEntriesForStaff(gymId, userId),
     findOpenStaffTimeEntry: (gymId, userId) => this.findOpenStaffTimeEntry(gymId, userId)
+  };
+
+  readonly scheduler: SchedulerRepository = {
+    createCoverageRule: (rule) => this.createCoverageRule(rule),
+    listCoverageRulesForGym: (gymId) => this.listCoverageRulesForGym(gymId),
+    createAvailability: (availability) => this.createAvailability(availability),
+    listAvailabilitiesForGym: (gymId) => this.listAvailabilitiesForGym(gymId),
+    listAvailabilitiesForStaff: (gymId, userId) => this.listAvailabilitiesForStaff(gymId, userId),
+    createRequest: (request) => this.createRequest(request),
+    updateRequest: (request) => this.updateRequest(request),
+    getRequest: (requestId) => this.getRequest(requestId),
+    listRequestsForGym: (gymId) => this.listRequestsForGym(gymId),
+    listRequestsForStaff: (gymId, userId) => this.listRequestsForStaff(gymId, userId)
   };
 
   readonly locations: LocationRepository = {
@@ -361,6 +382,11 @@ export class InMemoryStore implements Repositories {
     return shift;
   }
 
+  async updateStaffShift(shift: StaffShift) {
+    this.staffShiftRecords.set(shift.id, shift);
+    return shift;
+  }
+
   async listStaffShiftsForGym(gymId: string) {
     return [...this.staffShiftRecords.values()]
       .filter((shift) => shift.gymId === gymId)
@@ -399,6 +425,60 @@ export class InMemoryStore implements Repositories {
     return [...this.staffTimeEntryRecords.values()].find(
       (entry) => entry.gymId === gymId && entry.userId === userId && !entry.clockedOutAt
     );
+  }
+
+  async createCoverageRule(rule: SchedulerCoverageRule) {
+    this.schedulerCoverageRuleRecords.set(rule.id, rule);
+    return rule;
+  }
+
+  async listCoverageRulesForGym(gymId: string) {
+    return [...this.schedulerCoverageRuleRecords.values()]
+      .filter((rule) => rule.gymId === gymId)
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  async createAvailability(availability: SchedulerAvailability) {
+    this.schedulerAvailabilityRecords.set(availability.id, availability);
+    return availability;
+  }
+
+  async listAvailabilitiesForGym(gymId: string) {
+    return [...this.schedulerAvailabilityRecords.values()]
+      .filter((availability) => availability.gymId === gymId)
+      .sort((left, right) => left.userId.localeCompare(right.userId));
+  }
+
+  async listAvailabilitiesForStaff(gymId: string, userId: string) {
+    return [...this.schedulerAvailabilityRecords.values()]
+      .filter((availability) => availability.gymId === gymId && availability.userId === userId)
+      .sort((left, right) => left.startTime.localeCompare(right.startTime));
+  }
+
+  async createRequest(request: SchedulerRequest) {
+    this.schedulerRequestRecords.set(request.id, request);
+    return request;
+  }
+
+  async updateRequest(request: SchedulerRequest) {
+    this.schedulerRequestRecords.set(request.id, request);
+    return request;
+  }
+
+  async getRequest(requestId: string) {
+    return this.schedulerRequestRecords.get(requestId);
+  }
+
+  async listRequestsForGym(gymId: string) {
+    return [...this.schedulerRequestRecords.values()]
+      .filter((request) => request.gymId === gymId)
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+  }
+
+  async listRequestsForStaff(gymId: string, userId: string) {
+    return [...this.schedulerRequestRecords.values()]
+      .filter((request) => request.gymId === gymId && request.userId === userId)
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
   }
 
   async createLocation(location: Location) {
@@ -661,6 +741,9 @@ export class InMemoryStore implements Repositories {
       staffAuditLogs: [...this.staffAuditLogRecords.values()],
       staffShifts: [...this.staffShiftRecords.values()],
       staffTimeEntries: [...this.staffTimeEntryRecords.values()],
+      schedulerCoverageRules: [...this.schedulerCoverageRuleRecords.values()],
+      schedulerAvailabilities: [...this.schedulerAvailabilityRecords.values()],
+      schedulerRequests: [...this.schedulerRequestRecords.values()],
       locations: [...this.locationRecords.values()],
       members: [...this.memberRecords.values()],
       membershipPlans: [...this.membershipPlanRecords.values()],

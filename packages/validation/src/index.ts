@@ -213,6 +213,66 @@ export const staffSelfClockOutSchema = z.object({
   notes: trimmed.max(500).optional()
 });
 
+const schedulerDay = z.number().int().min(0).max(6);
+const schedulerTime = z.string().regex(/^\d{2}:\d{2}$/);
+
+export const schedulerCoverageRuleCreateSchema = z
+  .object({
+    name: trimmed.min(2).max(120),
+    locationId: id.optional(),
+    roleId: id,
+    daysOfWeek: z.array(schedulerDay).min(1).max(7),
+    startTime: schedulerTime,
+    endTime: schedulerTime,
+    requiredStaff: z.number().int().min(1).max(20).default(1)
+  })
+  .refine((value) => value.endTime > value.startTime, {
+    message: "Coverage end time must be after start time."
+  });
+
+export const schedulerAvailabilityCreateSchema = z
+  .object({
+    userId: id,
+    daysOfWeek: z.array(schedulerDay).min(1).max(7),
+    startTime: schedulerTime,
+    endTime: schedulerTime,
+    preference: z.enum(["available", "preferred", "unavailable"]).default("available"),
+    notes: trimmed.max(500).optional()
+  })
+  .refine((value) => value.endTime > value.startTime, {
+    message: "Availability end time must be after start time."
+  });
+
+export const schedulerRequestCreateSchema = z.object({
+  shiftId: id.optional(),
+  requestType: z.enum(["time_off", "swap", "complaint"]).default("complaint"),
+  message: trimmed.min(2).max(1000)
+});
+
+const schedulerGenerateBaseSchema = z.object({
+  startsOn: z.string().date(),
+  endsOn: z.string().date(),
+  locationId: id.optional()
+});
+
+export const schedulerGenerateSchema = schedulerGenerateBaseSchema.refine(
+  (value) => value.endsOn >= value.startsOn,
+  {
+    message: "Schedule end date must be on or after start date."
+  }
+);
+
+export const schedulerPublishSchema = schedulerGenerateBaseSchema.extend({
+  replaceExisting: z.boolean().default(false)
+}).refine((value) => value.endsOn >= value.startsOn, {
+  message: "Schedule end date must be on or after start date."
+});
+
+export const schedulerRequestResolveSchema = z.object({
+  resolutionNote: trimmed.max(1000).optional(),
+  autoAssignReplacement: z.boolean().default(true)
+});
+
 export const memberCreateSchema = z.object({
   firstName: trimmed.min(1).max(80),
   lastName: trimmed.min(1).max(80),
@@ -397,6 +457,12 @@ export type StaffClockInInput = z.infer<typeof staffClockInSchema>;
 export type StaffClockOutInput = z.infer<typeof staffClockOutSchema>;
 export type StaffSelfClockInInput = z.infer<typeof staffSelfClockInSchema>;
 export type StaffSelfClockOutInput = z.infer<typeof staffSelfClockOutSchema>;
+export type SchedulerCoverageRuleCreateInput = z.infer<typeof schedulerCoverageRuleCreateSchema>;
+export type SchedulerAvailabilityCreateInput = z.infer<typeof schedulerAvailabilityCreateSchema>;
+export type SchedulerRequestCreateInput = z.infer<typeof schedulerRequestCreateSchema>;
+export type SchedulerGenerateInput = z.infer<typeof schedulerGenerateSchema>;
+export type SchedulerPublishInput = z.infer<typeof schedulerPublishSchema>;
+export type SchedulerRequestResolveInput = z.infer<typeof schedulerRequestResolveSchema>;
 export type MemberCreateInput = z.infer<typeof memberCreateSchema>;
 export type MemberUpdateInput = z.infer<typeof memberUpdateSchema>;
 export type MembershipPlanCreateInput = z.infer<typeof membershipPlanCreateSchema>;

@@ -127,6 +127,11 @@ export const Permission = {
     PaymentRead: "payment:read",
     PaymentWrite: "payment:write",
     ReportRead: "report:read",
+    ScheduleRead: "schedule:read",
+    ScheduleCreate: "schedule:create",
+    SchedulePublish: "schedule:publish",
+    ScheduleRequestsManage: "schedule:requests_manage",
+    ScheduleAutoResolve: "schedule:auto_resolve",
     PlatformAdmin: "platform:admin"
 };
 export const FeatureFlag = {

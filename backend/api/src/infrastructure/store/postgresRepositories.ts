@@ -19,6 +19,9 @@ import type {
   PurposeToken,
   RefreshToken,
   Role,
+  SchedulerAvailability,
+  SchedulerCoverageRule,
+  SchedulerRequest,
   StaffAuditLog,
   StaffInvite,
   StaffShift,
@@ -149,6 +152,50 @@ interface StaffTimeEntryRow extends QueryResultRow {
   clocked_in_by_user_id: string;
   clocked_out_by_user_id: string | null;
   notes: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface SchedulerCoverageRuleRow extends QueryResultRow {
+  id: string;
+  gym_id: string;
+  name: string;
+  location_id: string | null;
+  role_id: string;
+  days_of_week: unknown;
+  start_time: string;
+  end_time: string;
+  required_staff: number;
+  created_by_user_id: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface SchedulerAvailabilityRow extends QueryResultRow {
+  id: string;
+  gym_id: string;
+  user_id: string;
+  days_of_week: unknown;
+  start_time: string;
+  end_time: string;
+  preference: SchedulerAvailability["preference"];
+  notes: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface SchedulerRequestRow extends QueryResultRow {
+  id: string;
+  gym_id: string;
+  user_id: string;
+  shift_id: string | null;
+  request_type: SchedulerRequest["requestType"];
+  message: string;
+  status: SchedulerRequest["status"];
+  suggested_replacement_user_id: string | null;
+  resolution_note: string | null;
+  resolved_by_user_id: string | null;
+  resolved_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -412,6 +459,7 @@ export class PostgresRepositories implements Repositories {
 
   readonly staffShifts = {
     createStaffShift: (shift: StaffShift) => this.createStaffShift(shift),
+    updateStaffShift: (shift: StaffShift) => this.updateStaffShift(shift),
     listStaffShiftsForGym: (gymId: string) => this.listStaffShiftsForGym(gymId),
     listStaffShiftsForStaff: (gymId: string, userId: string) =>
       this.listStaffShiftsForStaff(gymId, userId)
@@ -425,6 +473,22 @@ export class PostgresRepositories implements Repositories {
       this.listStaffTimeEntriesForStaff(gymId, userId),
     findOpenStaffTimeEntry: (gymId: string, userId: string) =>
       this.findOpenStaffTimeEntry(gymId, userId)
+  };
+
+  readonly scheduler = {
+    createCoverageRule: (rule: SchedulerCoverageRule) => this.createCoverageRule(rule),
+    listCoverageRulesForGym: (gymId: string) => this.listCoverageRulesForGym(gymId),
+    createAvailability: (availability: SchedulerAvailability) =>
+      this.createAvailability(availability),
+    listAvailabilitiesForGym: (gymId: string) => this.listAvailabilitiesForGym(gymId),
+    listAvailabilitiesForStaff: (gymId: string, userId: string) =>
+      this.listAvailabilitiesForStaff(gymId, userId),
+    createRequest: (request: SchedulerRequest) => this.createRequest(request),
+    updateRequest: (request: SchedulerRequest) => this.updateRequest(request),
+    getRequest: (requestId: string) => this.getRequest(requestId),
+    listRequestsForGym: (gymId: string) => this.listRequestsForGym(gymId),
+    listRequestsForStaff: (gymId: string, userId: string) =>
+      this.listRequestsForStaff(gymId, userId)
   };
 
   readonly locations = {
@@ -953,6 +1017,32 @@ export class PostgresRepositories implements Repositories {
     return mapStaffShift(one(result));
   }
 
+  async updateStaffShift(shift: StaffShift) {
+    const result = await this.executor.query<StaffShiftRow>(
+      `UPDATE staff_shifts
+       SET user_id = $2,
+           location_id = $3,
+           role_id = $4,
+           starts_at = $5,
+           ends_at = $6,
+           notes = $7,
+           updated_at = $8
+       WHERE id = $1
+       RETURNING *`,
+      [
+        shift.id,
+        shift.userId,
+        shift.locationId ?? null,
+        shift.roleId,
+        shift.startsAt,
+        shift.endsAt,
+        shift.notes ?? null,
+        shift.updatedAt
+      ]
+    );
+    return mapStaffShift(one(result));
+  }
+
   async listStaffShiftsForGym(gymId: string) {
     const result = await this.executor.query<StaffShiftRow>(
       "SELECT * FROM staff_shifts WHERE gym_id = $1 ORDER BY starts_at",
@@ -1044,6 +1134,157 @@ export class PostgresRepositories implements Repositories {
       [gymId, userId]
     );
     return result.rows[0] ? mapStaffTimeEntry(result.rows[0]) : undefined;
+  }
+
+  async createCoverageRule(rule: SchedulerCoverageRule) {
+    const result = await this.executor.query<SchedulerCoverageRuleRow>(
+      `INSERT INTO scheduler_coverage_rules (
+        id, gym_id, name, location_id, role_id, days_of_week, start_time, end_time,
+        required_staff, created_by_user_id, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12)
+      RETURNING *`,
+      [
+        rule.id,
+        rule.gymId,
+        rule.name,
+        rule.locationId ?? null,
+        rule.roleId,
+        JSON.stringify(rule.daysOfWeek),
+        rule.startTime,
+        rule.endTime,
+        rule.requiredStaff,
+        rule.createdByUserId,
+        rule.createdAt,
+        rule.updatedAt
+      ]
+    );
+    return mapSchedulerCoverageRule(one(result));
+  }
+
+  async listCoverageRulesForGym(gymId: string) {
+    const result = await this.executor.query<SchedulerCoverageRuleRow>(
+      "SELECT * FROM scheduler_coverage_rules WHERE gym_id = $1 ORDER BY name, start_time",
+      [gymId]
+    );
+    return result.rows.map(mapSchedulerCoverageRule);
+  }
+
+  async createAvailability(availability: SchedulerAvailability) {
+    const result = await this.executor.query<SchedulerAvailabilityRow>(
+      `INSERT INTO scheduler_availabilities (
+        id, gym_id, user_id, days_of_week, start_time, end_time, preference,
+        notes, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10)
+      RETURNING *`,
+      [
+        availability.id,
+        availability.gymId,
+        availability.userId,
+        JSON.stringify(availability.daysOfWeek),
+        availability.startTime,
+        availability.endTime,
+        availability.preference,
+        availability.notes ?? null,
+        availability.createdAt,
+        availability.updatedAt
+      ]
+    );
+    return mapSchedulerAvailability(one(result));
+  }
+
+  async listAvailabilitiesForGym(gymId: string) {
+    const result = await this.executor.query<SchedulerAvailabilityRow>(
+      "SELECT * FROM scheduler_availabilities WHERE gym_id = $1 ORDER BY user_id, start_time",
+      [gymId]
+    );
+    return result.rows.map(mapSchedulerAvailability);
+  }
+
+  async listAvailabilitiesForStaff(gymId: string, userId: string) {
+    const result = await this.executor.query<SchedulerAvailabilityRow>(
+      `SELECT * FROM scheduler_availabilities
+       WHERE gym_id = $1 AND user_id = $2
+       ORDER BY start_time`,
+      [gymId, userId]
+    );
+    return result.rows.map(mapSchedulerAvailability);
+  }
+
+  async createRequest(request: SchedulerRequest) {
+    const result = await this.executor.query<SchedulerRequestRow>(
+      `INSERT INTO scheduler_requests (
+        id, gym_id, user_id, shift_id, request_type, message, status,
+        suggested_replacement_user_id, resolution_note, resolved_by_user_id,
+        resolved_at, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      RETURNING *`,
+      [
+        request.id,
+        request.gymId,
+        request.userId,
+        request.shiftId ?? null,
+        request.requestType,
+        request.message,
+        request.status,
+        request.suggestedReplacementUserId ?? null,
+        request.resolutionNote ?? null,
+        request.resolvedByUserId ?? null,
+        request.resolvedAt ?? null,
+        request.createdAt,
+        request.updatedAt
+      ]
+    );
+    return mapSchedulerRequest(one(result));
+  }
+
+  async updateRequest(request: SchedulerRequest) {
+    const result = await this.executor.query<SchedulerRequestRow>(
+      `UPDATE scheduler_requests
+       SET status = $2,
+           suggested_replacement_user_id = $3,
+           resolution_note = $4,
+           resolved_by_user_id = $5,
+           resolved_at = $6,
+           updated_at = $7
+       WHERE id = $1
+       RETURNING *`,
+      [
+        request.id,
+        request.status,
+        request.suggestedReplacementUserId ?? null,
+        request.resolutionNote ?? null,
+        request.resolvedByUserId ?? null,
+        request.resolvedAt ?? null,
+        request.updatedAt
+      ]
+    );
+    return mapSchedulerRequest(one(result));
+  }
+
+  async getRequest(requestId: string) {
+    const result = await this.executor.query<SchedulerRequestRow>(
+      "SELECT * FROM scheduler_requests WHERE id = $1",
+      [requestId]
+    );
+    return result.rows[0] ? mapSchedulerRequest(result.rows[0]) : undefined;
+  }
+
+  async listRequestsForGym(gymId: string) {
+    const result = await this.executor.query<SchedulerRequestRow>(
+      "SELECT * FROM scheduler_requests WHERE gym_id = $1 ORDER BY created_at DESC",
+      [gymId]
+    );
+    return result.rows.map(mapSchedulerRequest);
+  }
+
+  async listRequestsForStaff(gymId: string, userId: string) {
+    const result = await this.executor.query<SchedulerRequestRow>(
+      `SELECT * FROM scheduler_requests
+       WHERE gym_id = $1 AND user_id = $2
+       ORDER BY created_at DESC`,
+      [gymId, userId]
+    );
+    return result.rows.map(mapSchedulerRequest);
   }
 
   async createLocation(location: Location) {
@@ -2032,6 +2273,73 @@ function mapStaffTimeEntry(row: StaffTimeEntryRow): StaffTimeEntry {
   return entry;
 }
 
+function mapSchedulerCoverageRule(row: SchedulerCoverageRuleRow): SchedulerCoverageRule {
+  const rule: SchedulerCoverageRule = {
+    id: row.id,
+    gymId: row.gym_id,
+    name: row.name,
+    roleId: row.role_id,
+    daysOfWeek: numberArray(row.days_of_week),
+    startTime: row.start_time,
+    endTime: row.end_time,
+    requiredStaff: row.required_staff,
+    createdByUserId: row.created_by_user_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+  if (row.location_id) {
+    rule.locationId = row.location_id;
+  }
+  return rule;
+}
+
+function mapSchedulerAvailability(row: SchedulerAvailabilityRow): SchedulerAvailability {
+  const availability: SchedulerAvailability = {
+    id: row.id,
+    gymId: row.gym_id,
+    userId: row.user_id,
+    daysOfWeek: numberArray(row.days_of_week),
+    startTime: row.start_time,
+    endTime: row.end_time,
+    preference: row.preference,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+  if (row.notes) {
+    availability.notes = row.notes;
+  }
+  return availability;
+}
+
+function mapSchedulerRequest(row: SchedulerRequestRow): SchedulerRequest {
+  const request: SchedulerRequest = {
+    id: row.id,
+    gymId: row.gym_id,
+    userId: row.user_id,
+    requestType: row.request_type,
+    message: row.message,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+  if (row.shift_id) {
+    request.shiftId = row.shift_id;
+  }
+  if (row.suggested_replacement_user_id) {
+    request.suggestedReplacementUserId = row.suggested_replacement_user_id;
+  }
+  if (row.resolution_note) {
+    request.resolutionNote = row.resolution_note;
+  }
+  if (row.resolved_by_user_id) {
+    request.resolvedByUserId = row.resolved_by_user_id;
+  }
+  if (row.resolved_at) {
+    request.resolvedAt = row.resolved_at;
+  }
+  return request;
+}
+
 function mapLocation(row: LocationRow): Location {
   const location: Location = {
     id: row.id,
@@ -2370,6 +2678,12 @@ function mapPurposeToken(row: PurposeTokenRow): PurposeToken {
 function stringArray(value: unknown) {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function numberArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is number => typeof item === "number")
     : [];
 }
 
