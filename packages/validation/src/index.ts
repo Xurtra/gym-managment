@@ -155,6 +155,7 @@ export const customRoleCreateSchema = z.object({
     .min(2)
     .max(80)
     .regex(/^[A-Za-z][A-Za-z0-9 '&-]*$/),
+  parentRoleId: id.optional(),
   permissions: z.array(z.nativeEnum(Permission)).min(1)
 });
 
@@ -191,6 +192,26 @@ export const staffShiftCreateSchema = z
   .refine((value) => new Date(value.endsAt) > new Date(value.startsAt), {
     message: "Shift end time must be after start time."
   });
+
+export const staffClockInSchema = z.object({
+  userId: id,
+  locationId: id.optional(),
+  notes: trimmed.max(500).optional()
+});
+
+export const staffClockOutSchema = z.object({
+  userId: id,
+  notes: trimmed.max(500).optional()
+});
+
+export const staffSelfClockInSchema = z.object({
+  locationId: id.optional(),
+  notes: trimmed.max(500).optional()
+});
+
+export const staffSelfClockOutSchema = z.object({
+  notes: trimmed.max(500).optional()
+});
 
 export const memberCreateSchema = z.object({
   firstName: trimmed.min(1).max(80),
@@ -372,6 +393,10 @@ export type StaffAccessRemoveInput = z.infer<typeof staffAccessRemoveSchema>;
 export type StaffInviteCreateInput = z.infer<typeof staffInviteCreateSchema>;
 export type StaffInviteAcceptInput = z.infer<typeof staffInviteAcceptSchema>;
 export type StaffShiftCreateInput = z.infer<typeof staffShiftCreateSchema>;
+export type StaffClockInInput = z.infer<typeof staffClockInSchema>;
+export type StaffClockOutInput = z.infer<typeof staffClockOutSchema>;
+export type StaffSelfClockInInput = z.infer<typeof staffSelfClockInSchema>;
+export type StaffSelfClockOutInput = z.infer<typeof staffSelfClockOutSchema>;
 export type MemberCreateInput = z.infer<typeof memberCreateSchema>;
 export type MemberUpdateInput = z.infer<typeof memberUpdateSchema>;
 export type MembershipPlanCreateInput = z.infer<typeof membershipPlanCreateSchema>;

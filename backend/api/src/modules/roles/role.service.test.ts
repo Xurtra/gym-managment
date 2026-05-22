@@ -84,6 +84,9 @@ describe("RoleService", () => {
       frontDeskRole.id,
       owner.user.id
     );
+    await expect(
+      services.roleService.removeStaffAccess(gymId, staff.user.id, staff.user.id)
+    ).rejects.toThrow(/own access/i);
     const removed = await services.roleService.removeStaffAccess(
       gymId,
       staff.user.id,
@@ -136,6 +139,11 @@ describe("RoleService", () => {
       name: "Operations Lead",
       permissions: [Permission.GymRead, Permission.MemberRead, Permission.ReportRead]
     });
+    const temporary = await services.roleService.createCustomRole(gymId, {
+      name: "Temporary Role",
+      permissions: [Permission.GymRead]
+    });
+    const deleted = await services.roleService.deleteCustomRole(gymId, temporary.id, owner.user.id);
     const roles = await services.roleService.listRoles(gymId);
 
     expect(created.isSystem).toBe(false);
@@ -150,7 +158,9 @@ describe("RoleService", () => {
       Permission.MemberRead,
       Permission.ReportRead
     ]);
+    expect(deleted.status).toBe("deleted");
     expect(roles.some((role) => role.name === "Operations Lead")).toBe(true);
+    expect(roles.some((role) => role.name === "Temporary Role")).toBe(false);
     await expect(
       services.roleService.createCustomRole(gymId, {
         name: "Front Desk",
@@ -168,6 +178,139 @@ describe("RoleService", () => {
         name: "Manager Plus"
       })
     ).rejects.toThrow(/system/i);
+    await expect(
+      services.roleService.deleteCustomRole(gymId, managerRole.id, owner.user.id)
+    ).rejects.toThrow(/system/i);
+  });
+
+  it("limits role and staff visibility to the actor's own branch", async () => {
+    const services = createServices(testConfig, fixedClock);
+    const owner = await services.authService.register({
+      email: "owner@example.com",
+      password: "Password123",
+      firstName: "Demo",
+      lastName: "Owner",
+      gymName: "Demo Strength Club",
+      timezone: "America/New_York",
+      locale: "en-US"
+    });
+    const frontDeskManager = await services.authService.register({
+      email: "frontdesk.manager@example.com",
+      password: "Password123",
+      firstName: "Front",
+      lastName: "Manager",
+      timezone: "America/New_York",
+      locale: "en-US"
+    });
+    const frontDeskStaff = await services.authService.register({
+      email: "frontdesk.staff@example.com",
+      password: "Password123",
+      firstName: "Front",
+      lastName: "Staff",
+      timezone: "America/New_York",
+      locale: "en-US"
+    });
+    const equipmentStaff = await services.authService.register({
+      email: "equipment.staff@example.com",
+      password: "Password123",
+      firstName: "Equipment",
+      lastName: "Staff",
+      timezone: "America/New_York",
+      locale: "en-US"
+    });
+    const gymId = owner.gym?.id ?? "";
+    const ownerRole = await services.roleService.getRoleByName(gymId, RoleName.Owner);
+    const frontDeskManagerRole = await services.roleService.createCustomRole(
+      gymId,
+      {
+        name: "Front Desk Manager",
+        parentRoleId: ownerRole.id,
+        permissions: [
+          Permission.GymRead,
+          Permission.StaffRead,
+          Permission.StaffRoleAssign,
+          Permission.StaffRemove
+        ]
+      },
+      owner.user.id
+    );
+    const frontDeskStaffRole = await services.roleService.createCustomRole(
+      gymId,
+      {
+        name: "Front Desk Staff",
+        parentRoleId: frontDeskManagerRole.id,
+        permissions: [Permission.GymRead]
+      },
+      owner.user.id
+    );
+    const equipmentManagerRole = await services.roleService.createCustomRole(
+      gymId,
+      {
+        name: "Equipment Manager",
+        parentRoleId: ownerRole.id,
+        permissions: [Permission.GymRead, Permission.StaffRead]
+      },
+      owner.user.id
+    );
+    const equipmentStaffRole = await services.roleService.createCustomRole(
+      gymId,
+      {
+        name: "Equipment Staff",
+        parentRoleId: equipmentManagerRole.id,
+        permissions: [Permission.GymRead]
+      },
+      owner.user.id
+    );
+    const branchMemberships: Array<[string, string]> = [
+      [frontDeskManager.user.id, frontDeskManagerRole.id],
+      [frontDeskStaff.user.id, frontDeskStaffRole.id],
+      [equipmentStaff.user.id, equipmentStaffRole.id]
+    ];
+    for (const [userId, roleId] of branchMemberships) {
+      await services.repositories.gymUsers.createGymUser({
+        id: randomUUID(),
+        gymId,
+        userId,
+        roleId,
+        status: UserStatus.Active,
+        createdAt: fixedClock.now(),
+        updatedAt: fixedClock.now()
+      });
+    }
+
+    const visibleRoles = await services.roleService.listRoles(gymId, frontDeskManager.user.id);
+    const visibleStaff = await services.roleService.listStaffAccess(gymId, frontDeskManager.user.id);
+
+    expect(visibleRoles.map((role) => role.name).sort()).toEqual([
+      "Front Desk Manager",
+      "Front Desk Staff"
+    ]);
+    expect(visibleRoles.find((role) => role.name === "Front Desk Manager")?.parentRoleId).toBeUndefined();
+    expect(visibleStaff.map((staff) => staff.email).sort()).toEqual([
+      "frontdesk.manager@example.com",
+      "frontdesk.staff@example.com"
+    ]);
+    await expect(
+      services.roleService.deleteCustomRole(gymId, frontDeskStaffRole.id, owner.user.id)
+    ).rejects.toThrow(/assigned/i);
+    await expect(
+      services.roleService.deleteCustomRole(gymId, equipmentManagerRole.id, owner.user.id)
+    ).rejects.toThrow(/child roles/i);
+    await expect(
+      services.roleService.removeStaffAccess(
+        gymId,
+        equipmentStaff.user.id,
+        frontDeskManager.user.id
+      )
+    ).rejects.toThrow(/below their role branch/i);
+    await expect(
+      services.roleService.assignRole(
+        gymId,
+        equipmentStaff.user.id,
+        frontDeskStaffRole.id,
+        frontDeskManager.user.id
+      )
+    ).rejects.toThrow(/below their role branch/i);
   });
 
   it("creates staff invites with selected roles and rejects duplicates", async () => {

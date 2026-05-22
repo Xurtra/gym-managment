@@ -19,6 +19,7 @@ import type {
   StaffAuditLog,
   StaffInvite,
   StaffShift,
+  StaffTimeEntry,
   User
 } from "./entities.js";
 
@@ -45,6 +46,7 @@ export interface RoleRepository {
   getRole(roleId: string): RepositoryResult<Role | undefined>;
   listRolesForGym(gymId: string): RepositoryResult<Role[]>;
   updateRole(role: Role): RepositoryResult<Role>;
+  deleteRole(roleId: string): RepositoryResult<void>;
 }
 
 export interface GymUserRepository {
@@ -71,7 +73,16 @@ export interface StaffAuditLogRepository {
 
 export interface StaffShiftRepository {
   createStaffShift(shift: StaffShift): RepositoryResult<StaffShift>;
+  listStaffShiftsForGym(gymId: string): RepositoryResult<StaffShift[]>;
   listStaffShiftsForStaff(gymId: string, userId: string): RepositoryResult<StaffShift[]>;
+}
+
+export interface StaffTimeEntryRepository {
+  createStaffTimeEntry(entry: StaffTimeEntry): RepositoryResult<StaffTimeEntry>;
+  updateStaffTimeEntry(entry: StaffTimeEntry): RepositoryResult<StaffTimeEntry>;
+  listStaffTimeEntriesForGym(gymId: string): RepositoryResult<StaffTimeEntry[]>;
+  listStaffTimeEntriesForStaff(gymId: string, userId: string): RepositoryResult<StaffTimeEntry[]>;
+  findOpenStaffTimeEntry(gymId: string, userId: string): RepositoryResult<StaffTimeEntry | undefined>;
 }
 
 export interface LocationRepository {
@@ -169,6 +180,7 @@ export interface Repositories {
   staffInvites: StaffInviteRepository;
   staffAuditLogs: StaffAuditLogRepository;
   staffShifts: StaffShiftRepository;
+  staffTimeEntries: StaffTimeEntryRepository;
   locations: LocationRepository;
   members: MemberRepository;
   membershipPlans: MembershipPlanRepository;

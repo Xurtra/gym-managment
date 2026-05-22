@@ -14,7 +14,7 @@ import type {
 } from "@gym-platform/validation";
 import { randomUUID } from "node:crypto";
 import { generateOpaqueToken, hashToken } from "../../infrastructure/security/tokens.js";
-import type { Role, StaffAuditLog, StaffInvite } from "../../infrastructure/store/entities.js";
+import type { GymUser, Role, StaffAuditLog, StaffInvite } from "../../infrastructure/store/entities.js";
 import type { Repositories } from "../../infrastructure/store/repositories.js";
 import { addDays, type Clock } from "../../shared/time.js";
 import { conflict, forbidden, notFound } from "../../http/errors.js";
@@ -73,15 +73,22 @@ export class RoleService {
       return existing;
     }
     const now = this.clock.now();
-    const roles = Object.entries(DEFAULT_ROLE_PERMISSIONS).map(([name, permissions]) => ({
-      id: randomUUID(),
-      gymId,
-      name: name as RoleName,
-      permissions,
-      isSystem: true,
-      createdAt: now,
-      updatedAt: now
-    }));
+    const ownerRoleId = randomUUID();
+    const roles = Object.entries(DEFAULT_ROLE_PERMISSIONS).map(([name, permissions]) => {
+      const role: Role = {
+        id: name === RoleName.Owner ? ownerRoleId : randomUUID(),
+        gymId,
+        name: name as RoleName,
+        permissions,
+        isSystem: true,
+        createdAt: now,
+        updatedAt: now
+      };
+      if (name !== RoleName.Owner) {
+        role.parentRoleId = ownerRoleId;
+      }
+      return role;
+    });
     return this.repositories.roles.createRoles(roles);
   }
 
@@ -103,12 +110,25 @@ export class RoleService {
     return role;
   }
 
-  async listRoles(gymId: string) {
-    return this.repositories.roles.listRolesForGym(gymId);
+  async listRoles(gymId: string, actorUserId?: string) {
+    const roles = await this.repositories.roles.listRolesForGym(gymId);
+    if (!actorUserId) {
+      return roles;
+    }
+    const scope = await this.roleScope(this.repositories, gymId, actorUserId, roles);
+    if (scope.all) {
+      return roles;
+    }
+    return this.redactHiddenParents(
+      roles.filter((role) => scope.visibleRoleIds.has(role.id))
+    );
   }
 
-  async createCustomRole(gymId: string, input: CustomRoleCreateInput) {
+  async createCustomRole(gymId: string, input: CustomRoleCreateInput, actorUserId?: string) {
     await this.ensureCustomRoleNameAvailable(gymId, input.name);
+    const parentRoleId = actorUserId
+      ? await this.resolveAllowedParentRoleId(gymId, actorUserId, input.parentRoleId)
+      : input.parentRoleId;
     const now = this.clock.now();
     const role: Role = {
       id: randomUUID(),
@@ -119,16 +139,27 @@ export class RoleService {
       createdAt: now,
       updatedAt: now
     };
+    if (parentRoleId) {
+      role.parentRoleId = parentRoleId;
+    }
     return this.repositories.roles.createRole(role);
   }
 
-  async updateCustomRole(gymId: string, roleId: string, input: CustomRoleUpdateInput) {
+  async updateCustomRole(
+    gymId: string,
+    roleId: string,
+    input: CustomRoleUpdateInput,
+    actorUserId?: string
+  ) {
     const role = await this.getRole(roleId);
     if (role.gymId !== gymId) {
       throw conflict("Role does not belong to this gym.", "role_gym_mismatch");
     }
     if (role.isSystem) {
       throw conflict("System roles cannot be edited.", "system_role_locked");
+    }
+    if (actorUserId) {
+      await this.ensureActorCanAssignRole(this.repositories, gymId, actorUserId, role.id);
     }
     const updated: Role = {
       ...role,
@@ -141,11 +172,59 @@ export class RoleService {
     if (input.permissions) {
       updated.permissions = customRolePermissions(input.permissions);
     }
+    if (input.parentRoleId) {
+      if (input.parentRoleId === role.id) {
+        throw conflict("A role cannot be its own parent.", "role_parent_cycle");
+      }
+      const parentRoleId = await this.resolveAllowedParentRoleId(
+        gymId,
+        actorUserId,
+        input.parentRoleId,
+        role.id
+      );
+      if (parentRoleId) {
+        updated.parentRoleId = parentRoleId;
+      }
+    }
     return this.repositories.roles.updateRole(updated);
   }
 
-  async listStaffAccess(gymId: string): Promise<PublicStaffAccess[]> {
+  async deleteCustomRole(gymId: string, roleId: string, actorUserId?: string) {
+    return this.repositories.transaction(async (repositories) => {
+      const role = await repositories.roles.getRole(roleId);
+      if (!role) {
+        throw notFound("Role was not found.");
+      }
+      if (role.gymId !== gymId) {
+        throw conflict("Role does not belong to this gym.", "role_gym_mismatch");
+      }
+      if (role.isSystem || role.name === RoleName.Owner || role.name === RoleName.Member) {
+        throw conflict("System roles cannot be deleted.", "system_role_locked");
+      }
+      if (actorUserId) {
+        await this.ensureActorCanAssignRole(repositories, gymId, actorUserId, role.id);
+      }
+      const roles = await repositories.roles.listRolesForGym(gymId);
+      if (roles.some((candidate) => candidate.parentRoleId === role.id)) {
+        throw conflict("Move or delete child roles before deleting this role.", "role_has_children");
+      }
+      const assigned = (await repositories.gymUsers.listGymUsersForGym(gymId)).some(
+        (membership) => membership.roleId === role.id
+      );
+      if (assigned) {
+        throw conflict("This role is assigned to staff and cannot be deleted.", "role_in_use");
+      }
+      await repositories.roles.deleteRole(role.id);
+      return { status: "deleted" };
+    });
+  }
+
+  async listStaffAccess(gymId: string, actorUserId?: string): Promise<PublicStaffAccess[]> {
     const memberships = await this.repositories.gymUsers.listGymUsersForGym(gymId);
+    const roles = await this.repositories.roles.listRolesForGym(gymId);
+    const scope = actorUserId
+      ? await this.roleScope(this.repositories, gymId, actorUserId, roles)
+      : undefined;
     const staff = await Promise.all(
       memberships.map(async (membership) => {
         const [user, role] = await Promise.all([
@@ -154,6 +233,13 @@ export class RoleService {
         ]);
         if (!user || !role || role.name === RoleName.Member) {
           return undefined;
+        }
+        if (scope && !scope.all) {
+          const canSeeSelf = membership.userId === actorUserId;
+          const canSeeDescendant = scope.descendantRoleIds.has(role.id);
+          if (!canSeeSelf && !canSeeDescendant) {
+            return undefined;
+          }
         }
         return {
           membership,
@@ -210,6 +296,7 @@ export class RoleService {
     if (role.gymId !== gymId) {
       throw conflict("Role does not belong to this gym.", "role_gym_mismatch");
     }
+    await this.ensureActorCanAssignRole(this.repositories, gymId, invitedByUserId, role.id);
     if (role.name === RoleName.Member || role.name === RoleName.Owner) {
       throw conflict(
         "Only assignable staff roles can be used for staff invites.",
@@ -255,13 +342,19 @@ export class RoleService {
     };
   }
 
-  async listStaffInvites(gymId: string) {
+  async listStaffInvites(gymId: string, actorUserId?: string) {
+    const roles = await this.repositories.roles.listRolesForGym(gymId);
+    const scope = actorUserId
+      ? await this.roleScope(this.repositories, gymId, actorUserId, roles)
+      : undefined;
     const invites = await Promise.all(
       (await this.repositories.staffInvites.listStaffInvitesForGym(gymId)).map((invite) =>
         this.syncExpiredInvite(invite)
       )
     );
-    return invites.map(toPublicStaffInvite);
+    return invites
+      .filter((invite) => !scope || scope.all || scope.descendantRoleIds.has(invite.roleId))
+      .map(toPublicStaffInvite);
   }
 
   async assignRole(gymId: string, targetUserId: string, roleId: string, actorUserId?: string) {
@@ -295,6 +388,15 @@ export class RoleService {
       }
       if (membership.status !== UserStatus.Active) {
         throw conflict("Staff access is not active.", "staff_access_inactive");
+      }
+      if (actorUserId) {
+        await this.ensureActorCanManageTargetStaff(
+          repositories,
+          gymId,
+          actorUserId,
+          membership
+        );
+        await this.ensureActorCanAssignRole(repositories, gymId, actorUserId, role.id);
       }
       const updated = { ...membership, roleId, updatedAt: this.clock.now() };
       const saved = await repositories.gymUsers.updateGymUser(updated);
@@ -342,6 +444,7 @@ export class RoleService {
       if (!role || role.name === RoleName.Member) {
         throw conflict("Only staff access can be removed from this flow.", "staff_access_required");
       }
+      await this.ensureActorCanManageTargetStaff(repositories, gymId, actorUserId, membership);
       const updated = {
         ...membership,
         status: UserStatus.Disabled,
@@ -365,6 +468,140 @@ export class RoleService {
       await repositories.staffAuditLogs.createStaffAuditLog(this.createStaffAuditLog(auditInput));
       return saved;
     });
+  }
+
+  async visibleStaffUserIds(gymId: string, actorUserId: string) {
+    const roles = await this.repositories.roles.listRolesForGym(gymId);
+    const scope = await this.roleScope(this.repositories, gymId, actorUserId, roles);
+    if (scope.all) {
+      return undefined;
+    }
+    const memberships = await this.repositories.gymUsers.listGymUsersForGym(gymId);
+    return new Set(
+      memberships
+        .filter(
+          (membership) =>
+            membership.userId === actorUserId || scope.descendantRoleIds.has(membership.roleId)
+        )
+        .map((membership) => membership.userId)
+    );
+  }
+
+  private async ensureActorCanManageTargetStaff(
+    repositories: Repositories,
+    gymId: string,
+    actorUserId: string,
+    targetMembership: GymUser
+  ) {
+    const roles = await repositories.roles.listRolesForGym(gymId);
+    const scope = await this.roleScope(repositories, gymId, actorUserId, roles);
+    if (scope.all) {
+      return;
+    }
+    if (!scope.descendantRoleIds.has(targetMembership.roleId)) {
+      throw forbidden("Staff can only manage users below their role branch.");
+    }
+  }
+
+  private async ensureActorCanAssignRole(
+    repositories: Repositories,
+    gymId: string,
+    actorUserId: string,
+    roleId: string
+  ) {
+    const roles = await repositories.roles.listRolesForGym(gymId);
+    const scope = await this.roleScope(repositories, gymId, actorUserId, roles);
+    if (scope.all) {
+      return;
+    }
+    if (!scope.descendantRoleIds.has(roleId)) {
+      throw forbidden("Staff can only assign roles below their role branch.");
+    }
+  }
+
+  private async resolveAllowedParentRoleId(
+    gymId: string,
+    actorUserId: string | undefined,
+    requestedParentRoleId?: string,
+    roleBeingMovedId?: string
+  ) {
+    const roles = await this.repositories.roles.listRolesForGym(gymId);
+    const scope = actorUserId
+      ? await this.roleScope(this.repositories, gymId, actorUserId, roles)
+      : undefined;
+    const ownerRole = roles.find((role) => role.name === RoleName.Owner);
+    const parentRoleId = requestedParentRoleId ?? scope?.actorRoleId ?? ownerRole?.id;
+    if (!parentRoleId) {
+      return undefined;
+    }
+    const parent = roles.find((role) => role.id === parentRoleId);
+    if (!parent || parent.gymId !== gymId || parent.name === RoleName.Member) {
+      throw conflict("Parent role must belong to this gym and staff tree.", "role_parent_invalid");
+    }
+    if (roleBeingMovedId && this.descendantRoleIds(roles, roleBeingMovedId, true).has(parentRoleId)) {
+      throw conflict("A role cannot be moved under itself or its descendants.", "role_parent_cycle");
+    }
+    if (scope && !scope.all && !scope.visibleRoleIds.has(parentRoleId)) {
+      throw forbidden("Staff can only build role branches below their own role.");
+    }
+    return parentRoleId;
+  }
+
+  private async roleScope(
+    repositories: Repositories,
+    gymId: string,
+    actorUserId: string,
+    roles?: Role[]
+  ) {
+    const [gym, memberships, roleList] = await Promise.all([
+      repositories.gyms.getGym(gymId),
+      repositories.gymUsers.findGymUser(gymId, actorUserId),
+      roles ? Promise.resolve(roles) : repositories.roles.listRolesForGym(gymId)
+    ]);
+    if (gym?.ownerUserId === actorUserId) {
+      return {
+        all: true,
+        visibleRoleIds: new Set(roleList.map((role) => role.id)),
+        descendantRoleIds: new Set(roleList.map((role) => role.id))
+      };
+    }
+    if (!memberships || memberships.status !== UserStatus.Active) {
+      return { all: false, visibleRoleIds: new Set<string>(), descendantRoleIds: new Set<string>() };
+    }
+    const descendantRoleIds = this.descendantRoleIds(roleList, memberships.roleId, false);
+    return {
+      all: false,
+      actorRoleId: memberships.roleId,
+      visibleRoleIds: new Set([memberships.roleId, ...descendantRoleIds]),
+      descendantRoleIds
+    };
+  }
+
+  private descendantRoleIds(roles: Role[], rootRoleId: string, includeRoot: boolean) {
+    const ids = new Set<string>();
+    const queue = includeRoot ? [rootRoleId] : roles.filter((role) => role.parentRoleId === rootRoleId).map((role) => role.id);
+    while (queue.length > 0) {
+      const id = queue.shift();
+      if (!id || ids.has(id)) {
+        continue;
+      }
+      ids.add(id);
+      for (const child of roles) {
+        if (child.parentRoleId === id) {
+          queue.push(child.id);
+        }
+      }
+    }
+    return ids;
+  }
+
+  private redactHiddenParents(roles: Role[]) {
+    const visibleIds = new Set(roles.map((role) => role.id));
+    return roles.map((role) =>
+      role.parentRoleId && !visibleIds.has(role.parentRoleId)
+        ? { ...role, parentRoleId: undefined }
+        : role
+    );
   }
 
   private async syncExpiredInvite(invite: StaffInvite) {

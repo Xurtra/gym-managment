@@ -24,9 +24,13 @@ import type {
   ResetPasswordInput,
   RoleAssignmentInput,
   StaffAccessRemoveInput,
+  StaffClockInInput,
+  StaffClockOutInput,
   StaffInviteAcceptInput,
   StaffInviteCreateInput,
   StaffShiftCreateInput,
+  StaffSelfClockInInput,
+  StaffSelfClockOutInput,
   StaffManualBookingInput
 } from "@gym-platform/validation";
 
@@ -171,6 +175,10 @@ export class GymApiClient {
     return this.request("PATCH", `/gyms/${gymId}/roles/${roleId}`, input);
   }
 
+  deleteCustomRole(gymId: string, roleId: string) {
+    return this.request("DELETE", `/gyms/${gymId}/roles/${roleId}`);
+  }
+
   listStaff(gymId: string) {
     return this.request("GET", `/gyms/${gymId}/staff`);
   }
@@ -187,8 +195,40 @@ export class GymApiClient {
     return this.request("GET", `/gyms/${gymId}/staff/audit`);
   }
 
+  listStaffShifts(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/staff/shifts`);
+  }
+
+  listMyStaffShifts(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/staff/shifts/me`);
+  }
+
   createStaffShift(gymId: string, input: StaffShiftCreateInput) {
     return this.request("POST", `/gyms/${gymId}/staff/shifts`, input);
+  }
+
+  listStaffTimeEntries(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/staff/time-entries`);
+  }
+
+  listMyStaffTimeEntries(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/staff/time-entries/me`);
+  }
+
+  clockStaffIn(gymId: string, input: StaffClockInInput) {
+    return this.request("POST", `/gyms/${gymId}/staff/time-entries/clock-in`, input);
+  }
+
+  clockMyStaffIn(gymId: string, input: StaffSelfClockInInput = {}) {
+    return this.request("POST", `/gyms/${gymId}/staff/time-entries/me/clock-in`, input);
+  }
+
+  clockStaffOut(gymId: string, input: StaffClockOutInput) {
+    return this.request("POST", `/gyms/${gymId}/staff/time-entries/clock-out`, input);
+  }
+
+  clockMyStaffOut(gymId: string, input: StaffSelfClockOutInput = {}) {
+    return this.request("POST", `/gyms/${gymId}/staff/time-entries/me/clock-out`, input);
   }
 
   listMembers(gymId: string) {

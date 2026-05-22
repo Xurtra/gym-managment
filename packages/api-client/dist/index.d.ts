@@ -1,4 +1,4 @@
-import type { AccessDeviceCreateInput, AccessDeviceEventInput, AccessDeviceHeartbeatInput, AccessRuleCreateInput, ClassBookingCreateInput, CheckInCreateInput, ClassSessionCreateInput, ClassTypeCreateInput, CustomRoleCreateInput, CustomRoleUpdateInput, GymCreateInput, GymUpdateInput, LocationCreateInput, LocationUpdateInput, LoginInput, MemberCreateInput, MemberMembershipAssignInput, MemberUpdateInput, MembershipPlanCreateInput, MembershipPlanUpdateInput, PublicSignupInput, RegisterInput, ResetPasswordInput, RoleAssignmentInput, StaffAccessRemoveInput, StaffInviteAcceptInput, StaffInviteCreateInput, StaffShiftCreateInput, StaffManualBookingInput } from "@gym-platform/validation";
+import type { AccessDeviceCreateInput, AccessDeviceEventInput, AccessDeviceHeartbeatInput, AccessRuleCreateInput, ClassBookingCreateInput, CheckInCreateInput, ClassSessionCreateInput, ClassTypeCreateInput, CustomRoleCreateInput, CustomRoleUpdateInput, GymCreateInput, GymUpdateInput, LocationCreateInput, LocationUpdateInput, LoginInput, MemberCreateInput, MemberMembershipAssignInput, MemberUpdateInput, MembershipPlanCreateInput, MembershipPlanUpdateInput, PublicSignupInput, RegisterInput, ResetPasswordInput, RoleAssignmentInput, StaffAccessRemoveInput, StaffClockInInput, StaffClockOutInput, StaffInviteAcceptInput, StaffInviteCreateInput, StaffShiftCreateInput, StaffSelfClockInInput, StaffSelfClockOutInput, StaffManualBookingInput } from "@gym-platform/validation";
 export interface ApiClientOptions {
     baseUrl: string;
     accessToken?: string;
@@ -57,11 +57,20 @@ export declare class GymApiClient {
     listRoles(gymId: string): Promise<unknown>;
     createCustomRole(gymId: string, input: CustomRoleCreateInput): Promise<unknown>;
     updateCustomRole(gymId: string, roleId: string, input: CustomRoleUpdateInput): Promise<unknown>;
+    deleteCustomRole(gymId: string, roleId: string): Promise<unknown>;
     listStaff(gymId: string): Promise<unknown>;
     assignStaffRole(gymId: string, input: RoleAssignmentInput): Promise<unknown>;
     removeStaffAccess(gymId: string, userId: string, input?: StaffAccessRemoveInput): Promise<unknown>;
     listStaffAuditLogs(gymId: string): Promise<unknown>;
+    listStaffShifts(gymId: string): Promise<unknown>;
+    listMyStaffShifts(gymId: string): Promise<unknown>;
     createStaffShift(gymId: string, input: StaffShiftCreateInput): Promise<unknown>;
+    listStaffTimeEntries(gymId: string): Promise<unknown>;
+    listMyStaffTimeEntries(gymId: string): Promise<unknown>;
+    clockStaffIn(gymId: string, input: StaffClockInInput): Promise<unknown>;
+    clockMyStaffIn(gymId: string, input?: StaffSelfClockInInput): Promise<unknown>;
+    clockStaffOut(gymId: string, input: StaffClockOutInput): Promise<unknown>;
+    clockMyStaffOut(gymId: string, input?: StaffSelfClockOutInput): Promise<unknown>;
     listMembers(gymId: string): Promise<unknown>;
     createMember(gymId: string, input: MemberCreateInput): Promise<unknown>;
     updateMember(gymId: string, memberId: string, input: MemberUpdateInput): Promise<unknown>;

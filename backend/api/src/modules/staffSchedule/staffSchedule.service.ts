@@ -26,6 +26,16 @@ export class StaffScheduleService {
     private readonly clock: Clock
   ) {}
 
+  async listShifts(gymId: string): Promise<PublicStaffShift[]> {
+    const shifts = await this.repositories.staffShifts.listStaffShiftsForGym(gymId);
+    return shifts.map(toPublicStaffShift);
+  }
+
+  async listShiftsForStaff(gymId: string, userId: string): Promise<PublicStaffShift[]> {
+    const shifts = await this.repositories.staffShifts.listStaffShiftsForStaff(gymId, userId);
+    return shifts.map(toPublicStaffShift);
+  }
+
   async createShift(
     gymId: string,
     createdByUserId: string,

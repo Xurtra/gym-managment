@@ -22,6 +22,7 @@ import type {
   StaffAuditLog,
   StaffInvite,
   StaffShift,
+  StaffTimeEntry,
   User
 } from "./entities.js";
 import type { Repositories } from "./repositories.js";
@@ -79,6 +80,7 @@ interface RoleRow extends QueryResultRow {
   gym_id: string;
   name: Role["name"];
   permissions: unknown;
+  parent_role_id: string | null;
   is_system: boolean;
   created_at: Date;
   updated_at: Date;
@@ -133,6 +135,20 @@ interface StaffShiftRow extends QueryResultRow {
   ends_at: Date;
   notes: string | null;
   created_by_user_id: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface StaffTimeEntryRow extends QueryResultRow {
+  id: string;
+  gym_id: string;
+  user_id: string;
+  location_id: string | null;
+  clocked_in_at: Date;
+  clocked_out_at: Date | null;
+  clocked_in_by_user_id: string;
+  clocked_out_by_user_id: string | null;
+  notes: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -367,7 +383,8 @@ export class PostgresRepositories implements Repositories {
     createRoles: (roles: Role[]) => this.createRoles(roles),
     getRole: (roleId: string) => this.getRole(roleId),
     listRolesForGym: (gymId: string) => this.listRolesForGym(gymId),
-    updateRole: (role: Role) => this.updateRole(role)
+    updateRole: (role: Role) => this.updateRole(role),
+    deleteRole: (roleId: string) => this.deleteRole(roleId)
   };
 
   readonly gymUsers = {
@@ -395,8 +412,19 @@ export class PostgresRepositories implements Repositories {
 
   readonly staffShifts = {
     createStaffShift: (shift: StaffShift) => this.createStaffShift(shift),
+    listStaffShiftsForGym: (gymId: string) => this.listStaffShiftsForGym(gymId),
     listStaffShiftsForStaff: (gymId: string, userId: string) =>
       this.listStaffShiftsForStaff(gymId, userId)
+  };
+
+  readonly staffTimeEntries = {
+    createStaffTimeEntry: (entry: StaffTimeEntry) => this.createStaffTimeEntry(entry),
+    updateStaffTimeEntry: (entry: StaffTimeEntry) => this.updateStaffTimeEntry(entry),
+    listStaffTimeEntriesForGym: (gymId: string) => this.listStaffTimeEntriesForGym(gymId),
+    listStaffTimeEntriesForStaff: (gymId: string, userId: string) =>
+      this.listStaffTimeEntriesForStaff(gymId, userId),
+    findOpenStaffTimeEntry: (gymId: string, userId: string) =>
+      this.findOpenStaffTimeEntry(gymId, userId)
   };
 
   readonly locations = {
@@ -658,14 +686,15 @@ export class PostgresRepositories implements Repositories {
   async createRole(role: Role) {
     const result = await this.executor.query<RoleRow>(
       `INSERT INTO roles (
-        id, gym_id, name, permissions, is_system, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7)
+        id, gym_id, name, permissions, parent_role_id, is_system, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8)
       RETURNING *`,
       [
         role.id,
         role.gymId,
         role.name,
         JSON.stringify(role.permissions),
+        role.parentRoleId ?? null,
         role.isSystem,
         role.createdAt,
         role.updatedAt
@@ -679,14 +708,15 @@ export class PostgresRepositories implements Repositories {
     for (const role of roles) {
       const result = await this.executor.query<RoleRow>(
         `INSERT INTO roles (
-          id, gym_id, name, permissions, is_system, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7)
+          id, gym_id, name, permissions, parent_role_id, is_system, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8)
         RETURNING *`,
         [
           role.id,
           role.gymId,
           role.name,
           JSON.stringify(role.permissions),
+          role.parentRoleId ?? null,
           role.isSystem,
           role.createdAt,
           role.updatedAt
@@ -717,12 +747,17 @@ export class PostgresRepositories implements Repositories {
       `UPDATE roles
        SET name = $2,
            permissions = $3::jsonb,
-           updated_at = $4
+           parent_role_id = $4,
+           updated_at = $5
        WHERE id = $1
        RETURNING *`,
-      [role.id, role.name, JSON.stringify(role.permissions), role.updatedAt]
+      [role.id, role.name, JSON.stringify(role.permissions), role.parentRoleId ?? null, role.updatedAt]
     );
     return mapRole(one(result));
+  }
+
+  async deleteRole(roleId: string) {
+    await this.executor.query("DELETE FROM roles WHERE id = $1", [roleId]);
   }
 
   async createGymUser(gymUser: GymUser) {
@@ -918,12 +953,97 @@ export class PostgresRepositories implements Repositories {
     return mapStaffShift(one(result));
   }
 
+  async listStaffShiftsForGym(gymId: string) {
+    const result = await this.executor.query<StaffShiftRow>(
+      "SELECT * FROM staff_shifts WHERE gym_id = $1 ORDER BY starts_at",
+      [gymId]
+    );
+    return result.rows.map(mapStaffShift);
+  }
+
   async listStaffShiftsForStaff(gymId: string, userId: string) {
     const result = await this.executor.query<StaffShiftRow>(
       "SELECT * FROM staff_shifts WHERE gym_id = $1 AND user_id = $2 ORDER BY starts_at",
       [gymId, userId]
     );
     return result.rows.map(mapStaffShift);
+  }
+
+  async createStaffTimeEntry(entry: StaffTimeEntry) {
+    const result = await this.executor.query<StaffTimeEntryRow>(
+      `INSERT INTO staff_time_entries (
+        id, gym_id, user_id, location_id, clocked_in_at, clocked_out_at,
+        clocked_in_by_user_id, clocked_out_by_user_id, notes, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING *`,
+      [
+        entry.id,
+        entry.gymId,
+        entry.userId,
+        entry.locationId ?? null,
+        entry.clockedInAt,
+        entry.clockedOutAt ?? null,
+        entry.clockedInByUserId,
+        entry.clockedOutByUserId ?? null,
+        entry.notes ?? null,
+        entry.createdAt,
+        entry.updatedAt
+      ]
+    );
+    return mapStaffTimeEntry(one(result));
+  }
+
+  async updateStaffTimeEntry(entry: StaffTimeEntry) {
+    const result = await this.executor.query<StaffTimeEntryRow>(
+      `UPDATE staff_time_entries
+       SET location_id = $4,
+           clocked_out_at = $5,
+           clocked_out_by_user_id = $6,
+           notes = $7,
+           updated_at = $8
+       WHERE id = $1 AND gym_id = $2 AND user_id = $3
+       RETURNING *`,
+      [
+        entry.id,
+        entry.gymId,
+        entry.userId,
+        entry.locationId ?? null,
+        entry.clockedOutAt ?? null,
+        entry.clockedOutByUserId ?? null,
+        entry.notes ?? null,
+        entry.updatedAt
+      ]
+    );
+    return mapStaffTimeEntry(one(result));
+  }
+
+  async listStaffTimeEntriesForGym(gymId: string) {
+    const result = await this.executor.query<StaffTimeEntryRow>(
+      "SELECT * FROM staff_time_entries WHERE gym_id = $1 ORDER BY clocked_in_at DESC",
+      [gymId]
+    );
+    return result.rows.map(mapStaffTimeEntry);
+  }
+
+  async listStaffTimeEntriesForStaff(gymId: string, userId: string) {
+    const result = await this.executor.query<StaffTimeEntryRow>(
+      `SELECT * FROM staff_time_entries
+       WHERE gym_id = $1 AND user_id = $2
+       ORDER BY clocked_in_at DESC`,
+      [gymId, userId]
+    );
+    return result.rows.map(mapStaffTimeEntry);
+  }
+
+  async findOpenStaffTimeEntry(gymId: string, userId: string) {
+    const result = await this.executor.query<StaffTimeEntryRow>(
+      `SELECT * FROM staff_time_entries
+       WHERE gym_id = $1 AND user_id = $2 AND clocked_out_at IS NULL
+       ORDER BY clocked_in_at DESC
+       LIMIT 1`,
+      [gymId, userId]
+    );
+    return result.rows[0] ? mapStaffTimeEntry(result.rows[0]) : undefined;
   }
 
   async createLocation(location: Location) {
@@ -1790,7 +1910,7 @@ function mapGym(row: GymRow): Gym {
 }
 
 function mapRole(row: RoleRow): Role {
-  return {
+  const role: Role = {
     id: row.id,
     gymId: row.gym_id,
     name: row.name,
@@ -1799,6 +1919,10 @@ function mapRole(row: RoleRow): Role {
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
+  if (row.parent_role_id) {
+    role.parentRoleId = row.parent_role_id;
+  }
+  return role;
 }
 
 function mapGymUser(row: GymUserRow): GymUser {
@@ -1881,6 +2005,31 @@ function mapStaffShift(row: StaffShiftRow): StaffShift {
     shift.notes = row.notes;
   }
   return shift;
+}
+
+function mapStaffTimeEntry(row: StaffTimeEntryRow): StaffTimeEntry {
+  const entry: StaffTimeEntry = {
+    id: row.id,
+    gymId: row.gym_id,
+    userId: row.user_id,
+    clockedInAt: row.clocked_in_at,
+    clockedInByUserId: row.clocked_in_by_user_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+  if (row.location_id) {
+    entry.locationId = row.location_id;
+  }
+  if (row.clocked_out_at) {
+    entry.clockedOutAt = row.clocked_out_at;
+  }
+  if (row.clocked_out_by_user_id) {
+    entry.clockedOutByUserId = row.clocked_out_by_user_id;
+  }
+  if (row.notes) {
+    entry.notes = row.notes;
+  }
+  return entry;
 }
 
 function mapLocation(row: LocationRow): Location {

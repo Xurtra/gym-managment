@@ -648,6 +648,7 @@ export declare const roleAssignmentSchema: z.ZodObject<{
 }>;
 export declare const customRoleCreateSchema: z.ZodObject<{
     name: z.ZodString;
+    parentRoleId: z.ZodOptional<z.ZodString>;
     permissions: z.ZodArray<z.ZodNativeEnum<{
         readonly GymRead: "gym:read";
         readonly GymUpdate: "gym:update";
@@ -677,12 +678,15 @@ export declare const customRoleCreateSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     name: string;
     permissions: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "platform:admin")[];
+    parentRoleId?: string | undefined;
 }, {
     name: string;
     permissions: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "platform:admin")[];
+    parentRoleId?: string | undefined;
 }>;
 export declare const customRoleUpdateSchema: z.ZodEffects<z.ZodObject<{
     name: z.ZodOptional<z.ZodString>;
+    parentRoleId: z.ZodOptional<z.ZodOptional<z.ZodString>>;
     permissions: z.ZodOptional<z.ZodArray<z.ZodNativeEnum<{
         readonly GymRead: "gym:read";
         readonly GymUpdate: "gym:update";
@@ -711,15 +715,19 @@ export declare const customRoleUpdateSchema: z.ZodEffects<z.ZodObject<{
     }>, "many">>;
 }, "strip", z.ZodTypeAny, {
     name?: string | undefined;
+    parentRoleId?: string | undefined;
     permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "platform:admin")[] | undefined;
 }, {
     name?: string | undefined;
+    parentRoleId?: string | undefined;
     permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "platform:admin")[] | undefined;
 }>, {
     name?: string | undefined;
+    parentRoleId?: string | undefined;
     permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "platform:admin")[] | undefined;
 }, {
     name?: string | undefined;
+    parentRoleId?: string | undefined;
     permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "platform:admin")[] | undefined;
 }>;
 export declare const staffAccessRemoveSchema: z.ZodObject<{
@@ -792,6 +800,46 @@ export declare const staffShiftCreateSchema: z.ZodEffects<z.ZodObject<{
     endsAt: string;
     roleId?: string | undefined;
     locationId?: string | undefined;
+    notes?: string | undefined;
+}>;
+export declare const staffClockInSchema: z.ZodObject<{
+    userId: z.ZodString;
+    locationId: z.ZodOptional<z.ZodString>;
+    notes: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    userId: string;
+    locationId?: string | undefined;
+    notes?: string | undefined;
+}, {
+    userId: string;
+    locationId?: string | undefined;
+    notes?: string | undefined;
+}>;
+export declare const staffClockOutSchema: z.ZodObject<{
+    userId: z.ZodString;
+    notes: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    userId: string;
+    notes?: string | undefined;
+}, {
+    userId: string;
+    notes?: string | undefined;
+}>;
+export declare const staffSelfClockInSchema: z.ZodObject<{
+    locationId: z.ZodOptional<z.ZodString>;
+    notes: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    locationId?: string | undefined;
+    notes?: string | undefined;
+}, {
+    locationId?: string | undefined;
+    notes?: string | undefined;
+}>;
+export declare const staffSelfClockOutSchema: z.ZodObject<{
+    notes: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    notes?: string | undefined;
+}, {
     notes?: string | undefined;
 }>;
 export declare const memberCreateSchema: z.ZodObject<{
@@ -1413,6 +1461,10 @@ export type StaffAccessRemoveInput = z.infer<typeof staffAccessRemoveSchema>;
 export type StaffInviteCreateInput = z.infer<typeof staffInviteCreateSchema>;
 export type StaffInviteAcceptInput = z.infer<typeof staffInviteAcceptSchema>;
 export type StaffShiftCreateInput = z.infer<typeof staffShiftCreateSchema>;
+export type StaffClockInInput = z.infer<typeof staffClockInSchema>;
+export type StaffClockOutInput = z.infer<typeof staffClockOutSchema>;
+export type StaffSelfClockInInput = z.infer<typeof staffSelfClockInSchema>;
+export type StaffSelfClockOutInput = z.infer<typeof staffSelfClockOutSchema>;
 export type MemberCreateInput = z.infer<typeof memberCreateSchema>;
 export type MemberUpdateInput = z.infer<typeof memberUpdateSchema>;
 export type MembershipPlanCreateInput = z.infer<typeof membershipPlanCreateSchema>;

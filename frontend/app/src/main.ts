@@ -60,6 +60,157 @@ const MEMBER_DESK_STORAGE_KEY = "gym-platform-member-desk";
 const ROLE_PERMISSION_OPTIONS = Object.values(Permission).filter(
   (permission) => permission !== Permission.PlatformAdmin
 );
+const STAFF_ROLE_PRESETS = [
+  {
+    key: "manager",
+    label: "Manager",
+    defaultName: "Assistant Manager",
+    description: "Broad operational access without owner-only platform control.",
+    permissions: [
+      Permission.GymRead,
+      Permission.GymUpdate,
+      Permission.LocationRead,
+      Permission.LocationCreate,
+      Permission.LocationUpdate,
+      Permission.StaffRead,
+      Permission.StaffInvite,
+      Permission.StaffRoleAssign,
+      Permission.MemberRead,
+      Permission.MemberWrite,
+      Permission.PlanRead,
+      Permission.ClassRead,
+      Permission.ClassWrite,
+      Permission.BookingRead,
+      Permission.BookingWrite,
+      Permission.ReportRead
+    ]
+  },
+  {
+    key: "staff",
+    label: "Basic staff",
+    defaultName: "Staff",
+    description: "General floor access for viewing members, locations, and bookings.",
+    permissions: [
+      Permission.GymRead,
+      Permission.LocationRead,
+      Permission.MemberRead,
+      Permission.ClassRead,
+      Permission.BookingRead
+    ]
+  },
+  {
+    key: "front_desk",
+    label: "Front desk",
+    defaultName: "Front Desk Lead",
+    description: "Check-in, customer updates, bookings, and point-of-sale support.",
+    permissions: [
+      Permission.GymRead,
+      Permission.LocationRead,
+      Permission.MemberRead,
+      Permission.MemberWrite,
+      Permission.ClassRead,
+      Permission.BookingRead,
+      Permission.BookingWrite,
+      Permission.AccessRead,
+      Permission.PaymentRead,
+      Permission.PaymentWrite
+    ]
+  }
+] as const;
+const PERMISSION_DETAILS: Record<string, { label: string; description: string }> = {
+  [Permission.GymRead]: {
+    label: "Open the club dashboard",
+    description: "Basic access to the signed-in gym."
+  },
+  [Permission.GymUpdate]: {
+    label: "Edit club settings",
+    description: "Change gym profile details and operating setup."
+  },
+  [Permission.LocationRead]: {
+    label: "View locations",
+    description: "See gym locations, rooms, and facility details."
+  },
+  [Permission.LocationCreate]: {
+    label: "Add locations",
+    description: "Create new locations or rooms."
+  },
+  [Permission.LocationUpdate]: {
+    label: "Edit locations",
+    description: "Update location details and active setup."
+  },
+  [Permission.LocationArchive]: {
+    label: "Archive locations",
+    description: "Remove old locations from active use."
+  },
+  [Permission.StaffRead]: {
+    label: "View staff roster",
+    description: "See staff accounts, schedules, and team access."
+  },
+  [Permission.StaffInvite]: {
+    label: "Create staff accounts",
+    description: "Invite employees and set their starting role."
+  },
+  [Permission.StaffRoleAssign]: {
+    label: "Manage staff roles and shifts",
+    description: "Assign roles, create shifts, and clock staff from the roster."
+  },
+  [Permission.StaffRemove]: {
+    label: "Remove staff access",
+    description: "Disable an employee's access to this gym."
+  },
+  [Permission.MemberRead]: {
+    label: "View members and leads",
+    description: "See customer, member, and lead profiles."
+  },
+  [Permission.MemberWrite]: {
+    label: "Edit members and leads",
+    description: "Create or update customer, member, and lead records."
+  },
+  [Permission.PlanRead]: {
+    label: "View memberships and packages",
+    description: "See plans, pricing, and service packages."
+  },
+  [Permission.PlanWrite]: {
+    label: "Edit memberships and packages",
+    description: "Create or update plans, prices, and packages."
+  },
+  [Permission.ClassRead]: {
+    label: "View classes",
+    description: "See class types, sessions, and training options."
+  },
+  [Permission.ClassWrite]: {
+    label: "Edit classes",
+    description: "Create or change class sessions and training options."
+  },
+  [Permission.BookingRead]: {
+    label: "View bookings",
+    description: "See reservations, waitlists, and attendance."
+  },
+  [Permission.BookingWrite]: {
+    label: "Manage bookings",
+    description: "Book, cancel, or update customer reservations."
+  },
+  [Permission.AccessRead]: {
+    label: "View door and kiosk access",
+    description: "See access devices, rules, and entry events."
+  },
+  [Permission.AccessWrite]: {
+    label: "Manage door and kiosk access",
+    description: "Edit access devices and entry rules."
+  },
+  [Permission.PaymentRead]: {
+    label: "View sales and payments",
+    description: "See point-of-sale activity and payment records."
+  },
+  [Permission.PaymentWrite]: {
+    label: "Take payments",
+    description: "Sell services, memberships, and other items."
+  },
+  [Permission.ReportRead]: {
+    label: "View reports and payroll",
+    description: "See reporting, hours worked, and payroll summaries."
+  }
+};
 const DEFAULT_SIGNATURE_REQUIREMENTS = [
   "Waiver",
   "Photo consent",
@@ -114,7 +265,17 @@ interface RoleRecord {
   id: string;
   name: string;
   permissions: string[];
+  parentRoleId?: string;
   isSystem?: boolean;
+}
+
+interface StaffRoleTemplateOption {
+  key: string;
+  label: string;
+  defaultName: string;
+  description: string;
+  permissions: string[];
+  source: "starter" | "saved";
 }
 
 interface MembershipRecord {
@@ -220,6 +381,34 @@ interface StaffRecord {
   updatedAt: string;
 }
 
+interface StaffShiftRecord {
+  id: string;
+  gymId: string;
+  userId: string;
+  locationId?: string;
+  roleId: string;
+  startsAt: string;
+  endsAt: string;
+  notes?: string;
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface StaffTimeEntryRecord {
+  id: string;
+  gymId: string;
+  userId: string;
+  locationId?: string;
+  clockedInAt: string;
+  clockedOutAt?: string;
+  clockedInByUserId: string;
+  clockedOutByUserId?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface MemberListResponse {
   members: MemberRecord[];
 }
@@ -278,6 +467,14 @@ interface AccessRuleListResponse {
 
 interface AccessEventListResponse {
   events: AccessEventView[];
+}
+
+interface StaffShiftListResponse {
+  shifts: StaffShiftRecord[];
+}
+
+interface StaffTimeEntryListResponse {
+  entries: StaffTimeEntryRecord[];
 }
 
 interface PublicGymResponse {
@@ -369,6 +566,13 @@ interface AppState {
   settingsSection: SettingsSectionKey;
   roles: RoleRecord[];
   selectedRoleId: string;
+  staffShifts: StaffShiftRecord[];
+  staffTimeEntries: StaffTimeEntryRecord[];
+  staffAccessSearch: string;
+  staffAccessRoleFilter: string;
+  staffScheduleCalendarOpen: boolean;
+  staffScheduleCalendarMonth: string;
+  staffRemovalUserId?: string;
   banner?: { tone: BannerTone; text: string };
   publicSuccess?: string;
   // Dashboard sub-views
@@ -455,6 +659,13 @@ const state: AppState = {
   settingsSection: initialRoute.settingsSection ?? "setup",
   roles: [],
   selectedRoleId: "",
+  staffShifts: [],
+  staffTimeEntries: [],
+  staffAccessSearch: "",
+  staffAccessRoleFilter: "",
+  staffScheduleCalendarOpen: false,
+  staffScheduleCalendarMonth: toMonthKey(new Date()),
+  staffRemovalUserId: undefined,
   dashboardView: initialRoute.dashboardView,
   checkInBarcode: "",
   checkInHistory: [],
@@ -490,6 +701,8 @@ const client = new GymApiClient({
     render();
   }
 });
+
+let staffClockTimerInterval: ReturnType<typeof window.setInterval> | undefined;
 
 window.addEventListener("hashchange", () => {
   syncRouteFromHash();
@@ -593,12 +806,39 @@ async function refreshDashboard() {
     state.me = me;
     state.gym = me.activeGym ?? me.memberships[0]?.gym ?? null;
     if (state.gym) {
+      const canReadMembers = hasPermission(Permission.MemberRead);
+      const canReadPlans = hasPermission(Permission.PlanRead);
+      const canReadLocations = hasPermission(Permission.LocationRead);
+      const canReadClasses = hasPermission(Permission.ClassRead);
+      const canReadStaff = hasPermission(Permission.StaffRead);
+      const canReadOwnShifts = hasPermission(Permission.GymRead);
+      const canReadAccess = hasPermission(Permission.AccessRead);
       const [members, plans, locations, checkIns, classTypes] = (await Promise.all([
-        client.listMembers(state.gym.id) as Promise<MemberListResponse>,
-        client.listMembershipPlans(state.gym.id) as Promise<PlanListResponse>,
-        client.listLocations(state.gym.id) as Promise<LocationListResponse>,
-        client.listCheckIns(state.gym.id) as Promise<{ checkIns?: CheckInRecord[] } | CheckInRecord[]>,
-        client.listClassTypes(state.gym.id) as Promise<ClassTypeListResponse>
+        loadPermittedDashboardData(
+          canReadMembers,
+          () => client.listMembers(state.gym!.id) as Promise<MemberListResponse>,
+          { members: [] }
+        ),
+        loadPermittedDashboardData(
+          canReadPlans,
+          () => client.listMembershipPlans(state.gym!.id) as Promise<PlanListResponse>,
+          { plans: [] }
+        ),
+        loadPermittedDashboardData(
+          canReadLocations,
+          () => client.listLocations(state.gym!.id) as Promise<LocationListResponse>,
+          { locations: [] }
+        ),
+        loadPermittedDashboardData(
+          canReadMembers,
+          () => client.listCheckIns(state.gym!.id) as Promise<{ checkIns?: CheckInRecord[] } | CheckInRecord[]>,
+          { checkIns: [] }
+        ),
+        loadPermittedDashboardData(
+          canReadClasses,
+          () => client.listClassTypes(state.gym!.id) as Promise<ClassTypeListResponse>,
+          { classTypes: [] }
+        )
       ])) as [
         MemberListResponse,
         PlanListResponse,
@@ -640,32 +880,59 @@ async function refreshDashboard() {
       );
       const checkInRecords = Array.isArray(checkIns) ? checkIns : checkIns.checkIns ?? [];
       state.checkInHistory = mergeCheckInHistory(checkInRecords);
-      try {
-        const rolesResponse = (await client.listRoles(state.gym.id)) as { roles?: RoleRecord[] } | RoleRecord[];
-        state.roles = Array.isArray(rolesResponse) ? rolesResponse : rolesResponse.roles ?? [];
-        if (!state.selectedRoleId || !state.roles.some((role) => role.id === state.selectedRoleId)) {
-          state.selectedRoleId = state.roles[0]?.id ?? "";
-        }
-        const staffResponse = (await client.listStaff(state.gym.id)) as { staff?: StaffRecord[] };
-        state.staff = staffResponse.staff ?? [];
-      } catch {
-        state.roles = [];
-        state.staff = [];
+      const [rolesResponse, staffResponse, staffShiftResponse, staffTimeEntryResponse] = await Promise.all([
+        loadPermittedDashboardData(
+          canReadStaff,
+          () => client.listRoles(state.gym!.id) as Promise<{ roles?: RoleRecord[] } | RoleRecord[]>,
+          { roles: [] }
+        ),
+        loadPermittedDashboardData(
+          canReadStaff,
+          () => client.listStaff(state.gym!.id) as Promise<{ staff?: StaffRecord[] }>,
+          { staff: [] }
+        ),
+        loadPermittedDashboardData(
+          canReadStaff || canReadOwnShifts,
+          () => canReadStaff
+            ? client.listStaffShifts(state.gym!.id) as Promise<StaffShiftListResponse>
+            : client.listMyStaffShifts(state.gym!.id) as Promise<StaffShiftListResponse>,
+          { shifts: [] }
+        ),
+        loadPermittedDashboardData(
+          canReadStaff || canReadOwnShifts,
+          () => canReadStaff
+            ? client.listStaffTimeEntries(state.gym!.id) as Promise<StaffTimeEntryListResponse>
+            : client.listMyStaffTimeEntries(state.gym!.id) as Promise<StaffTimeEntryListResponse>,
+          { entries: [] }
+        )
+      ]);
+      state.roles = Array.isArray(rolesResponse) ? rolesResponse : rolesResponse.roles ?? [];
+      if (!state.selectedRoleId || !state.roles.some((role) => role.id === state.selectedRoleId)) {
+        state.selectedRoleId = state.roles[0]?.id ?? "";
       }
-      try {
-        const [devicesResponse, rulesResponse, eventsResponse] = (await Promise.all([
-          client.listAccessDevices(state.gym.id) as Promise<AccessDeviceListResponse>,
-          client.listAccessRules(state.gym.id) as Promise<AccessRuleListResponse>,
-          client.listAccessEvents(state.gym.id) as Promise<AccessEventListResponse>
-        ])) as [AccessDeviceListResponse, AccessRuleListResponse, AccessEventListResponse];
-        state.accessDevices = devicesResponse.devices.map(enrichAccessDevice);
-        state.accessRules = rulesResponse.rules.map(enrichAccessRule);
-        state.accessEvents = eventsResponse.events.map(enrichAccessEvent);
-      } catch {
-        state.accessDevices = [];
-        state.accessRules = [];
-        state.accessEvents = [];
-      }
+      state.staff = staffResponse.staff ?? [];
+      state.staffShifts = staffShiftResponse.shifts ?? [];
+      state.staffTimeEntries = staffTimeEntryResponse.entries ?? [];
+      const [devicesResponse, rulesResponse, eventsResponse] = (await Promise.all([
+        loadPermittedDashboardData(
+          canReadAccess,
+          () => client.listAccessDevices(state.gym!.id) as Promise<AccessDeviceListResponse>,
+          { devices: [] }
+        ),
+        loadPermittedDashboardData(
+          canReadAccess,
+          () => client.listAccessRules(state.gym!.id) as Promise<AccessRuleListResponse>,
+          { rules: [] }
+        ),
+        loadPermittedDashboardData(
+          canReadAccess,
+          () => client.listAccessEvents(state.gym!.id) as Promise<AccessEventListResponse>,
+          { events: [] }
+        )
+      ])) as [AccessDeviceListResponse, AccessRuleListResponse, AccessEventListResponse];
+      state.accessDevices = devicesResponse.devices.map(enrichAccessDevice);
+      state.accessRules = rulesResponse.rules.map(enrichAccessRule);
+      state.accessEvents = eventsResponse.events.map(enrichAccessEvent);
       if (!state.publicSlug) {
         state.publicSlug = state.gym.slug;
         localStorage.setItem(PUBLIC_SLUG_STORAGE_KEY, state.publicSlug);
@@ -679,6 +946,8 @@ async function refreshDashboard() {
       state.members = [];
       state.roles = [];
       state.staff = [];
+      state.staffShifts = [];
+      state.staffTimeEntries = [];
       state.plans = [];
       state.locations = [];
       state.classTypes = [];
@@ -837,6 +1106,7 @@ function render() {
       `}
   `;
   bindEvents();
+  startStaffClockTimers();
 }
 
 function renderDashboard() {
@@ -976,6 +1246,7 @@ function renderDashboard() {
               <span>${currentMembership()?.role?.name ?? "Staff"}</span>
             </div>
           </div>
+          <button id="logout-button" class="topbar-logout-button" type="button">Log out</button>
         </div>
       </header>
 
@@ -1543,37 +1814,52 @@ function renderLeadsView() {
 }
 
 function renderStaffView() {
-  const staffPage = buildStaffListPage({
-    staff: state.staff,
-    roles: state.roles.map((role) => ({
-      id: role.id,
-      name: role.name,
-      label: formatRoleLabel(role.name),
-      permissions: role.permissions
-    })),
-    permissions: currentPermissions()
-  });
+  const directoryStaff = staffDirectoryRows();
+  const assignableRoles = staffAssignableRoles();
+  const activeStaff = directoryStaff.filter((staff) => staff.status === UserStatus.Active);
+  const canInviteStaff = hasPermission(Permission.StaffInvite);
+  const canScheduleStaff = hasPermission(Permission.StaffRoleAssign);
+  const canViewPayroll = hasPermission(Permission.ReportRead) && hasPermission(Permission.StaffRead);
+  const staffOptions = activeStaff.map((staff) => ({
+    value: staff.userId,
+    label: staffFullName(staff)
+  }));
+  const shiftRoleOptions = assignableRoles.map((role) => ({
+    value: role.id,
+    label: formatRoleLabel(role.name)
+  }));
+  const activeLocationOptions = locationSelectOptions();
+  const locationOptions = [
+    { value: "", label: "No location" },
+    ...activeLocationOptions
+  ];
+  const defaultShiftDate = toDateInputValue(new Date(Date.now() + 24 * 60 * 60 * 1000));
+  const staffTools = [
+    hasPermission(Permission.StaffRead) ? renderStaffAuthTree() : "",
+    canInviteStaff ? renderCreateStaffAccountCard(assignableRoles) : "",
+    canScheduleStaff ? renderScheduleShiftCard(staffOptions, shiftRoleOptions, locationOptions, defaultShiftDate) : "",
+    renderStaffRoleCreator(),
+    canViewPayroll ? renderStaffPayrollReport() : ""
+  ].filter(Boolean).join("");
   return `
-    <section class="club-panel club-page">
+    <section class="club-panel club-page club-staff-page">
       <div class="card-head">
         <div>
           <p class="eyebrow">Staff</p>
           <h2>Team access</h2>
         </div>
-        <span>${staffPage.summary.visibleCount} visible · ${staffPage.summary.activeCount} active</span>
+        <span>${directoryStaff.length} staff · ${activeStaff.length} active</span>
       </div>
-      <div class="club-customer-grid">
-        ${state.staff.length === 0
-          ? `<div class="empty-state"><p>No staff loaded.</p></div>`
-          : staffPage.rows.slice(0, 6).map((staff) => `
-              <article class="club-customer-card">
-                <div class="club-customer-avatar">${staff.initials}</div>
-                <strong>${staff.fullName}</strong>
-                <span>${staff.roleLabel} · ${staff.statusLabel}</span>
-              </article>
-            `).join("")}
+      <div class="club-page-split">
+        <div class="section-stack">
+          ${renderStaffAccessManagement(assignableRoles)}
+          ${renderStaffShiftList()}
+          ${renderStaffPersonalHoursReport()}
+        </div>
+        ${staffTools ? `<div class="section-stack">${staffTools}</div>` : ""}
       </div>
-      ${renderModelTable(staffPage.table, "No staff rows to display.")}
+      ${state.staffScheduleCalendarOpen ? renderStaffShiftCalendarModal() : ""}
+      ${state.staffRemovalUserId ? renderStaffRemovalModal() : ""}
     </section>
   `;
 }
@@ -2053,7 +2339,7 @@ const settingsTabs: Array<{ key: SettingsSectionKey; label: string }> = [
   { key: "forms", label: "Forms" },
 ];
 
-function formatPermissionLabel(permission: string) {
+function formatTechnicalPermissionLabel(permission: string) {
   return permission
     .split(":")
     .map((part) =>
@@ -2065,15 +2351,915 @@ function formatPermissionLabel(permission: string) {
     .join(" ");
 }
 
+function permissionDetails(permission: string) {
+  return PERMISSION_DETAILS[permission] ?? {
+    label: formatTechnicalPermissionLabel(permission),
+    description: "Advanced access for this gym."
+  };
+}
+
+function formatPermissionLabel(permission: string) {
+  return permissionDetails(permission).label;
+}
+
 function renderPermissionCheckboxes(selectedPermissions: string[] = []) {
   return ROLE_PERMISSION_OPTIONS.map(
-    (permission) => `
-      <label class="permission-chip${selectedPermissions.includes(permission) ? " active" : ""}">
-        <input type="checkbox" name="permissions" value="${permission}" ${selectedPermissions.includes(permission) ? "checked" : ""} />
-        <span>${escapeHtml(formatPermissionLabel(permission))}</span>
-      </label>
-    `
+    (permission) => {
+      const details = permissionDetails(permission);
+      return `
+        <label class="permission-chip${selectedPermissions.includes(permission) ? " active" : ""}">
+          <input type="checkbox" name="permissions" value="${permission}" ${selectedPermissions.includes(permission) ? "checked" : ""} />
+          <span class="permission-chip-copy">
+            <strong>${escapeHtml(details.label)}</strong>
+            <small>${escapeHtml(details.description)}</small>
+          </span>
+        </label>
+      `;
+    }
   ).join("");
+}
+
+function staffAssignableRoles() {
+  return state.roles
+    .filter((role) => role.name !== RoleName.Owner && role.name !== RoleName.Member)
+    .sort((left, right) => formatRoleLabel(left.name).localeCompare(formatRoleLabel(right.name)));
+}
+
+function renderCreateStaffAccountCard(assignableRoles: RoleRecord[]) {
+  return `
+    <details class="form-card expandable-card">
+      <summary class="expandable-summary">
+        <span>
+          <h3>Create staff account</h3>
+          <p class="muted">Creates a staff login and assigns backend access for this gym.</p>
+        </span>
+        <span class="expandable-action">Expand</span>
+      </summary>
+      <form id="create-staff-form" class="expandable-body">
+        ${renderInput("firstName", "First name")}
+        ${renderInput("lastName", "Last name")}
+        ${renderInput("email", "Email", "email")}
+        ${renderInput("password", "Temporary password", "password")}
+        ${renderSelect(
+          "roleId",
+          "Position / role",
+          assignableRoles.length > 0
+            ? assignableRoles.map((role) => ({ value: role.id, label: formatRoleLabel(role.name) }))
+            : [{ value: "", label: "No staff roles available" }],
+          assignableRoles[0]?.id ?? ""
+        )}
+        <button type="submit" ${assignableRoles.length === 0 ? "disabled" : ""}>Create staff</button>
+      </form>
+    </details>
+  `;
+}
+
+function renderScheduleShiftCard(
+  staffOptions: Array<{ value: string; label: string }>,
+  shiftRoleOptions: Array<{ value: string; label: string }>,
+  locationOptions: Array<{ value: string; label: string }>,
+  defaultShiftDate: string
+) {
+  return `
+    <details class="form-card expandable-card">
+      <summary class="expandable-summary">
+        <span>
+          <h3>Schedule shift</h3>
+          <p class="muted">Adds a backend shift for the selected staff member.</p>
+        </span>
+        <span class="expandable-action">Expand</span>
+      </summary>
+      <form id="create-staff-shift-form" class="expandable-body">
+        ${renderSelect("userId", "Staff member", staffOptions.length ? staffOptions : [{ value: "", label: "No active staff available" }], staffOptions[0]?.value ?? "")}
+        ${renderSelect("roleId", "Shift position", shiftRoleOptions.length ? shiftRoleOptions : [{ value: "", label: "No staff roles available" }], shiftRoleOptions[0]?.value ?? "")}
+        ${renderSelect("locationId", "Location", locationOptions, locationOptions[0]?.value ?? "")}
+        ${renderInput("shiftDate", "Date", "date", defaultShiftDate)}
+        ${renderInput("startsAt", "Start time", "time", "09:00")}
+        ${renderInput("endsAt", "End time", "time", "17:00")}
+        <label class="field">
+          <span>Notes</span>
+          <textarea name="notes" rows="3"></textarea>
+        </label>
+        <button type="submit" ${staffOptions.length === 0 || shiftRoleOptions.length === 0 ? "disabled" : ""}>Create shift</button>
+      </form>
+    </details>
+  `;
+}
+
+function renderStaffAccessManagement(assignableRoles: RoleRecord[]) {
+  const staffRows = staffDirectoryRows();
+  const canManageDirectory = hasPermission(Permission.StaffRoleAssign) || hasPermission(Permission.StaffRemove);
+  const roleOptions = staffAccessRoleOptions();
+  const selectedRoleFilter = roleOptions.some((option) => option.value === state.staffAccessRoleFilter)
+    ? state.staffAccessRoleFilter
+    : "";
+  const visibleStaffCount = staffRows.filter((staff) =>
+    staffMatchesAccessFilters(staff, selectedRoleFilter, state.staffAccessSearch)
+  ).length;
+  return `
+    <div class="club-panel">
+      <div class="card-head">
+        <div>
+          <h3>Staff directory and access</h3>
+          <p class="club-copy">${canManageDirectory ? "Search staff, review account status, update positions, or remove gym access." : "Review your role and clock yourself in or out."}</p>
+        </div>
+        <span data-staff-access-filter-count>${visibleStaffCount} of ${staffRows.length} staff</span>
+      </div>
+      <div class="staff-filter-bar">
+        <label class="field staff-filter-field">
+          <span>Search staff</span>
+          <input
+            type="search"
+            data-staff-access-search
+            placeholder="Search by name or email"
+            value="${escapeAttribute(state.staffAccessSearch)}"
+          />
+        </label>
+        <label class="field staff-filter-field">
+          <span>Role</span>
+          <select data-staff-access-role-filter>
+            <option value="">All roles</option>
+            ${roleOptions
+              .map(
+                (role) =>
+                  `<option value="${escapeAttribute(role.value)}" ${role.value === selectedRoleFilter ? "selected" : ""}>${escapeHtml(role.label)}</option>`
+              )
+              .join("")}
+          </select>
+        </label>
+      </div>
+      <div class="staff-role-list staff-access-list">
+        ${staffRows.length === 0
+          ? `<div class="settings-placeholder"><strong>No staff loaded</strong><p>Create staff accounts before managing roles.</p></div>`
+          : `
+            ${staffRows.map((staff) => {
+              const canAssign = canAssignStaffRole(staff);
+              const canRemove = canRemoveStaffAccess(staff);
+              const roleChoices = assignableRoles.some((role) => role.id === staff.roleId)
+                ? assignableRoles
+                : [{ id: staff.roleId, name: staff.roleName, permissions: [] }, ...assignableRoles];
+              const openTimeEntry = openStaffTimeEntry(staff.userId);
+              const clockDisabled = staff.status !== UserStatus.Active;
+              const rowVisible = staffMatchesAccessFilters(staff, selectedRoleFilter, state.staffAccessSearch);
+              return `
+                <article
+                  class="staff-role-row"
+                  data-staff-access-row
+                  data-staff-role-id="${escapeAttribute(staff.roleId)}"
+                  data-staff-filter-text="${escapeAttribute(staffAccessSearchText(staff))}"
+                  ${rowVisible ? "" : "hidden"}
+                >
+                  <div class="staff-role-copy">
+                    <div class="staff-role-title">
+                      <strong>${escapeHtml(staffFullName(staff))}</strong>
+                      <span class="staff-status-chip">${escapeHtml(formatRoleLabel(staff.status))}</span>
+                    </div>
+                    <p>
+                      <span>${escapeHtml(staff.email)}</span>
+                      <span>${escapeHtml(formatRoleLabel(staff.roleName))}</span>
+                    </p>
+                    ${openTimeEntry
+                      ? `<span class="staff-clock-chip active">Clocked in <span data-staff-clock-timer data-clocked-in-at="${escapeAttribute(openTimeEntry.clockedInAt)}">${escapeHtml(formatElapsedSince(openTimeEntry.clockedInAt))}</span></span>`
+                      : `<span class="staff-clock-chip">Not clocked in</span>`}
+                  </div>
+                  <div class="staff-role-actions">
+                    <select data-staff-role-select="${staff.userId}" ${canAssign ? "" : "disabled"}>
+                      ${roleChoices
+                        .map(
+                          (role) =>
+                            `<option value="${role.id}" ${role.id === staff.roleId ? "selected" : ""}>${escapeHtml(formatRoleLabel(role.name))}</option>`
+                        )
+                        .join("")}
+                    </select>
+                    ${openTimeEntry
+                      ? `<button type="button" class="ghost-button clock-button" data-staff-clock-out="${staff.userId}" ${clockDisabled ? "disabled" : ""}>Clock out</button>`
+                      : `<button type="button" class="ghost-button clock-button active" data-staff-clock-in="${staff.userId}" ${clockDisabled ? "disabled" : ""}>Clock in</button>`}
+                    <button type="button" class="ghost-button" data-staff-role-assign="${staff.userId}" ${canAssign ? "" : "disabled"}>Assign</button>
+                    ${canRemove
+                      ? `<button type="button" class="ghost-button danger" data-staff-access-remove="${staff.userId}">Remove</button>`
+                      : `<span class="staff-protection-chip">${escapeHtml(staffRemovalProtectionLabel(staff))}</span>`}
+                  </div>
+                </article>
+              `;
+            }).join("")}
+            <div class="settings-placeholder" data-staff-access-empty ${visibleStaffCount > 0 ? "hidden" : ""}>
+              <strong>No staff match this filter</strong>
+              <p>Try another role or search term.</p>
+            </div>
+          `}
+      </div>
+    </div>
+  `;
+}
+
+function renderStaffRoleCreator() {
+  if (!canCreateRolesFromStaffPage()) {
+    return "";
+  }
+  const templates = staffRoleTemplateOptions();
+  const preset = templates[0];
+  const parentRoles = roleParentRoles();
+  return `
+    <details class="form-card expandable-card staff-role-creator">
+      <summary class="expandable-summary">
+        <span>
+          <h3>Create role</h3>
+          <p class="muted">Start from a preset or saved role, then adjust employee access.</p>
+        </span>
+        <span class="expandable-action">Expand</span>
+      </summary>
+      <form id="create-staff-role-form" class="expandable-body">
+        ${renderStaffRoleTemplateSelect(templates)}
+        <p class="club-copy staff-role-preset-copy" data-staff-role-preset-description>${escapeHtml(preset.description)}</p>
+        ${renderInput("staffRoleName", "Role name", "text", preset.defaultName)}
+        ${renderRoleParentPicker(parentRoles)}
+        <div class="permissions-grid staff-role-permissions">
+          ${renderPermissionCheckboxes([...preset.permissions])}
+        </div>
+        <button type="submit">Create role</button>
+      </form>
+    </details>
+  `;
+}
+
+function staffRoleTemplateOptions(): StaffRoleTemplateOption[] {
+  const starterTemplates: StaffRoleTemplateOption[] = STAFF_ROLE_PRESETS.map((preset) => ({
+    key: `starter:${preset.key}`,
+    label: preset.label,
+    defaultName: preset.defaultName,
+    description: preset.description,
+    permissions: [...preset.permissions],
+    source: "starter"
+  }));
+  const savedTemplates: StaffRoleTemplateOption[] = state.roles
+    .filter((role) => !role.isSystem && role.name !== RoleName.Owner && role.name !== RoleName.Member)
+    .sort((left, right) => formatRoleLabel(left.name).localeCompare(formatRoleLabel(right.name)))
+    .map((role) => {
+      const roleLabel = formatRoleLabel(role.name);
+      return {
+        key: `saved:${role.id}`,
+        label: roleLabel,
+        defaultName: `${roleLabel} Copy`,
+        description: `Saved gym role. Reuse these privileges here, or assign this exact role from the staff directory.`,
+        permissions: [...role.permissions],
+        source: "saved"
+      };
+    });
+  return [...starterTemplates, ...savedTemplates];
+}
+
+function renderStaffRoleTemplateSelect(templates: StaffRoleTemplateOption[]) {
+  const starters = templates.filter((template) => template.source === "starter");
+  const saved = templates.filter((template) => template.source === "saved");
+  return `
+    <label class="field">
+      <span>Start from</span>
+      <select name="rolePreset" data-staff-role-preset>
+        <optgroup label="Starter presets">
+          ${starters.map((option) => `<option value="${escapeAttribute(option.key)}">${escapeHtml(option.label)}</option>`).join("")}
+        </optgroup>
+        ${saved.length
+          ? `<optgroup label="Saved gym roles">
+              ${saved.map((option) => `<option value="${escapeAttribute(option.key)}">${escapeHtml(option.label)}</option>`).join("")}
+            </optgroup>`
+          : ""}
+      </select>
+    </label>
+  `;
+}
+
+function renderStaffAuthTree() {
+  const visibleRoles = state.roles.filter((role) => role.name !== RoleName.Member);
+  if (visibleRoles.length === 0) {
+    return "";
+  }
+  const visibleRoleIds = new Set(visibleRoles.map((role) => role.id));
+  const roots = visibleRoles.filter((role) => !role.parentRoleId || !visibleRoleIds.has(role.parentRoleId));
+  const renderNode = (role: RoleRecord): string => {
+    const children = visibleRoles
+      .filter((candidate) => candidate.parentRoleId === role.id)
+      .sort((left, right) => formatRoleLabel(left.name).localeCompare(formatRoleLabel(right.name)));
+    const assignedCount = staffAssignedToRoleCount(role.id);
+    const canDelete = canDeleteRole(role);
+    return `
+      <li>
+        <div class="auth-tree-node">
+          <div>
+            <strong>${escapeHtml(formatRoleLabel(role.name))}</strong>
+            <span>${role.permissions.length} privileges · ${assignedCount} assigned</span>
+          </div>
+          ${canDelete
+            ? `<button type="button" class="ghost-button danger" data-staff-role-delete="${escapeAttribute(role.id)}">Delete</button>`
+            : `<span class="staff-protection-chip">${escapeHtml(roleDeleteProtectionLabel(role))}</span>`}
+        </div>
+        ${children.length ? `<ul>${children.map(renderNode).join("")}</ul>` : ""}
+      </li>
+    `;
+  };
+  return `
+    <div class="club-panel auth-tree-card">
+      <div class="card-head">
+        <div>
+          <h3>Authorization tree</h3>
+          <p class="club-copy">Shows your role branch and every role below it. Parent branches stay hidden.</p>
+        </div>
+      </div>
+      <ul class="auth-tree-list">
+        ${roots.map(renderNode).join("")}
+      </ul>
+    </div>
+  `;
+}
+
+function renderRoleParentPicker(parentRoles: RoleRecord[]) {
+  if (parentRoles.length === 0) {
+    return `<div class="settings-placeholder"><strong>No parent roles available</strong><p>Create a role after a staff branch exists.</p></div>`;
+  }
+  return `
+    <fieldset class="role-parent-picker">
+      <legend>Place under</legend>
+      <div class="role-parent-options">
+        ${parentRoles.map((role, index) => `
+          <label class="role-parent-option">
+            <input type="radio" name="parentRoleId" value="${escapeAttribute(role.id)}" ${index === 0 ? "checked" : ""} />
+            <span>
+              <strong>${escapeHtml(formatRoleLabel(role.name))}</strong>
+              <small>${role.permissions.length} privileges</small>
+            </span>
+          </label>
+        `).join("")}
+      </div>
+    </fieldset>
+  `;
+}
+
+function roleParentRoles() {
+  return state.roles
+    .filter((role) => role.name !== RoleName.Member)
+    .sort((left, right) => formatRoleLabel(left.name).localeCompare(formatRoleLabel(right.name)));
+}
+
+function staffAssignedToRoleCount(roleId: string) {
+  return state.staff.filter((staff) => staff.roleId === roleId).length;
+}
+
+function roleChildCount(roleId: string) {
+  return state.roles.filter((role) => role.parentRoleId === roleId).length;
+}
+
+function canDeleteRole(role: RoleRecord) {
+  return (
+    hasPermission(Permission.StaffRoleAssign) &&
+    !role.isSystem &&
+    role.name !== RoleName.Owner &&
+    role.name !== RoleName.Member &&
+    staffAssignedToRoleCount(role.id) === 0 &&
+    roleChildCount(role.id) === 0
+  );
+}
+
+function roleDeleteProtectionLabel(role: RoleRecord) {
+  if (role.isSystem || role.name === RoleName.Owner || role.name === RoleName.Member) {
+    return "System role";
+  }
+  if (roleChildCount(role.id) > 0) {
+    return "Has children";
+  }
+  if (staffAssignedToRoleCount(role.id) > 0) {
+    return "In use";
+  }
+  return "Protected";
+}
+
+function renderStaffRemovalModal() {
+  const staff = selectedStaffRemovalCandidate();
+  if (!staff || !canRemoveStaffAccess(staff)) {
+    return "";
+  }
+  const name = staffFullName(staff);
+  return `
+    <div class="staff-removal-backdrop" data-staff-removal-close>
+      <section class="staff-removal-modal" role="dialog" aria-modal="true" aria-label="Remove staff access confirmation">
+        <div class="card-head">
+          <div>
+            <p class="eyebrow">Staff Access</p>
+            <h3>Confirm removal</h3>
+            <p class="club-copy">This removes gym access for the selected user. It does not delete historical payroll, schedule, or audit records.</p>
+          </div>
+          <button type="button" class="ghost-button" data-staff-removal-close>Close</button>
+        </div>
+        <div class="staff-removal-person">
+          <div class="club-customer-avatar">${escapeHtml(staffInitials(staff))}</div>
+          <div>
+            <strong>${escapeHtml(name)}</strong>
+            <span>${escapeHtml(staff.email)}</span>
+            <span>${escapeHtml(formatRoleLabel(staff.roleName))} · ${escapeHtml(formatRoleLabel(staff.status))}</span>
+          </div>
+        </div>
+        <div class="staff-removal-warning">
+          <strong>What happens next</strong>
+          <ul>
+            <li>The user will no longer be able to access this gym.</li>
+            <li>Their role assignment is disabled, but existing records stay available for reporting.</li>
+            <li>You can invite or recreate access later if they return.</li>
+          </ul>
+        </div>
+        <form id="staff-remove-confirm-form" class="staff-removal-form">
+          <input type="hidden" name="userId" value="${escapeAttribute(staff.userId)}" />
+          <label class="field">
+            <span>Reason</span>
+            <textarea name="reason" rows="3" placeholder="Optional note for the staff audit log"></textarea>
+          </label>
+          <label class="field">
+            <span>Type REMOVE to confirm</span>
+            <input name="confirmText" autocomplete="off" placeholder="REMOVE" data-staff-removal-confirm-input />
+          </label>
+          <div class="staff-removal-actions">
+            <button type="button" class="ghost-button" data-staff-removal-close>Cancel</button>
+            <button type="submit" class="danger-button" data-staff-removal-submit disabled>Remove access</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  `;
+}
+
+function canCreateRolesFromStaffPage() {
+  return hasPermission(Permission.StaffRoleAssign);
+}
+
+function staffAccessRoleOptions() {
+  const roleOptions = new Map<string, string>();
+  for (const staff of staffDirectoryRows()) {
+    roleOptions.set(staff.roleId, formatRoleLabel(staff.roleName));
+  }
+  return [...roleOptions.entries()]
+    .map(([value, label]) => ({ value, label }))
+    .sort((left, right) => left.label.localeCompare(right.label));
+}
+
+function staffMatchesAccessFilters(staff: StaffRecord, roleFilter: string, search: string) {
+  const matchesRole = !roleFilter || staff.roleId === roleFilter;
+  const query = search.trim().toLowerCase();
+  const matchesSearch = !query || staffAccessSearchText(staff).includes(query);
+  return matchesRole && matchesSearch;
+}
+
+function staffAccessSearchText(staff: StaffRecord) {
+  return `${staffFullName(staff)} ${staff.email} ${formatRoleLabel(staff.roleName)} ${staff.status}`.toLowerCase();
+}
+
+function openStaffTimeEntry(userId: string) {
+  return state.staffTimeEntries.find((entry) => entry.userId === userId && !entry.clockedOutAt);
+}
+
+function formatElapsedSince(isoDate: string) {
+  const elapsedMs = Math.max(0, Date.now() - new Date(isoDate).getTime());
+  return formatDuration(elapsedMs);
+}
+
+function formatDuration(durationMs: number) {
+  const totalSeconds = Math.max(0, Math.floor(durationMs / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function renderStaffShiftList() {
+  const shifts = upcomingStaffShifts();
+  const myShifts = signedInStaffShifts();
+  return `
+    <div class="club-panel">
+      <div class="card-head">
+        <div>
+          <h3>Scheduled shifts</h3>
+          <p class="club-copy">Upcoming staff coverage pulled from the backend schedule.</p>
+        </div>
+        <div class="staff-shift-head-actions">
+          <span>${shifts.length} upcoming</span>
+          <button type="button" class="ghost-button" data-staff-calendar-open>
+            My calendar${myShifts.length ? ` (${myShifts.length})` : ""}
+          </button>
+        </div>
+      </div>
+      <div class="staff-role-list">
+        ${shifts.length === 0
+          ? `<div class="settings-placeholder"><strong>No shifts scheduled</strong><p>Create a shift from the staff management form.</p></div>`
+          : shifts.slice(0, 8).map((shift) => `
+              <article class="staff-role-row">
+                <div>
+                  <strong>${escapeHtml(staffNameForShift(shift))}</strong>
+                  <p>${escapeHtml(shiftTimeLabel(shift))}${shift.locationId ? ` · ${escapeHtml(locationName(shift.locationId))}` : ""}</p>
+                </div>
+                <span class="club-note-label">${escapeHtml(roleLabelForShift(shift))}</span>
+              </article>
+            `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderStaffShiftCalendarModal() {
+  const month = calendarMonthDate();
+  const myShifts = signedInStaffShifts();
+  const visibleDays = calendarVisibleDays(month);
+  const monthLabel = month.toLocaleDateString([], { month: "long", year: "numeric" });
+  return `
+    <div class="staff-calendar-backdrop" data-staff-calendar-close>
+      <section class="staff-calendar-modal" role="dialog" aria-modal="true" aria-label="My shift calendar">
+        <div class="card-head">
+          <div>
+            <p class="eyebrow">My Schedule</p>
+            <h3>Shift calendar</h3>
+            <p class="club-copy">Shows shifts assigned to the signed-in account.</p>
+          </div>
+          <button type="button" class="ghost-button" data-staff-calendar-close>Close</button>
+        </div>
+        <div class="staff-calendar-toolbar">
+          <button type="button" class="ghost-button" data-staff-calendar-prev>Previous</button>
+          <strong>${escapeHtml(monthLabel)}</strong>
+          <button type="button" class="ghost-button" data-staff-calendar-next>Next</button>
+          <button type="button" class="ghost-button" data-staff-calendar-today>Today</button>
+        </div>
+        <div class="staff-calendar-weekdays">
+          ${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => `<span>${day}</span>`).join("")}
+        </div>
+        <div class="staff-calendar-grid">
+          ${visibleDays.map((day) => renderStaffCalendarDay(day, month, myShifts)).join("")}
+        </div>
+        ${myShifts.length === 0
+          ? `<div class="settings-placeholder"><strong>No shifts assigned to you</strong><p>When your account is scheduled, those shifts will appear on this calendar.</p></div>`
+          : ""}
+      </section>
+    </div>
+  `;
+}
+
+function renderStaffCalendarDay(day: Date, month: Date, shifts: StaffShiftRecord[]) {
+  const dayKey = toDateInputValue(day);
+  const dayShifts = shifts.filter((shift) => toDateInputValue(new Date(shift.startsAt)) === dayKey);
+  const isCurrentMonth = day.getMonth() === month.getMonth();
+  const isToday = dayKey === toDateInputValue(new Date());
+  return `
+    <article class="staff-calendar-day${isCurrentMonth ? "" : " muted"}${isToday ? " today" : ""}">
+      <div class="staff-calendar-date">
+        <strong>${day.getDate()}</strong>
+        ${dayShifts.length ? `<span>${dayShifts.length}</span>` : ""}
+      </div>
+      <div class="staff-calendar-shifts">
+        ${dayShifts.length === 0
+          ? `<small>No shift</small>`
+          : dayShifts.map((shift) => `
+              <div class="staff-calendar-shift">
+                <strong>${escapeHtml(shiftTimeOnlyLabel(shift))}</strong>
+                <span>${escapeHtml(roleLabelForShift(shift))}${shift.locationId ? ` · ${escapeHtml(locationName(shift.locationId))}` : ""}</span>
+              </div>
+            `).join("")}
+      </div>
+    </article>
+  `;
+}
+
+function renderStaffPayrollReport() {
+  const rows = staffPayrollRows();
+  return `
+    <div class="club-panel">
+      <div class="card-head">
+        <div>
+          <h3>Payroll report</h3>
+          <p class="club-copy">Clocked hours by staff member, ready for payroll review.</p>
+        </div>
+        <button type="button" class="ghost-button" data-staff-payroll-export ${rows.length === 0 ? "disabled" : ""}>Export CSV</button>
+      </div>
+      ${rows.length === 0
+        ? `<div class="settings-placeholder"><strong>No payroll hours yet</strong><p>Clock staff in and out to build payroll hours.</p></div>`
+        : `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Staff</th><th>Role</th><th>Entries</th><th>Hours</th></tr>
+              </thead>
+              <tbody>
+                ${rows.map((row) => `
+                  <tr>
+                    <td>${escapeHtml(row.name)}</td>
+                    <td>${escapeHtml(row.role)}</td>
+                    <td>${row.shiftCount}</td>
+                    <td>${row.hoursLabel}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        `}
+    </div>
+  `;
+}
+
+function renderStaffPersonalHoursReport() {
+  const entries = signedInStaffTimeEntries();
+  const totalMinutes = entries.reduce((sum, entry) => sum + staffTimeEntryDurationMinutes(entry), 0);
+  const openEntry = entries.find((entry) => !entry.clockedOutAt);
+  return `
+    <div class="club-panel">
+      <div class="card-head">
+        <div>
+          <h3>My hours</h3>
+          <p class="club-copy">Your own clocked time only. This does not include anyone else on the roster.</p>
+        </div>
+        <button type="button" class="ghost-button" data-staff-my-hours-export ${entries.length === 0 ? "disabled" : ""}>Export CSV</button>
+      </div>
+      <div class="card-grid compact">
+        <article class="mini-card">
+          <span>Total hours</span>
+          <strong>${(totalMinutes / 60).toFixed(2)}</strong>
+        </article>
+        <article class="mini-card">
+          <span>Status</span>
+          <strong>${openEntry ? "Clocked in" : "Not clocked in"}</strong>
+          ${openEntry ? `<small data-staff-clock-timer data-clocked-in-at="${escapeAttribute(openEntry.clockedInAt)}">${escapeHtml(formatElapsedSince(openEntry.clockedInAt))}</small>` : ""}
+        </article>
+      </div>
+      ${entries.length === 0
+        ? `<div class="settings-placeholder"><strong>No personal hours yet</strong><p>Clock in from your staff row to start building your hours.</p></div>`
+        : `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Date</th><th>Clock in</th><th>Clock out</th><th>Hours</th></tr>
+              </thead>
+              <tbody>
+                ${entries.slice(0, 8).map((entry) => `
+                  <tr>
+                    <td>${escapeHtml(new Date(entry.clockedInAt).toLocaleDateString())}</td>
+                    <td>${escapeHtml(new Date(entry.clockedInAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }))}</td>
+                    <td>${entry.clockedOutAt ? escapeHtml(new Date(entry.clockedOutAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })) : "Active"}</td>
+                    <td>${(staffTimeEntryDurationMinutes(entry) / 60).toFixed(2)}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        `}
+    </div>
+  `;
+}
+
+function upcomingStaffShifts() {
+  const now = Date.now();
+  return [...state.staffShifts]
+    .filter((shift) => new Date(shift.endsAt).getTime() >= now)
+    .sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime());
+}
+
+function signedInStaffShifts() {
+  const userId = state.me?.user.id;
+  if (!userId) {
+    return [];
+  }
+  return [...state.staffShifts]
+    .filter((shift) => shift.userId === userId)
+    .sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime());
+}
+
+function signedInStaffTimeEntries() {
+  const userId = state.me?.user.id;
+  if (!userId) {
+    return [];
+  }
+  return [...state.staffTimeEntries]
+    .filter((entry) => entry.userId === userId)
+    .sort((left, right) => new Date(right.clockedInAt).getTime() - new Date(left.clockedInAt).getTime());
+}
+
+function calendarMonthDate() {
+  const [year, month] = state.staffScheduleCalendarMonth.split("-").map((part) => Number.parseInt(part, 10));
+  if (!Number.isFinite(year) || !Number.isFinite(month)) {
+    return new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  }
+  return new Date(year, month - 1, 1);
+}
+
+function calendarVisibleDays(month: Date) {
+  const firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
+  const start = new Date(firstDay);
+  start.setDate(firstDay.getDate() - firstDay.getDay());
+  return Array.from({ length: 42 }, (_, index) => {
+    const day = new Date(start);
+    day.setDate(start.getDate() + index);
+    return day;
+  });
+}
+
+function addMonths(date: Date, delta: number) {
+  return new Date(date.getFullYear(), date.getMonth() + delta, 1);
+}
+
+function staffPayrollRows() {
+  const rows = new Map<string, { name: string; role: string; shiftCount: number; minutes: number }>();
+  for (const entry of state.staffTimeEntries) {
+    const staff = state.staff.find((candidate) => candidate.userId === entry.userId);
+    const role = staff ? state.roles.find((candidate) => candidate.id === staff.roleId) : undefined;
+    const existing = rows.get(entry.userId) ?? {
+      name: staff ? staffFullName(staff) : "Unknown staff",
+      role: role ? formatRoleLabel(role.name) : staff ? formatRoleLabel(staff.roleName) : "Staff",
+      shiftCount: 0,
+      minutes: 0
+    };
+    existing.shiftCount += 1;
+    existing.minutes += staffTimeEntryDurationMinutes(entry);
+    rows.set(entry.userId, existing);
+  }
+  return [...rows.values()]
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .map((row) => ({
+      ...row,
+      hoursLabel: (row.minutes / 60).toFixed(2)
+    }));
+}
+
+function canAssignStaffRole(staff: StaffRecord) {
+  return (
+    hasPermission(Permission.StaffRoleAssign) &&
+    staff.status === UserStatus.Active &&
+    staff.roleName !== RoleName.Owner &&
+    staff.userId !== state.me?.user.id
+  );
+}
+
+function canRemoveStaffAccess(staff: StaffRecord) {
+  return (
+    hasPermission(Permission.StaffRemove) &&
+    staff.status === UserStatus.Active &&
+    staff.roleName !== RoleName.Owner &&
+    staff.userId !== state.me?.user.id
+  );
+}
+
+function staffRemovalProtectionLabel(staff: StaffRecord) {
+  if (staff.userId === state.me?.user.id) {
+    return "Current user";
+  }
+  if (staff.roleName === RoleName.Owner) {
+    return "Owner locked";
+  }
+  if (staff.status !== UserStatus.Active) {
+    return "Inactive";
+  }
+  return "Protected";
+}
+
+function selectedStaffRemovalCandidate() {
+  if (!state.staffRemovalUserId) {
+    return undefined;
+  }
+  return staffDirectoryRows().find((staff) => staff.userId === state.staffRemovalUserId);
+}
+
+function staffDirectoryRows() {
+  if (state.staff.length > 0) {
+    return state.staff;
+  }
+  const self = signedInStaffRecord();
+  return self ? [self] : [];
+}
+
+function signedInStaffRecord(): StaffRecord | undefined {
+  if (!state.gym || !state.me) {
+    return undefined;
+  }
+  const membership = currentMembership();
+  const role = membership?.role;
+  if (!membership || !role || role.name === RoleName.Member) {
+    return undefined;
+  }
+  const now = new Date().toISOString();
+  return {
+    membershipId: membership.id,
+    gymId: state.gym.id,
+    userId: state.me.user.id,
+    email: state.me.user.email,
+    firstName: state.me.user.firstName,
+    lastName: state.me.user.lastName,
+    roleId: role.id,
+    roleName: role.name,
+    status: UserStatus.Active,
+    createdAt: now,
+    updatedAt: now
+  };
+}
+
+function staffFullName(staff: Pick<StaffRecord, "firstName" | "lastName" | "email">) {
+  return `${staff.firstName} ${staff.lastName}`.trim() || staff.email;
+}
+
+function staffInitials(staff: Pick<StaffRecord, "firstName" | "lastName" | "email">) {
+  return initialsFromDisplayName(staffFullName(staff));
+}
+
+function staffNameForShift(shift: StaffShiftRecord) {
+  const staff = state.staff.find((candidate) => candidate.userId === shift.userId);
+  if (staff) {
+    return staffFullName(staff);
+  }
+  if (shift.userId === state.me?.user.id) {
+    return `${state.me.user.firstName} ${state.me.user.lastName}`.trim() || "Your shift";
+  }
+  return "Unknown staff";
+}
+
+function roleLabelForShift(shift: StaffShiftRecord) {
+  const role = state.roles.find((candidate) => candidate.id === shift.roleId);
+  if (role) {
+    return formatRoleLabel(role.name);
+  }
+  const membership = currentMembership();
+  if (shift.userId === state.me?.user.id && membership?.role?.id === shift.roleId) {
+    return formatRoleLabel(membership.role.name);
+  }
+  return "Staff";
+}
+
+function locationName(locationId: string) {
+  return state.locations.find((location) => location.id === locationId)?.name ?? locationId;
+}
+
+function shiftTimeLabel(shift: StaffShiftRecord) {
+  const startsAt = new Date(shift.startsAt);
+  const endsAt = new Date(shift.endsAt);
+  return `${startsAt.toLocaleDateString()} ${startsAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} - ${endsAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+}
+
+function shiftTimeOnlyLabel(shift: StaffShiftRecord) {
+  const startsAt = new Date(shift.startsAt);
+  const endsAt = new Date(shift.endsAt);
+  return `${startsAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} - ${endsAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+}
+
+function shiftDurationMinutes(shift: StaffShiftRecord) {
+  return Math.max(0, Math.round((new Date(shift.endsAt).getTime() - new Date(shift.startsAt).getTime()) / 60000));
+}
+
+function staffTimeEntryDurationMinutes(entry: StaffTimeEntryRecord) {
+  const endTime = entry.clockedOutAt ? new Date(entry.clockedOutAt).getTime() : Date.now();
+  return Math.max(0, Math.round((endTime - new Date(entry.clockedInAt).getTime()) / 60000));
+}
+
+function toDateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function toMonthKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+function localDateTimeToIso(date: string, time: string) {
+  const value = new Date(`${date}T${time}:00`);
+  if (Number.isNaN(value.getTime())) {
+    throw new Error("Enter a valid shift date and time.");
+  }
+  return value.toISOString();
+}
+
+function payrollCsv() {
+  const header = ["Staff", "Role", "Entries", "Hours"];
+  const rows = staffPayrollRows().map((row) => [row.name, row.role, String(row.shiftCount), row.hoursLabel]);
+  return [header, ...rows]
+    .map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+}
+
+function personalHoursCsv() {
+  const header = ["Date", "Clock in", "Clock out", "Hours"];
+  const rows = signedInStaffTimeEntries().map((entry) => {
+    const clockedInAt = new Date(entry.clockedInAt);
+    const clockedOutAt = entry.clockedOutAt ? new Date(entry.clockedOutAt) : undefined;
+    return [
+      clockedInAt.toLocaleDateString(),
+      clockedInAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+      clockedOutAt ? clockedOutAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "Active",
+      (staffTimeEntryDurationMinutes(entry) / 60).toFixed(2)
+    ];
+  });
+  return [header, ...rows]
+    .map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+}
+
+function downloadTextFile(filename: string, contents: string, type: string) {
+  const blob = new Blob([contents], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 function renderSettingsView() {
@@ -2109,9 +3295,7 @@ function renderSettingsView() {
 }
 
 function renderSettingsSectionContent(activeLocations: LocationRecord[]) {
-  const editableRoles = state.roles.filter(
-    (role) => role.name !== RoleName.Owner && role.name !== RoleName.Member
-  );
+  const editableRoles = staffAssignableRoles();
   const selectedRole = state.roles.find((role) => role.id === state.selectedRoleId) ?? editableRoles[0] ?? state.roles[0];
   switch (state.settingsSection) {
     case "company_information":
@@ -3503,6 +4687,135 @@ function bindEvents() {
     });
   });
 
+  const staffAccessSearch = app.querySelector<HTMLInputElement>("[data-staff-access-search]");
+  staffAccessSearch?.addEventListener("input", () => {
+    applyStaffAccessFilters();
+  });
+  const staffAccessRoleFilter = app.querySelector<HTMLSelectElement>("[data-staff-access-role-filter]");
+  staffAccessRoleFilter?.addEventListener("change", () => {
+    applyStaffAccessFilters();
+  });
+
+  const staffRolePreset = app.querySelector<HTMLSelectElement>("[data-staff-role-preset]");
+  staffRolePreset?.addEventListener("change", () => {
+    applyStaffRolePreset(staffRolePreset);
+  });
+  app.querySelectorAll<HTMLButtonElement>("[data-staff-role-delete]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!state.gym) return;
+      const roleId = button.dataset.staffRoleDelete;
+      const role = state.roles.find((candidate) => candidate.id === roleId);
+      if (!role || !canDeleteRole(role)) return;
+      if (!window.confirm(`Delete the ${formatRoleLabel(role.name)} role? This can only be done because nobody is assigned to it.`)) {
+        return;
+      }
+      try {
+        await client.deleteCustomRole(state.gym.id, role.id);
+        setBanner("success", "Role deleted from the authorization tree.");
+        await refreshDashboard();
+        navigateDashboardView("staff", { preserveContext: true });
+      } catch (error) {
+        setBanner("error", describeError(error));
+      }
+    });
+  });
+
+  app.querySelectorAll<HTMLElement>("[data-staff-calendar-close]").forEach((element) => {
+    element.addEventListener("click", (event) => {
+      if (element.classList.contains("staff-calendar-backdrop") && event.target !== element) {
+        return;
+      }
+      state.staffScheduleCalendarOpen = false;
+      render();
+    });
+  });
+  app.querySelectorAll<HTMLButtonElement>("[data-staff-calendar-open]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const nextShift = signedInStaffShifts().find((shift) => new Date(shift.endsAt).getTime() >= Date.now());
+      state.staffScheduleCalendarMonth = toMonthKey(nextShift ? new Date(nextShift.startsAt) : new Date());
+      state.staffScheduleCalendarOpen = true;
+      render();
+    });
+  });
+  app.querySelectorAll<HTMLButtonElement>("[data-staff-calendar-prev]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.staffScheduleCalendarMonth = toMonthKey(addMonths(calendarMonthDate(), -1));
+      render();
+    });
+  });
+  app.querySelectorAll<HTMLButtonElement>("[data-staff-calendar-next]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.staffScheduleCalendarMonth = toMonthKey(addMonths(calendarMonthDate(), 1));
+      render();
+    });
+  });
+  app.querySelectorAll<HTMLButtonElement>("[data-staff-calendar-today]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.staffScheduleCalendarMonth = toMonthKey(new Date());
+      render();
+    });
+  });
+
+  app.querySelectorAll<HTMLElement>("[data-staff-removal-close]").forEach((element) => {
+    element.addEventListener("click", (event) => {
+      if (element.classList.contains("staff-removal-backdrop") && event.target !== element) {
+        return;
+      }
+      state.staffRemovalUserId = undefined;
+      render();
+    });
+  });
+  const staffRemovalConfirmInput = app.querySelector<HTMLInputElement>("[data-staff-removal-confirm-input]");
+  const staffRemovalSubmit = app.querySelector<HTMLButtonElement>("[data-staff-removal-submit]");
+  staffRemovalConfirmInput?.addEventListener("input", () => {
+    if (staffRemovalSubmit) {
+      staffRemovalSubmit.disabled = staffRemovalConfirmInput.value.trim().toUpperCase() !== "REMOVE";
+    }
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-staff-clock-in]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!state.gym) return;
+      const userId = button.dataset.staffClockIn;
+      if (!userId) return;
+      try {
+        const locationInput = state.selectedLocationId ? { locationId: state.selectedLocationId } : {};
+        if (userId === state.me?.user.id && !hasPermission(Permission.StaffRoleAssign)) {
+          await client.clockMyStaffIn(state.gym.id, locationInput);
+        } else {
+          await client.clockStaffIn(state.gym.id, {
+            userId,
+            ...locationInput
+          });
+        }
+        setBanner("success", "Staff member clocked in.");
+        await refreshDashboard();
+        navigateDashboardView("staff", { preserveContext: true });
+      } catch (error) {
+        setBanner("error", describeError(error));
+      }
+    });
+  });
+  app.querySelectorAll<HTMLButtonElement>("[data-staff-clock-out]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!state.gym) return;
+      const userId = button.dataset.staffClockOut;
+      if (!userId) return;
+      try {
+        if (userId === state.me?.user.id && !hasPermission(Permission.StaffRoleAssign)) {
+          await client.clockMyStaffOut(state.gym.id);
+        } else {
+          await client.clockStaffOut(state.gym.id, { userId });
+        }
+        setBanner("success", "Staff member clocked out.");
+        await refreshDashboard();
+        navigateDashboardView("staff", { preserveContext: true });
+      } catch (error) {
+        setBanner("error", describeError(error));
+      }
+    });
+  });
+
   app.querySelectorAll<HTMLButtonElement>("[data-staff-role-assign]").forEach((button) => {
     button.addEventListener("click", async () => {
       if (!state.gym) return;
@@ -3517,6 +4830,34 @@ function bindEvents() {
       } catch (error) {
         setBanner("error", describeError(error));
       }
+    });
+  });
+  app.querySelectorAll<HTMLButtonElement>("[data-staff-access-remove]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const userId = button.dataset.staffAccessRemove;
+      const staff = staffDirectoryRows().find((candidate) => candidate.userId === userId);
+      if (!userId || !staff) return;
+      if (!canRemoveStaffAccess(staff)) {
+        return;
+      }
+      state.staffRemovalUserId = userId;
+      render();
+    });
+  });
+  app.querySelectorAll<HTMLButtonElement>("[data-staff-payroll-export]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (button.disabled) return;
+      downloadTextFile("staff-payroll-report.csv", payrollCsv(), "text/csv;charset=utf-8");
+      setBanner("success", "Payroll report exported.");
+      render();
+    });
+  });
+  app.querySelectorAll<HTMLButtonElement>("[data-staff-my-hours-export]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (button.disabled) return;
+      downloadTextFile("my-hours-report.csv", personalHoursCsv(), "text/csv;charset=utf-8");
+      setBanner("success", "My hours report exported.");
+      render();
     });
   });
   app.querySelectorAll<HTMLButtonElement>("[data-checkin-review-close]").forEach((button) => {
@@ -3603,6 +4944,31 @@ function bindEvents() {
     await refreshDashboard();
   });
 
+  bindForm("create-staff-role-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    if (!canCreateRolesFromStaffPage()) {
+      throw new Error("Only the owner can create roles from the Staff page.");
+    }
+    const data = formData(form);
+    const permissions = Array.from(form.querySelectorAll<HTMLInputElement>('input[name="permissions"]:checked')).map(
+      (input) => input.value
+    );
+    if (permissions.length === 0) {
+      throw new Error("Choose at least one permission for the new role.");
+    }
+    const role = (await client.createCustomRole(state.gym.id, {
+      name: data.staffRoleName,
+      ...(data.parentRoleId ? { parentRoleId: data.parentRoleId } : {}),
+      permissions
+    })) as RoleRecord;
+    state.selectedRoleId = role.id ?? state.selectedRoleId;
+    setBanner("success", "Role saved. You can assign it from the staff directory.");
+    await refreshDashboard();
+    navigateDashboardView("staff", { preserveContext: true });
+  });
+
   bindForm("edit-role-form", async (form) => {
     if (!state.gym || !state.selectedRoleId) {
       return;
@@ -3620,6 +4986,77 @@ function bindEvents() {
     });
     setBanner("success", "Role updated.");
     await refreshDashboard();
+  });
+
+  bindForm("create-staff-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const data = formData(form);
+    const roleId = data.roleId;
+    if (!roleId) {
+      throw new Error("Choose a staff role before creating the account.");
+    }
+    const inviteResponse = (await client.createStaffInvite(state.gym.id, {
+      email: data.email,
+      roleId,
+      message: "Created from staff management."
+    })) as { inviteToken?: string };
+    if (!inviteResponse.inviteToken) {
+      throw new Error("Staff invite did not return a creation token.");
+    }
+    await client.acceptStaffInvite({
+      token: inviteResponse.inviteToken,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      password: data.password
+    });
+    setBanner("success", "Staff account created and assigned to this gym.");
+    await refreshDashboard();
+    navigateDashboardView("staff", { preserveContext: true });
+  });
+
+  bindForm("staff-remove-confirm-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const data = formData(form);
+    const staff = staffDirectoryRows().find((candidate) => candidate.userId === data.userId);
+    if (!staff || !canRemoveStaffAccess(staff)) {
+      throw new Error("You do not have permission to remove this staff access.");
+    }
+    if (data.confirmText.trim().toUpperCase() !== "REMOVE") {
+      throw new Error("Type REMOVE to confirm staff access removal.");
+    }
+    const reason = data.reason.trim() || "Removed from staff management.";
+    await client.removeStaffAccess(state.gym.id, staff.userId, { reason });
+    state.staffRemovalUserId = undefined;
+    setBanner("success", `Removed gym access for ${staffFullName(staff)}.`);
+    await refreshDashboard();
+    navigateDashboardView("staff", { preserveContext: true });
+  });
+
+  bindForm("create-staff-shift-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const data = formData(form);
+    if (!data.userId || !data.roleId) {
+      throw new Error("Choose a staff member and shift position.");
+    }
+    const startsAt = localDateTimeToIso(data.shiftDate, data.startsAt);
+    const endsAt = localDateTimeToIso(data.shiftDate, data.endsAt);
+    await client.createStaffShift(state.gym.id, {
+      userId: data.userId,
+      roleId: data.roleId,
+      ...(data.locationId ? { locationId: data.locationId } : {}),
+      startsAt,
+      endsAt,
+      ...(data.notes?.trim() ? { notes: data.notes.trim() } : {})
+    });
+    setBanner("success", "Staff shift scheduled.");
+    await refreshDashboard();
+    navigateDashboardView("staff", { preserveContext: true });
   });
 
   // Check-in forms
@@ -4063,6 +5500,81 @@ function bindEvents() {
   }
 }
 
+function applyStaffAccessFilters() {
+  const searchInput = app.querySelector<HTMLInputElement>("[data-staff-access-search]");
+  const roleSelect = app.querySelector<HTMLSelectElement>("[data-staff-access-role-filter]");
+  const query = searchInput?.value.trim().toLowerCase() ?? "";
+  const roleFilter = roleSelect?.value ?? "";
+  state.staffAccessSearch = searchInput?.value ?? "";
+  state.staffAccessRoleFilter = roleFilter;
+
+  let visibleCount = 0;
+  let totalCount = 0;
+  app.querySelectorAll<HTMLElement>("[data-staff-access-row]").forEach((row) => {
+    totalCount += 1;
+    const rowText = row.dataset.staffFilterText ?? "";
+    const rowRoleId = row.dataset.staffRoleId ?? "";
+    const matchesSearch = !query || rowText.includes(query);
+    const matchesRole = !roleFilter || rowRoleId === roleFilter;
+    const visible = matchesSearch && matchesRole;
+    row.hidden = !visible;
+    if (visible) {
+      visibleCount += 1;
+    }
+  });
+
+  const count = app.querySelector<HTMLElement>("[data-staff-access-filter-count]");
+  if (count) {
+    count.textContent = `${visibleCount} of ${totalCount} staff`;
+  }
+  const empty = app.querySelector<HTMLElement>("[data-staff-access-empty]");
+  if (empty) {
+    empty.hidden = visibleCount > 0 || totalCount === 0;
+  }
+}
+
+function applyStaffRolePreset(select: HTMLSelectElement) {
+  const templates = staffRoleTemplateOptions();
+  const preset = templates.find((option) => option.key === select.value) ?? templates[0];
+  const form = select.closest<HTMLFormElement>("form");
+  if (!form || !preset) {
+    return;
+  }
+  const nameInput = form.querySelector<HTMLInputElement>('input[name="staffRoleName"]');
+  if (nameInput) {
+    nameInput.value = preset.defaultName;
+  }
+  const description = form.querySelector<HTMLElement>("[data-staff-role-preset-description]");
+  if (description) {
+    description.textContent = preset.description;
+  }
+  form.querySelectorAll<HTMLInputElement>('input[name="permissions"]').forEach((input) => {
+    const checked = preset.permissions.includes(input.value as Permission);
+    input.checked = checked;
+    input.closest(".permission-chip")?.classList.toggle("active", checked);
+  });
+}
+
+function startStaffClockTimers() {
+  if (staffClockTimerInterval) {
+    window.clearInterval(staffClockTimerInterval);
+    staffClockTimerInterval = undefined;
+  }
+  updateStaffClockTimers();
+  if (app.querySelector("[data-staff-clock-timer]")) {
+    staffClockTimerInterval = window.setInterval(updateStaffClockTimers, 1000);
+  }
+}
+
+function updateStaffClockTimers() {
+  app.querySelectorAll<HTMLElement>("[data-staff-clock-timer]").forEach((timer) => {
+    const clockedInAt = timer.dataset.clockedInAt;
+    if (clockedInAt) {
+      timer.textContent = formatElapsedSince(clockedInAt);
+    }
+  });
+}
+
 function bindForm(id: string, handler: (form: HTMLFormElement) => Promise<void>) {
   const form = app.querySelector<HTMLFormElement>(`#${id}`);
   if (!form) {
@@ -4183,11 +5695,41 @@ function currentPermissions() {
   return currentMembership()?.role?.permissions ?? [];
 }
 
+function hasPermission(permission: Permission) {
+  return currentPermissions().includes(permission);
+}
+
+async function loadPermittedDashboardData<T>(
+  allowed: boolean,
+  loader: () => Promise<T>,
+  fallback: T
+) {
+  if (!allowed) {
+    return fallback;
+  }
+  try {
+    return await loader();
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 403) {
+      return fallback;
+    }
+    throw error;
+  }
+}
+
 function clearDashboardState() {
   tokenStore.clearTokens();
   state.me = null;
   state.gym = null;
   state.members = [];
+  state.staff = [];
+  state.staffShifts = [];
+  state.staffTimeEntries = [];
+  state.staffAccessSearch = "";
+  state.staffAccessRoleFilter = "";
+  state.staffScheduleCalendarOpen = false;
+  state.staffScheduleCalendarMonth = toMonthKey(new Date());
+  state.staffRemovalUserId = undefined;
   state.roles = [];
   state.plans = [];
   state.classTypes = [];

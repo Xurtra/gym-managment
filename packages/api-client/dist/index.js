@@ -94,6 +94,9 @@ export class GymApiClient {
     updateCustomRole(gymId, roleId, input) {
         return this.request("PATCH", `/gyms/${gymId}/roles/${roleId}`, input);
     }
+    deleteCustomRole(gymId, roleId) {
+        return this.request("DELETE", `/gyms/${gymId}/roles/${roleId}`);
+    }
     listStaff(gymId) {
         return this.request("GET", `/gyms/${gymId}/staff`);
     }
@@ -106,8 +109,32 @@ export class GymApiClient {
     listStaffAuditLogs(gymId) {
         return this.request("GET", `/gyms/${gymId}/staff/audit`);
     }
+    listStaffShifts(gymId) {
+        return this.request("GET", `/gyms/${gymId}/staff/shifts`);
+    }
+    listMyStaffShifts(gymId) {
+        return this.request("GET", `/gyms/${gymId}/staff/shifts/me`);
+    }
     createStaffShift(gymId, input) {
         return this.request("POST", `/gyms/${gymId}/staff/shifts`, input);
+    }
+    listStaffTimeEntries(gymId) {
+        return this.request("GET", `/gyms/${gymId}/staff/time-entries`);
+    }
+    listMyStaffTimeEntries(gymId) {
+        return this.request("GET", `/gyms/${gymId}/staff/time-entries/me`);
+    }
+    clockStaffIn(gymId, input) {
+        return this.request("POST", `/gyms/${gymId}/staff/time-entries/clock-in`, input);
+    }
+    clockMyStaffIn(gymId, input = {}) {
+        return this.request("POST", `/gyms/${gymId}/staff/time-entries/me/clock-in`, input);
+    }
+    clockStaffOut(gymId, input) {
+        return this.request("POST", `/gyms/${gymId}/staff/time-entries/clock-out`, input);
+    }
+    clockMyStaffOut(gymId, input = {}) {
+        return this.request("POST", `/gyms/${gymId}/staff/time-entries/me/clock-out`, input);
     }
     listMembers(gymId) {
         return this.request("GET", `/gyms/${gymId}/members`);

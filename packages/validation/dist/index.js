@@ -118,6 +118,7 @@ export const customRoleCreateSchema = z.object({
         .min(2)
         .max(80)
         .regex(/^[A-Za-z][A-Za-z0-9 '&-]*$/),
+    parentRoleId: id.optional(),
     permissions: z.array(z.nativeEnum(Permission)).min(1)
 });
 export const customRoleUpdateSchema = customRoleCreateSchema
@@ -148,6 +149,22 @@ export const staffShiftCreateSchema = z
 })
     .refine((value) => new Date(value.endsAt) > new Date(value.startsAt), {
     message: "Shift end time must be after start time."
+});
+export const staffClockInSchema = z.object({
+    userId: id,
+    locationId: id.optional(),
+    notes: trimmed.max(500).optional()
+});
+export const staffClockOutSchema = z.object({
+    userId: id,
+    notes: trimmed.max(500).optional()
+});
+export const staffSelfClockInSchema = z.object({
+    locationId: id.optional(),
+    notes: trimmed.max(500).optional()
+});
+export const staffSelfClockOutSchema = z.object({
+    notes: trimmed.max(500).optional()
 });
 export const memberCreateSchema = z.object({
     firstName: trimmed.min(1).max(80),

@@ -76,6 +76,7 @@ export interface Role {
   gymId: string;
   name: RoleName | string;
   permissions: Permission[];
+  parentRoleId?: string;
   isSystem: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -130,6 +131,20 @@ export interface StaffShift {
   endsAt: Date;
   notes?: string;
   createdByUserId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface StaffTimeEntry {
+  id: string;
+  gymId: string;
+  userId: string;
+  locationId?: string;
+  clockedInAt: Date;
+  clockedOutAt?: Date;
+  clockedInByUserId: string;
+  clockedOutByUserId?: string;
+  notes?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -375,6 +390,7 @@ export interface StoreSnapshot {
   staffInvites: StaffInvite[];
   staffAuditLogs: StaffAuditLog[];
   staffShifts: StaffShift[];
+  staffTimeEntries: StaffTimeEntry[];
   locations: Location[];
   members: Member[];
   membershipPlans: MembershipPlan[];

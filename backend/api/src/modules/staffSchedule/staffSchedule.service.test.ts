@@ -79,6 +79,7 @@ describe("StaffScheduleService", () => {
     expect(shift.roleId).toBe(trainerRole.id);
     expect(shift.createdByUserId).toBe(owner.user.id);
     expect(shift.notes).toBe("Front desk coverage");
+    await expect(services.staffScheduleService.listShifts(gymId)).resolves.toEqual([shift]);
     await expect(
       services.staffScheduleService.createShift(gymId, owner.user.id, {
         userId: staff.user.id,

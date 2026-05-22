@@ -104,6 +104,7 @@ describe("GymApiClient auth refresh", () => {
       name: "Front Office Lead",
       permissions: ["gym:read", "member:read", "staff:read"]
     });
+    await client.deleteCustomRole("gym-1", "role-custom");
     await client.listStaff("gym-1");
     await client.assignStaffRole("gym-1", {
       userId: "00000000-0000-4000-8000-000000000002",
@@ -116,6 +117,17 @@ describe("GymApiClient auth refresh", () => {
       startsAt: "2026-05-18T13:00:00.000Z",
       endsAt: "2026-05-18T21:00:00.000Z"
     });
+    await client.listMyStaffShifts("gym-1");
+    await client.listStaffTimeEntries("gym-1");
+    await client.listMyStaffTimeEntries("gym-1");
+    await client.clockStaffIn("gym-1", {
+      userId: "00000000-0000-4000-8000-000000000002"
+    });
+    await client.clockMyStaffIn("gym-1");
+    await client.clockStaffOut("gym-1", {
+      userId: "00000000-0000-4000-8000-000000000002"
+    });
+    await client.clockMyStaffOut("gym-1");
     await client.listStaffInvites("gym-1");
     await client.createStaffInvite("gym-1", {
       email: "trainer@example.com",
@@ -141,11 +153,19 @@ describe("GymApiClient auth refresh", () => {
       "/gyms/gym-1/roles",
       "/gyms/gym-1/roles",
       "/gyms/gym-1/roles/role-custom",
+      "/gyms/gym-1/roles/role-custom",
       "/gyms/gym-1/staff",
       "/gyms/gym-1/roles/assign",
       "/gyms/gym-1/staff/user-2",
       "/gyms/gym-1/staff/audit",
       "/gyms/gym-1/staff/shifts",
+      "/gyms/gym-1/staff/shifts/me",
+      "/gyms/gym-1/staff/time-entries",
+      "/gyms/gym-1/staff/time-entries/me",
+      "/gyms/gym-1/staff/time-entries/clock-in",
+      "/gyms/gym-1/staff/time-entries/me/clock-in",
+      "/gyms/gym-1/staff/time-entries/clock-out",
+      "/gyms/gym-1/staff/time-entries/me/clock-out",
       "/gyms/gym-1/staff/invites",
       "/gyms/gym-1/staff/invites",
       "/staff/invites/accept",
@@ -203,6 +223,7 @@ describe("GymApiClient auth refresh", () => {
       name: "Front Office Lead",
       permissions: ["gym:read", "member:read", "staff:read"]
     });
+    await client.deleteCustomRole("gym-1", "role-custom");
     await client.listStaff("gym-1");
     await client.assignStaffRole("gym-1", {
       userId: "00000000-0000-4000-8000-000000000002",
@@ -210,6 +231,13 @@ describe("GymApiClient auth refresh", () => {
     });
     await client.removeStaffAccess("gym-1", "user-2", { reason: "No longer active" });
     await client.listStaffAuditLogs("gym-1");
+    await client.listStaffTimeEntries("gym-1");
+    await client.clockStaffIn("gym-1", {
+      userId: "00000000-0000-4000-8000-000000000002"
+    });
+    await client.clockStaffOut("gym-1", {
+      userId: "00000000-0000-4000-8000-000000000002"
+    });
     await client.listStaffInvites("gym-1");
     await client.createStaffInvite("gym-1", {
       email: "trainer@example.com",
@@ -247,6 +275,11 @@ describe("GymApiClient auth refresh", () => {
         }
       },
       {
+        path: "/gyms/gym-1/roles/role-custom",
+        method: "DELETE",
+        authorization: "Bearer token-1"
+      },
+      {
         path: "/gyms/gym-1/staff",
         method: "GET",
         authorization: "Bearer token-1"
@@ -272,6 +305,27 @@ describe("GymApiClient auth refresh", () => {
         path: "/gyms/gym-1/staff/audit",
         method: "GET",
         authorization: "Bearer token-1"
+      },
+      {
+        path: "/gyms/gym-1/staff/time-entries",
+        method: "GET",
+        authorization: "Bearer token-1"
+      },
+      {
+        path: "/gyms/gym-1/staff/time-entries/clock-in",
+        method: "POST",
+        authorization: "Bearer token-1",
+        body: {
+          userId: "00000000-0000-4000-8000-000000000002"
+        }
+      },
+      {
+        path: "/gyms/gym-1/staff/time-entries/clock-out",
+        method: "POST",
+        authorization: "Bearer token-1",
+        body: {
+          userId: "00000000-0000-4000-8000-000000000002"
+        }
       },
       {
         path: "/gyms/gym-1/staff/invites",

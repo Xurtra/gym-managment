@@ -29,8 +29,12 @@ import {
   resetPasswordSchema,
   roleAssignmentSchema,
   staffAccessRemoveSchema,
+  staffClockInSchema,
+  staffClockOutSchema,
   staffInviteAcceptSchema,
   staffInviteCreateSchema,
+  staffSelfClockInSchema,
+  staffSelfClockOutSchema,
   staffShiftCreateSchema,
   staffManualBookingSchema,
   twoFactorVerifySchema,
@@ -58,6 +62,7 @@ import { MemberService } from "./modules/members/member.service.js";
 import { MembershipPlanService } from "./modules/membershipPlans/membershipPlan.service.js";
 import { RoleService } from "./modules/roles/role.service.js";
 import { StaffScheduleService } from "./modules/staffSchedule/staffSchedule.service.js";
+import { StaffTimeClockService } from "./modules/staffTimeClock/staffTimeClock.service.js";
 import { TenancyService } from "./modules/tenancy/tenancy.service.js";
 import { systemClock, type Clock } from "./shared/time.js";
 
@@ -89,6 +94,7 @@ export interface Services {
   authService: AuthService;
   roleService: RoleService;
   staffScheduleService: StaffScheduleService;
+  staffTimeClockService: StaffTimeClockService;
   tenancyService: TenancyService;
   locationService: LocationService;
   memberService: MemberService;
@@ -116,6 +122,7 @@ export function createServices(
   });
   const locationService = new LocationService(repositories, clock);
   const staffScheduleService = new StaffScheduleService(repositories, clock);
+  const staffTimeClockService = new StaffTimeClockService(repositories, clock);
   const memberService = new MemberService(repositories, clock);
   const memberMembershipService = new MemberMembershipService(repositories, clock);
   const membershipPlanService = new MembershipPlanService(repositories, clock);
@@ -129,6 +136,7 @@ export function createServices(
     authService,
     roleService,
     staffScheduleService,
+    staffTimeClockService,
     tenancyService,
     locationService,
     memberService,
@@ -396,7 +404,7 @@ function createRoutes() {
       Permission.StaffRoleAssign
     );
     const input = parseWith(customRoleCreateSchema, context.body);
-    return context.services.roleService.createCustomRole(gymId, input);
+    return context.services.roleService.createCustomRole(gymId, input, auth.sub);
   });
 
   add("PATCH", "/gyms/:gymId/roles/:roleId", async (context) => {
@@ -412,7 +420,24 @@ function createRoutes() {
     return context.services.roleService.updateCustomRole(
       gymId,
       requiredParam(context, "roleId"),
-      input
+      input,
+      auth.sub
+    );
+  });
+
+  add("DELETE", "/gyms/:gymId/roles/:roleId", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(
+      gymId,
+      auth.sub,
+      Permission.StaffRoleAssign
+    );
+    return context.services.roleService.deleteCustomRole(
+      gymId,
+      requiredParam(context, "roleId"),
+      auth.sub
     );
   });
 
@@ -421,7 +446,7 @@ function createRoutes() {
     const gymId = requiredParam(context, "gymId");
     await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
     await context.services.roleService.requirePermission(gymId, auth.sub, Permission.StaffRead);
-    return { roles: await context.services.roleService.listRoles(gymId) };
+    return { roles: await context.services.roleService.listRoles(gymId, auth.sub) };
   });
 
   add("GET", "/gyms/:gymId/staff", async (context) => {
@@ -429,7 +454,7 @@ function createRoutes() {
     const gymId = requiredParam(context, "gymId");
     await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
     await context.services.roleService.requirePermission(gymId, auth.sub, Permission.StaffRead);
-    return { staff: await context.services.roleService.listStaffAccess(gymId) };
+    return { staff: await context.services.roleService.listStaffAccess(gymId, auth.sub) };
   });
 
   add("GET", "/gyms/:gymId/staff/audit", async (context) => {
@@ -459,7 +484,7 @@ function createRoutes() {
     const gymId = requiredParam(context, "gymId");
     await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
     await context.services.roleService.requirePermission(gymId, auth.sub, Permission.StaffRead);
-    return { invites: await context.services.roleService.listStaffInvites(gymId) };
+    return { invites: await context.services.roleService.listStaffInvites(gymId, auth.sub) };
   });
 
   add("POST", "/gyms/:gymId/staff/invites", async (context) => {
@@ -481,7 +506,132 @@ function createRoutes() {
       Permission.StaffRoleAssign
     );
     const input = parseWith(staffShiftCreateSchema, context.body);
+    const visibleStaffUserIds = await context.services.roleService.visibleStaffUserIds(
+      gymId,
+      auth.sub
+    );
+    if (visibleStaffUserIds && !visibleStaffUserIds.has(input.userId)) {
+      throw forbidden("Staff can only schedule users below their role branch.");
+    }
     return context.services.staffScheduleService.createShift(gymId, auth.sub, input);
+  });
+
+  add("GET", "/gyms/:gymId/staff/shifts", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.StaffRead);
+    const shifts = await context.services.staffScheduleService.listShifts(gymId);
+    const visibleStaffUserIds = await context.services.roleService.visibleStaffUserIds(
+      gymId,
+      auth.sub
+    );
+    return {
+      shifts: visibleStaffUserIds
+        ? shifts.filter((shift) => visibleStaffUserIds.has(shift.userId))
+        : shifts
+    };
+  });
+
+  add("GET", "/gyms/:gymId/staff/shifts/me", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymRead);
+    return {
+      shifts: await context.services.staffScheduleService.listShiftsForStaff(gymId, auth.sub)
+    };
+  });
+
+  add("GET", "/gyms/:gymId/staff/time-entries", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.StaffRead);
+    const entries = await context.services.staffTimeClockService.listEntries(gymId);
+    const visibleStaffUserIds = await context.services.roleService.visibleStaffUserIds(
+      gymId,
+      auth.sub
+    );
+    return {
+      entries: visibleStaffUserIds
+        ? entries.filter((entry) => visibleStaffUserIds.has(entry.userId))
+        : entries
+    };
+  });
+
+  add("GET", "/gyms/:gymId/staff/time-entries/me", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymRead);
+    return {
+      entries: await context.services.staffTimeClockService.listEntriesForStaff(gymId, auth.sub)
+    };
+  });
+
+  add("POST", "/gyms/:gymId/staff/time-entries/clock-in", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(
+      gymId,
+      auth.sub,
+      Permission.StaffRoleAssign
+    );
+    const input = parseWith(staffClockInSchema, context.body);
+    const visibleStaffUserIds = await context.services.roleService.visibleStaffUserIds(
+      gymId,
+      auth.sub
+    );
+    if (visibleStaffUserIds && !visibleStaffUserIds.has(input.userId)) {
+      throw forbidden("Staff can only clock users below their role branch.");
+    }
+    return context.services.staffTimeClockService.clockIn(gymId, auth.sub, input);
+  });
+
+  add("POST", "/gyms/:gymId/staff/time-entries/me/clock-in", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymRead);
+    const input = parseWith(staffSelfClockInSchema, context.body);
+    return context.services.staffTimeClockService.clockIn(gymId, auth.sub, {
+      ...input,
+      userId: auth.sub
+    });
+  });
+
+  add("POST", "/gyms/:gymId/staff/time-entries/clock-out", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(
+      gymId,
+      auth.sub,
+      Permission.StaffRoleAssign
+    );
+    const input = parseWith(staffClockOutSchema, context.body);
+    const visibleStaffUserIds = await context.services.roleService.visibleStaffUserIds(
+      gymId,
+      auth.sub
+    );
+    if (visibleStaffUserIds && !visibleStaffUserIds.has(input.userId)) {
+      throw forbidden("Staff can only clock users below their role branch.");
+    }
+    return context.services.staffTimeClockService.clockOut(gymId, auth.sub, input);
+  });
+
+  add("POST", "/gyms/:gymId/staff/time-entries/me/clock-out", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymRead);
+    const input = parseWith(staffSelfClockOutSchema, context.body);
+    return context.services.staffTimeClockService.clockOut(gymId, auth.sub, {
+      ...input,
+      userId: auth.sub
+    });
   });
 
   add("GET", "/gyms/:gymId/members", async (context) => {

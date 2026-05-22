@@ -150,6 +150,24 @@ interface StaffShiftResponse {
   createdByUserId: string;
 }
 
+interface StaffShiftListResponse {
+  shifts: StaffShiftResponse[];
+}
+
+interface StaffTimeEntryResponse {
+  id: string;
+  userId: string;
+  locationId?: string;
+  clockedInAt: string;
+  clockedOutAt?: string;
+  clockedInByUserId: string;
+  clockedOutByUserId?: string;
+}
+
+interface StaffTimeEntryListResponse {
+  entries: StaffTimeEntryResponse[];
+}
+
 interface MemberResponse {
   id: string;
   firstName: string;
@@ -677,6 +695,63 @@ describe("system API flow", () => {
     expect(shift.locationId).toBe(location.id);
     expect(shift.roleId).toBe(trainerRole.id);
     expect(shift.createdByUserId).toBe(owner.user.id);
+    const staffShifts = await ok<StaffShiftListResponse>(`/gyms/${gymId}/staff/shifts`, {
+      headers: authHeaders(owner.accessToken)
+    });
+    expect(staffShifts.shifts[0]?.id).toBe(shift.id);
+    const myStaffShifts = await ok<StaffShiftListResponse>(`/gyms/${gymId}/staff/shifts/me`, {
+      headers: authHeaders(staff.accessToken)
+    });
+    expect(myStaffShifts.shifts[0]?.id).toBe(shift.id);
+    const allStaffShiftsAsTrainer = await api.request<{ error?: { code?: string } }>(
+      `/gyms/${gymId}/staff/shifts`,
+      { headers: authHeaders(staff.accessToken) }
+    );
+    expect(allStaffShiftsAsTrainer.response.status).toBe(403);
+    const selfClockedIn = await ok<StaffTimeEntryResponse>(
+      `/gyms/${gymId}/staff/time-entries/me/clock-in`,
+      json({ locationId: location.id }, staff.accessToken)
+    );
+    expect(selfClockedIn.userId).toBe(staff.user.id);
+    expect(selfClockedIn.clockedInByUserId).toBe(staff.user.id);
+    const myClockEntries = await ok<StaffTimeEntryListResponse>(
+      `/gyms/${gymId}/staff/time-entries/me`,
+      {
+        headers: authHeaders(staff.accessToken)
+      }
+    );
+    expect(myClockEntries.entries[0]?.id).toBe(selfClockedIn.id);
+    const allTimeEntriesAsTrainer = await api.request<{ error?: { code?: string } }>(
+      `/gyms/${gymId}/staff/time-entries`,
+      { headers: authHeaders(staff.accessToken) }
+    );
+    expect(allTimeEntriesAsTrainer.response.status).toBe(403);
+    const selfClockedOut = await ok<StaffTimeEntryResponse>(
+      `/gyms/${gymId}/staff/time-entries/me/clock-out`,
+      json({}, staff.accessToken)
+    );
+    expect(selfClockedOut.id).toBe(selfClockedIn.id);
+    expect(selfClockedOut.clockedOutByUserId).toBe(staff.user.id);
+    const clockedIn = await ok<StaffTimeEntryResponse>(
+      `/gyms/${gymId}/staff/time-entries/clock-in`,
+      json({ userId: staff.user.id, locationId: location.id }, owner.accessToken)
+    );
+    expect(clockedIn.userId).toBe(staff.user.id);
+    expect(clockedIn.locationId).toBe(location.id);
+    expect(clockedIn.clockedOutAt).toBeUndefined();
+    const clockEntries = await ok<StaffTimeEntryListResponse>(
+      `/gyms/${gymId}/staff/time-entries`,
+      {
+        headers: authHeaders(owner.accessToken)
+      }
+    );
+    expect(clockEntries.entries.some((entry) => entry.id === clockedIn.id)).toBe(true);
+    const clockedOut = await ok<StaffTimeEntryResponse>(
+      `/gyms/${gymId}/staff/time-entries/clock-out`,
+      json({ userId: staff.user.id }, owner.accessToken)
+    );
+    expect(clockedOut.id).toBe(clockedIn.id);
+    expect(clockedOut.clockedOutByUserId).toBe(owner.user.id);
     const staffAccess = await ok<StaffAccessListResponse>(`/gyms/${gymId}/staff`, {
       headers: authHeaders(owner.accessToken)
     });

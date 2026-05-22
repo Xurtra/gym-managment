@@ -20,6 +20,7 @@ import type {
   StaffAuditLog,
   StaffInvite,
   StaffShift,
+  StaffTimeEntry,
   StoreSnapshot,
   User
 } from "./entities.js";
@@ -40,6 +41,7 @@ import type {
   StaffAuditLogRepository,
   StaffInviteRepository,
   StaffShiftRepository,
+  StaffTimeEntryRepository,
   TokenRepository,
   UserRepository
 } from "./repositories.js";
@@ -52,6 +54,7 @@ export class InMemoryStore implements Repositories {
   private readonly staffInviteRecords = new Map<string, StaffInvite>();
   private readonly staffAuditLogRecords = new Map<string, StaffAuditLog>();
   private readonly staffShiftRecords = new Map<string, StaffShift>();
+  private readonly staffTimeEntryRecords = new Map<string, StaffTimeEntry>();
   private readonly locationRecords = new Map<string, Location>();
   private readonly memberRecords = new Map<string, Member>();
   private readonly membershipPlanRecords = new Map<string, MembershipPlan>();
@@ -87,7 +90,8 @@ export class InMemoryStore implements Repositories {
     createRoles: (roles) => this.createRoles(roles),
     getRole: (roleId) => this.getRole(roleId),
     listRolesForGym: (gymId) => this.listRolesForGym(gymId),
-    updateRole: (role) => this.updateRole(role)
+    updateRole: (role) => this.updateRole(role),
+    deleteRole: (roleId) => this.deleteRole(roleId)
   };
 
   readonly gymUsers: GymUserRepository = {
@@ -114,7 +118,17 @@ export class InMemoryStore implements Repositories {
 
   readonly staffShifts: StaffShiftRepository = {
     createStaffShift: (shift) => this.createStaffShift(shift),
+    listStaffShiftsForGym: (gymId) => this.listStaffShiftsForGym(gymId),
     listStaffShiftsForStaff: (gymId, userId) => this.listStaffShiftsForStaff(gymId, userId)
+  };
+
+  readonly staffTimeEntries: StaffTimeEntryRepository = {
+    createStaffTimeEntry: (entry) => this.createStaffTimeEntry(entry),
+    updateStaffTimeEntry: (entry) => this.updateStaffTimeEntry(entry),
+    listStaffTimeEntriesForGym: (gymId) => this.listStaffTimeEntriesForGym(gymId),
+    listStaffTimeEntriesForStaff: (gymId, userId) =>
+      this.listStaffTimeEntriesForStaff(gymId, userId),
+    findOpenStaffTimeEntry: (gymId, userId) => this.findOpenStaffTimeEntry(gymId, userId)
   };
 
   readonly locations: LocationRepository = {
@@ -267,6 +281,10 @@ export class InMemoryStore implements Repositories {
     return role;
   }
 
+  async deleteRole(roleId: string) {
+    this.roleRecords.delete(roleId);
+  }
+
   async createGymUser(gymUser: GymUser) {
     this.gymUserRecords.set(gymUser.id, gymUser);
     return gymUser;
@@ -343,10 +361,44 @@ export class InMemoryStore implements Repositories {
     return shift;
   }
 
+  async listStaffShiftsForGym(gymId: string) {
+    return [...this.staffShiftRecords.values()]
+      .filter((shift) => shift.gymId === gymId)
+      .sort((left, right) => left.startsAt.getTime() - right.startsAt.getTime());
+  }
+
   async listStaffShiftsForStaff(gymId: string, userId: string) {
     return [...this.staffShiftRecords.values()]
       .filter((shift) => shift.gymId === gymId && shift.userId === userId)
       .sort((left, right) => left.startsAt.getTime() - right.startsAt.getTime());
+  }
+
+  async createStaffTimeEntry(entry: StaffTimeEntry) {
+    this.staffTimeEntryRecords.set(entry.id, entry);
+    return entry;
+  }
+
+  async updateStaffTimeEntry(entry: StaffTimeEntry) {
+    this.staffTimeEntryRecords.set(entry.id, entry);
+    return entry;
+  }
+
+  async listStaffTimeEntriesForGym(gymId: string) {
+    return [...this.staffTimeEntryRecords.values()]
+      .filter((entry) => entry.gymId === gymId)
+      .sort((left, right) => right.clockedInAt.getTime() - left.clockedInAt.getTime());
+  }
+
+  async listStaffTimeEntriesForStaff(gymId: string, userId: string) {
+    return [...this.staffTimeEntryRecords.values()]
+      .filter((entry) => entry.gymId === gymId && entry.userId === userId)
+      .sort((left, right) => right.clockedInAt.getTime() - left.clockedInAt.getTime());
+  }
+
+  async findOpenStaffTimeEntry(gymId: string, userId: string) {
+    return [...this.staffTimeEntryRecords.values()].find(
+      (entry) => entry.gymId === gymId && entry.userId === userId && !entry.clockedOutAt
+    );
   }
 
   async createLocation(location: Location) {
@@ -608,6 +660,7 @@ export class InMemoryStore implements Repositories {
       staffInvites: [...this.staffInviteRecords.values()],
       staffAuditLogs: [...this.staffAuditLogRecords.values()],
       staffShifts: [...this.staffShiftRecords.values()],
+      staffTimeEntries: [...this.staffTimeEntryRecords.values()],
       locations: [...this.locationRecords.values()],
       members: [...this.memberRecords.values()],
       membershipPlans: [...this.membershipPlanRecords.values()],
