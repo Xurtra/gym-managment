@@ -594,7 +594,6 @@ function createRoutes() {
     const auth = requireAuth(context);
     const gymId = requiredParam(context, "gymId");
     await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
-    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymRead);
     const input = parseWith(staffSelfClockInSchema, context.body);
     return context.services.staffTimeClockService.clockIn(gymId, auth.sub, {
       ...input,
@@ -626,7 +625,6 @@ function createRoutes() {
     const auth = requireAuth(context);
     const gymId = requiredParam(context, "gymId");
     await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
-    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymRead);
     const input = parseWith(staffSelfClockOutSchema, context.body);
     return context.services.staffTimeClockService.clockOut(gymId, auth.sub, {
       ...input,

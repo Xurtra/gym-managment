@@ -612,6 +612,73 @@ html[data-theme="dark"] .field select {
   border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
+.topbar-clock-button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  border-radius: 999px;
+  padding: 6px 12px 6px 8px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-weight: 800;
+}
+
+.topbar-clock-button.active {
+  background: rgba(34, 197, 94, 0.18);
+  border-color: rgba(34, 197, 94, 0.45);
+}
+
+.topbar-clock-icon {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.topbar-clock-icon::before,
+.topbar-clock-icon::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  transform-origin: bottom center;
+}
+
+.topbar-clock-icon::before {
+  height: 8px;
+  transform: translate(-50%, -100%) rotate(0deg);
+}
+
+.topbar-clock-icon::after {
+  height: 7px;
+  transform: translate(-50%, -100%) rotate(90deg);
+}
+
+.topbar-clock-copy {
+  display: grid;
+  gap: 1px;
+  text-align: left;
+  line-height: 1.05;
+}
+
+.topbar-clock-copy strong {
+  font-size: 0.82rem;
+}
+
+.topbar-clock-copy small {
+  font-size: 0.7rem;
+  font-weight: 700;
+  opacity: 0.82;
+}
+
 .topbar-logout-button {
   min-height: 36px;
   border-radius: 999px;
@@ -2203,6 +2270,91 @@ html[data-theme="dark"] .empty-state {
   color: var(--success);
 }
 
+.staff-clock-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 82;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, 0.68);
+  backdrop-filter: blur(4px);
+}
+
+.staff-clock-modal {
+  width: min(520px, 96vw);
+  max-height: 92vh;
+  overflow: auto;
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: var(--panel-strong);
+  box-shadow: var(--shadow);
+}
+
+.staff-clock-person {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.staff-clock-person > div:last-child {
+  display: grid;
+  gap: 3px;
+}
+
+.staff-clock-person strong {
+  color: var(--ink);
+}
+
+.staff-clock-person span {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.staff-clock-status-card {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.staff-clock-status-card.active {
+  border-color: rgba(34, 197, 94, 0.36);
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.staff-clock-status-card span,
+.staff-clock-status-card small {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.staff-clock-status-card strong {
+  color: var(--ink);
+  font-size: 1.1rem;
+}
+
+.staff-clock-form {
+  display: grid;
+  gap: 12px;
+}
+
+.staff-clock-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .staff-calendar-backdrop {
   position: fixed;
   inset: 0;
@@ -2612,15 +2764,23 @@ html[data-theme="dark"] .staff-clock-chip.active {
   color: #86efac;
 }
 
+html[data-theme="dark"] .staff-clock-modal,
+html[data-theme="dark"] .staff-clock-person,
 html[data-theme="dark"] .staff-calendar-modal,
 html[data-theme="dark"] .staff-calendar-day {
   background: #0f172a;
   border-color: #223248;
 }
 
+html[data-theme="dark"] .staff-clock-status-card,
 html[data-theme="dark"] .staff-calendar-shift {
   background: #111c31;
   border-color: #223248;
+}
+
+html[data-theme="dark"] .staff-clock-status-card.active {
+  background: rgba(74, 222, 128, 0.12);
+  border-color: rgba(74, 222, 128, 0.26);
 }
 
 html[data-theme="dark"] .staff-removal-modal,

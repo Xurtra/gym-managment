@@ -152,7 +152,7 @@ const PERMISSION_DETAILS: Record<string, { label: string; description: string }>
   },
   [Permission.StaffRoleAssign]: {
     label: "Manage staff roles and shifts",
-    description: "Assign roles, create shifts, and clock staff from the roster."
+    description: "Assign roles and create shifts for visible staff."
   },
   [Permission.StaffRemove]: {
     label: "Remove staff access",
@@ -572,6 +572,7 @@ interface AppState {
   staffAccessRoleFilter: string;
   staffScheduleCalendarOpen: boolean;
   staffScheduleCalendarMonth: string;
+  staffClockModalOpen: boolean;
   staffRemovalUserId?: string;
   banner?: { tone: BannerTone; text: string };
   publicSuccess?: string;
@@ -665,6 +666,7 @@ const state: AppState = {
   staffAccessRoleFilter: "",
   staffScheduleCalendarOpen: false,
   staffScheduleCalendarMonth: toMonthKey(new Date()),
+  staffClockModalOpen: false,
   staffRemovalUserId: undefined,
   dashboardView: initialRoute.dashboardView,
   checkInBarcode: "",
@@ -1239,6 +1241,7 @@ function renderDashboard() {
           <button type="button" class="icon-pill" aria-label="Notifications">N</button>
           <button type="button" class="icon-pill" aria-label="Settings" data-dashboard-view="settings">S</button>
           <button type="button" class="icon-pill" aria-label="Help">?</button>
+          ${renderTopbarStaffClock()}
           <div class="club-user">
             <div class="club-avatar">${userInitials()}</div>
             <div class="club-user-copy">
@@ -1279,6 +1282,7 @@ function renderDashboard() {
         </aside>
       </div>
     </div>
+    ${state.staffClockModalOpen ? renderStaffClockModal() : ""}
     ${state.checkInReview ? renderCheckInReviewModal(state.checkInReview) : ""}
   `;
 }
@@ -1294,6 +1298,89 @@ function userInitials() {
     return "U";
   }
   return `${user.firstName?.trim().charAt(0) ?? ""}${user.lastName?.trim().charAt(0) ?? ""}`.toUpperCase() || "U";
+}
+
+function renderTopbarStaffClock() {
+  return `
+    <button
+      type="button"
+      class="topbar-clock-button"
+      data-staff-clock-open
+      aria-label="Open employee time clock"
+    >
+      <span class="topbar-clock-icon" aria-hidden="true"></span>
+      <span class="topbar-clock-copy">
+        <strong>Time clock</strong>
+        <small>Employee sign in</small>
+      </span>
+    </button>
+  `;
+}
+
+function renderStaffClockModal() {
+  const activeLocations = locationSelectOptions();
+  const selectedLocationId = state.selectedLocationId || activeLocations[0]?.value || "";
+  return `
+    <div class="staff-clock-backdrop" data-staff-clock-close>
+      <section class="staff-clock-modal" role="dialog" aria-modal="true" aria-label="Employee time clock">
+        <div class="card-head">
+          <div>
+            <p class="eyebrow">Employee Time Clock</p>
+            <h3>Employee sign in</h3>
+            <p class="club-copy">Each employee signs in here before clocking time. The dashboard account stays signed in.</p>
+          </div>
+          <button type="button" class="ghost-button" data-staff-clock-close>Close</button>
+        </div>
+
+        <div class="staff-clock-person">
+          <div class="topbar-clock-icon" aria-hidden="true"></div>
+          <div>
+            <strong>Shared time clock</strong>
+            <span>Use the employee's own login to clock in or out.</span>
+          </div>
+        </div>
+
+        <div class="staff-clock-status-card">
+          <span>Roster status</span>
+          <strong>Check the Staff list</strong>
+          <small>The roster still shows who is clocked in. This form only verifies the employee taking the action.</small>
+        </div>
+
+        <form class="staff-clock-form">
+          <label class="field">
+            <span>Employee email</span>
+            <input name="email" type="email" autocomplete="username" placeholder="employee@example.com" />
+          </label>
+          <label class="field">
+            <span>Password</span>
+            <input name="password" type="password" autocomplete="current-password" />
+          </label>
+          <label class="field">
+            <span>2FA code optional</span>
+            <input name="twoFactorCode" inputmode="numeric" autocomplete="one-time-code" placeholder="Only if enabled" />
+          </label>
+          <label class="field">
+            <span>Location</span>
+            <select name="locationId" data-staff-clock-location>
+              <option value="">No location</option>
+              ${activeLocations.map((location) => `
+                <option value="${escapeAttribute(location.value)}" ${location.value === selectedLocationId ? "selected" : ""}>${escapeHtml(location.label)}</option>
+              `).join("")}
+            </select>
+          </label>
+          <label class="field">
+            <span>Note optional</span>
+            <input name="notes" data-staff-clock-notes placeholder="Optional note" />
+          </label>
+          <div class="staff-clock-actions">
+            <button type="button" class="ghost-button" data-staff-clock-close>Cancel</button>
+            <button type="button" class="ghost-button" data-staff-clock-kiosk-action="clock-out">Sign in and clock out</button>
+            <button type="button" class="ghost-button clock-button active" data-staff-clock-kiosk-action="clock-in">Sign in and clock in</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  `;
 }
 
 function renderCheckInRail() {
@@ -2461,7 +2548,7 @@ function renderStaffAccessManagement(assignableRoles: RoleRecord[]) {
       <div class="card-head">
         <div>
           <h3>Staff directory and access</h3>
-          <p class="club-copy">${canManageDirectory ? "Search staff, review account status, update positions, or remove gym access." : "Review your role and clock yourself in or out."}</p>
+          <p class="club-copy">${canManageDirectory ? "Search staff, review account status, update positions, or remove gym access." : "Review your role and current clock status."}</p>
         </div>
         <span data-staff-access-filter-count>${visibleStaffCount} of ${staffRows.length} staff</span>
       </div>
@@ -2499,7 +2586,6 @@ function renderStaffAccessManagement(assignableRoles: RoleRecord[]) {
                 ? assignableRoles
                 : [{ id: staff.roleId, name: staff.roleName, permissions: [] }, ...assignableRoles];
               const openTimeEntry = openStaffTimeEntry(staff.userId);
-              const clockDisabled = staff.status !== UserStatus.Active;
               const rowVisible = staffMatchesAccessFilters(staff, selectedRoleFilter, state.staffAccessSearch);
               return `
                 <article
@@ -2531,9 +2617,6 @@ function renderStaffAccessManagement(assignableRoles: RoleRecord[]) {
                         )
                         .join("")}
                     </select>
-                    ${openTimeEntry
-                      ? `<button type="button" class="ghost-button clock-button" data-staff-clock-out="${staff.userId}" ${clockDisabled ? "disabled" : ""}>Clock out</button>`
-                      : `<button type="button" class="ghost-button clock-button active" data-staff-clock-in="${staff.userId}" ${clockDisabled ? "disabled" : ""}>Clock in</button>`}
                     <button type="button" class="ghost-button" data-staff-role-assign="${staff.userId}" ${canAssign ? "" : "disabled"}>Assign</button>
                     ${canRemove
                       ? `<button type="button" class="ghost-button danger" data-staff-access-remove="${staff.userId}">Remove</button>`
@@ -2811,6 +2894,55 @@ function staffAccessSearchText(staff: StaffRecord) {
 
 function openStaffTimeEntry(userId: string) {
   return state.staffTimeEntries.find((entry) => entry.userId === userId && !entry.clockedOutAt);
+}
+
+function signedInOpenStaffTimeEntry() {
+  const userId = state.me?.user.id;
+  return userId ? openStaffTimeEntry(userId) : undefined;
+}
+
+async function clockEmployeeFromTimeClock(input: {
+  action: "clock-in" | "clock-out";
+  email: string;
+  password: string;
+  twoFactorCode?: string;
+  locationId?: string;
+  notes?: string;
+}) {
+  if (!state.gym) {
+    throw new Error("Choose a gym before clocking time.");
+  }
+  const timeClockAuthClient = new GymApiClient({ baseUrl: API_BASE_URL });
+  const login = (await timeClockAuthClient.login({
+    email: input.email,
+    password: input.password,
+    ...(input.twoFactorCode ? { twoFactorCode: input.twoFactorCode } : {})
+  })) as AuthResponse;
+  if (login.twoFactorRequired) {
+    throw new Error("Enter this employee's 2FA code before clocking time.");
+  }
+  if (!login.accessToken || !login.refreshToken) {
+    throw new Error("Employee sign in did not return a time clock session.");
+  }
+  const employeeClockClient = new GymApiClient({
+    baseUrl: API_BASE_URL,
+    accessToken: login.accessToken
+  });
+  try {
+    if (input.action === "clock-in") {
+      await employeeClockClient.clockMyStaffIn(state.gym.id, {
+        ...(input.locationId ? { locationId: input.locationId } : {}),
+        ...(input.notes ? { notes: input.notes } : {})
+      });
+    } else {
+      await employeeClockClient.clockMyStaffOut(state.gym.id, {
+        ...(input.notes ? { notes: input.notes } : {})
+      });
+    }
+  } finally {
+    await timeClockAuthClient.logout(login.refreshToken).catch(() => undefined);
+  }
+  return login.user;
 }
 
 function formatElapsedSince(isoDate: string) {
@@ -4773,6 +4905,54 @@ function bindEvents() {
     }
   });
 
+  app.querySelectorAll<HTMLButtonElement>("[data-staff-clock-open]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.staffClockModalOpen = true;
+      render();
+    });
+  });
+  app.querySelectorAll<HTMLElement>("[data-staff-clock-close]").forEach((element) => {
+    element.addEventListener("click", (event) => {
+      if (element.classList.contains("staff-clock-backdrop") && event.target !== element) {
+        return;
+      }
+      state.staffClockModalOpen = false;
+      render();
+    });
+  });
+  app.querySelectorAll<HTMLButtonElement>("[data-staff-clock-kiosk-action]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!state.gym) return;
+      const action = button.dataset.staffClockKioskAction === "clock-out" ? "clock-out" : "clock-in";
+      const form = button.closest<HTMLFormElement>("form");
+      const data = form ? formData(form) : {};
+      const email = data.email?.trim();
+      const password = data.password;
+      const notes = data.notes?.trim();
+      const twoFactorCode = data.twoFactorCode?.trim();
+      if (!email || !password) {
+        setBanner("error", "Enter the employee email and password before clocking time.");
+        return;
+      }
+      try {
+        const employee = await clockEmployeeFromTimeClock({
+          action,
+          email,
+          password,
+          ...(twoFactorCode ? { twoFactorCode } : {}),
+          ...(data.locationId ? { locationId: data.locationId } : {}),
+          ...(notes ? { notes } : {})
+        });
+        state.staffClockModalOpen = false;
+        setBanner("success", `${employee.firstName} ${employee.lastName} clocked ${action === "clock-in" ? "in" : "out"}.`);
+        await refreshDashboard();
+        render();
+      } catch (error) {
+        setBanner("error", describeError(error));
+      }
+    });
+  });
+
   app.querySelectorAll<HTMLButtonElement>("[data-staff-clock-in]").forEach((button) => {
     button.addEventListener("click", async () => {
       if (!state.gym) return;
@@ -5729,6 +5909,7 @@ function clearDashboardState() {
   state.staffAccessRoleFilter = "";
   state.staffScheduleCalendarOpen = false;
   state.staffScheduleCalendarMonth = toMonthKey(new Date());
+  state.staffClockModalOpen = false;
   state.staffRemovalUserId = undefined;
   state.roles = [];
   state.plans = [];
