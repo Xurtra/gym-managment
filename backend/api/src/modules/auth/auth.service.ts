@@ -1,4 +1,4 @@
-import { StaffInviteStatus, UserStatus } from "@gym-platform/constants";
+import { GymStatus, StaffInviteStatus, UserStatus } from "@gym-platform/constants";
 import type {
   ForgotPasswordInput,
   LoginInput,
@@ -101,7 +101,7 @@ export class AuthService {
     if (user.status !== UserStatus.Active) {
       throw unauthorized("This account is not active.");
     }
-    const gymId = (await this.repositories.gymUsers.listGymMemberships(user.id))[0]?.gymId;
+    const gymId = await this.resolveLoginGymId(user.id, input.gymSlug);
     if (user.twoFactorEnabledAt) {
       if (input.recoveryCode) {
         await this.consumeRecoveryCode(user, input.recoveryCode);
@@ -113,6 +113,24 @@ export class AuthService {
       user: toPublicUser(user),
       ...(await this.createSession(user, gymId))
     };
+  }
+
+  private async resolveLoginGymId(userId: string, gymSlug?: string) {
+    const activeMemberships = (await this.repositories.gymUsers.listGymMemberships(userId)).filter(
+      (membership) => membership.status === UserStatus.Active
+    );
+    if (!gymSlug) {
+      return activeMemberships[0]?.gymId;
+    }
+    const gym = await this.repositories.gyms.findGymBySlug(gymSlug);
+    if (!gym || gym.status !== GymStatus.Active) {
+      throw unauthorized("Invalid email or password for this gym.");
+    }
+    const membership = activeMemberships.find((candidate) => candidate.gymId === gym.id);
+    if (!membership) {
+      throw unauthorized("Invalid email or password for this gym.");
+    }
+    return gym.id;
   }
 
   async refresh(refreshToken: string) {

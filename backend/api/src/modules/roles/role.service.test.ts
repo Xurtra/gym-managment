@@ -26,11 +26,14 @@ describe("RoleService", () => {
 
     const ownerRole = await services.roleService.getRoleByName(gymId, RoleName.Owner);
     const managerRole = await services.roleService.getRoleByName(gymId, RoleName.Manager);
+    const trainerRole = await services.roleService.getRoleByName(gymId, RoleName.Trainer);
     const memberRole = await services.roleService.getRoleByName(gymId, RoleName.Member);
 
     expect(ownerRole.permissions).toContain(Permission.StaffRoleAssign);
     expect(managerRole.permissions).toContain(Permission.StaffRemove);
+    expect(trainerRole.permissions).toContain(Permission.StaffDirectoryView);
     expect(memberRole.permissions).not.toContain(Permission.StaffRoleAssign);
+    expect(memberRole.permissions).not.toContain(Permission.StaffDirectoryView);
     await expect(
       services.roleService.requirePermission(gymId, owner.user.id, Permission.StaffRoleAssign)
     ).resolves.toBeUndefined();

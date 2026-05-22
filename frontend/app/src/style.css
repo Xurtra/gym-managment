@@ -2184,6 +2184,27 @@ html[data-theme="dark"] .empty-state {
   padding-right: 2px;
 }
 
+.staff-access-subhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 2px 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.staff-access-subhead small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 .staff-role-row {
   display: flex;
   justify-content: space-between;
@@ -2256,8 +2277,22 @@ html[data-theme="dark"] .empty-state {
   justify-items: end;
 }
 
+.staff-role-actions-readonly {
+  align-self: stretch;
+  align-content: center;
+}
+
 .staff-role-actions select {
   min-width: 180px;
+}
+
+.platform-gym-card {
+  display: grid;
+  gap: 14px;
+}
+
+.platform-gym-card .ghost-button {
+  justify-self: start;
 }
 
 .ghost-button.danger {

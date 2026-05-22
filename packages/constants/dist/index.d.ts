@@ -130,6 +130,7 @@ export declare const Permission: {
     readonly LocationCreate: "location:create";
     readonly LocationUpdate: "location:update";
     readonly LocationArchive: "location:archive";
+    readonly StaffDirectoryView: "staff:directory_view";
     readonly StaffRead: "staff:read";
     readonly StaffInvite: "staff:invite";
     readonly StaffRoleAssign: "staff:role_assign";

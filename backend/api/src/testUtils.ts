@@ -10,7 +10,8 @@ export const testConfig: ApiConfig = {
   accessTokenTtlSeconds: 900,
   refreshTokenTtlDays: 30,
   passwordResetTokenTtlMinutes: 30,
-  emailVerificationTokenTtlHours: 24
+  emailVerificationTokenTtlHours: 24,
+  platformAdminEmails: []
 };
 
 export const fixedClock: Clock = {

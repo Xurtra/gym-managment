@@ -33,16 +33,19 @@ export declare const registerSchema: z.ZodObject<{
 export declare const loginSchema: z.ZodObject<{
     email: z.ZodEffects<z.ZodString, string, string>;
     password: z.ZodString;
+    gymSlug: z.ZodOptional<z.ZodString>;
     twoFactorCode: z.ZodOptional<z.ZodString>;
     recoveryCode: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     email: string;
     password: string;
+    gymSlug?: string | undefined;
     twoFactorCode?: string | undefined;
     recoveryCode?: string | undefined;
 }, {
     email: string;
     password: string;
+    gymSlug?: string | undefined;
     twoFactorCode?: string | undefined;
     recoveryCode?: string | undefined;
 }>;
@@ -656,6 +659,7 @@ export declare const customRoleCreateSchema: z.ZodObject<{
         readonly LocationCreate: "location:create";
         readonly LocationUpdate: "location:update";
         readonly LocationArchive: "location:archive";
+        readonly StaffDirectoryView: "staff:directory_view";
         readonly StaffRead: "staff:read";
         readonly StaffInvite: "staff:invite";
         readonly StaffRoleAssign: "staff:role_assign";
@@ -682,11 +686,11 @@ export declare const customRoleCreateSchema: z.ZodObject<{
     }>, "many">;
 }, "strip", z.ZodTypeAny, {
     name: string;
-    permissions: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "platform:admin")[];
+    permissions: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:directory_view" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "platform:admin")[];
     parentRoleId?: string | undefined;
 }, {
     name: string;
-    permissions: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "platform:admin")[];
+    permissions: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:directory_view" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "platform:admin")[];
     parentRoleId?: string | undefined;
 }>;
 export declare const customRoleUpdateSchema: z.ZodEffects<z.ZodObject<{
@@ -699,6 +703,7 @@ export declare const customRoleUpdateSchema: z.ZodEffects<z.ZodObject<{
         readonly LocationCreate: "location:create";
         readonly LocationUpdate: "location:update";
         readonly LocationArchive: "location:archive";
+        readonly StaffDirectoryView: "staff:directory_view";
         readonly StaffRead: "staff:read";
         readonly StaffInvite: "staff:invite";
         readonly StaffRoleAssign: "staff:role_assign";
@@ -726,19 +731,19 @@ export declare const customRoleUpdateSchema: z.ZodEffects<z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     name?: string | undefined;
     parentRoleId?: string | undefined;
-    permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "platform:admin")[] | undefined;
+    permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:directory_view" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "platform:admin")[] | undefined;
 }, {
     name?: string | undefined;
     parentRoleId?: string | undefined;
-    permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "platform:admin")[] | undefined;
+    permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:directory_view" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "platform:admin")[] | undefined;
 }>, {
     name?: string | undefined;
     parentRoleId?: string | undefined;
-    permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "platform:admin")[] | undefined;
+    permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:directory_view" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "platform:admin")[] | undefined;
 }, {
     name?: string | undefined;
     parentRoleId?: string | undefined;
-    permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "platform:admin")[] | undefined;
+    permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:directory_view" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "platform:admin")[] | undefined;
 }>;
 export declare const staffAccessRemoveSchema: z.ZodObject<{
     reason: z.ZodOptional<z.ZodString>;
@@ -1623,6 +1628,7 @@ export declare const permissionSchema: z.ZodNativeEnum<{
     readonly LocationCreate: "location:create";
     readonly LocationUpdate: "location:update";
     readonly LocationArchive: "location:archive";
+    readonly StaffDirectoryView: "staff:directory_view";
     readonly StaffRead: "staff:read";
     readonly StaffInvite: "staff:invite";
     readonly StaffRoleAssign: "staff:role_assign";

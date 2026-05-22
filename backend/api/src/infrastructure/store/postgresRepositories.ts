@@ -768,7 +768,8 @@ export class PostgresRepositories implements Repositories {
            operating_hours = $8::jsonb,
            feature_flags = $9::jsonb,
            onboarding_completed_steps = $10::jsonb,
-           updated_at = $11
+           status = $11,
+           updated_at = $12
        WHERE id = $1
        RETURNING *`,
       [
@@ -782,6 +783,7 @@ export class PostgresRepositories implements Repositories {
         JSON.stringify(gym.operatingHours),
         JSON.stringify(gym.featureFlags),
         JSON.stringify(gym.onboardingCompletedSteps),
+        gym.status,
         gym.updatedAt
       ]
     );

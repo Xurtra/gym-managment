@@ -87,7 +87,16 @@ export class TenancyService {
   }
 
   async listSettingsGyms() {
-    return this.repositories.gyms.listGyms();
+    return (await this.repositories.gyms.listGyms()).filter((gym) => gym.status === GymStatus.Active);
+  }
+
+  async archiveGym(gymId: string) {
+    const gym = await this.getGym(gymId);
+    return this.repositories.gyms.updateGym({
+      ...gym,
+      status: GymStatus.Archived,
+      updatedAt: this.clock.now()
+    });
   }
 
   async updateGym(gymId: string, input: GymUpdateInput) {

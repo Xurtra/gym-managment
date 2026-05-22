@@ -44,6 +44,8 @@ export declare class GymApiClient {
     me(): Promise<unknown>;
     listGyms(): Promise<unknown>;
     createGym(input: GymCreateInput): Promise<unknown>;
+    createPlatformGymOwner(input: RegisterInput): Promise<unknown>;
+    archivePlatformGym(gymId: string): Promise<unknown>;
     getGym(gymId: string): Promise<unknown>;
     updateGym(gymId: string, input: GymUpdateInput): Promise<unknown>;
     listLocations(gymId: string): Promise<unknown>;

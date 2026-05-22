@@ -72,6 +72,7 @@ const STAFF_ROLE_PRESETS = [
       Permission.LocationRead,
       Permission.LocationCreate,
       Permission.LocationUpdate,
+      Permission.StaffDirectoryView,
       Permission.StaffRead,
       Permission.StaffInvite,
       Permission.StaffRoleAssign,
@@ -93,6 +94,7 @@ const STAFF_ROLE_PRESETS = [
     permissions: [
       Permission.GymRead,
       Permission.LocationRead,
+      Permission.StaffDirectoryView,
       Permission.MemberRead,
       Permission.ClassRead,
       Permission.BookingRead
@@ -106,6 +108,7 @@ const STAFF_ROLE_PRESETS = [
     permissions: [
       Permission.GymRead,
       Permission.LocationRead,
+      Permission.StaffDirectoryView,
       Permission.MemberRead,
       Permission.MemberWrite,
       Permission.ClassRead,
@@ -123,12 +126,23 @@ const STAFF_ROLE_PRESETS = [
     description: "Creates schedules, publishes shifts, and resolves employee scheduling requests.",
     permissions: [
       Permission.GymRead,
+      Permission.StaffDirectoryView,
       Permission.StaffRead,
       Permission.ScheduleRead,
       Permission.ScheduleCreate,
       Permission.SchedulePublish,
       Permission.ScheduleRequestsManage,
       Permission.ScheduleAutoResolve
+    ]
+  },
+  {
+    key: "employee_visibility",
+    label: "Employee visibility",
+    defaultName: "Employee Visibility",
+    description: "Read-only staff directory access with clocked-in status, without role assignment or removal controls.",
+    permissions: [
+      Permission.GymRead,
+      Permission.StaffDirectoryView
     ]
   }
 ] as const;
@@ -156,6 +170,10 @@ const PERMISSION_DETAILS: Record<string, { label: string; description: string }>
   [Permission.LocationArchive]: {
     label: "Archive locations",
     description: "Remove old locations from active use."
+  },
+  [Permission.StaffDirectoryView]: {
+    label: "View employee directory and clock status",
+    description: "See staff names, roles, account status, and who is currently clocked in. Does not allow staff edits."
   },
   [Permission.StaffRead]: {
     label: "View staff roster",
@@ -659,6 +677,7 @@ interface AppState {
   selectedLocationId: string;
   platformGyms: GymRecord[];
   platformGymDirectoryLoaded: boolean;
+  platformAccessDenied: boolean;
   members: MemberRecord[];
   staff: StaffRecord[];
   plans: PlanRecord[];
@@ -765,6 +784,7 @@ const state: AppState = {
   selectedLocationId: "",
   platformGyms: [],
   platformGymDirectoryLoaded: false,
+  platformAccessDenied: false,
   members: [],
   staff: [],
   plans: [],
@@ -863,6 +883,9 @@ async function initialize() {
   normalizeInitialPublicSlug(Boolean(gymSlugMatch));
   if (state.session) {
     await refreshDashboard();
+    if (!gymSlugMatch) {
+      await refreshPlatformGymDirectory();
+    }
   }
   if (state.publicSlug) {
     await refreshPublic(state.publicSlug);
@@ -884,12 +907,21 @@ async function checkApiHealth() {
 }
 
 async function refreshPlatformGymDirectory() {
+  if (!state.session) {
+    state.platformGyms = [];
+    state.platformGymDirectoryLoaded = false;
+    state.platformAccessDenied = false;
+    return;
+  }
   try {
     const gymsData = (await client.listGyms()) as { gyms: GymRecord[] };
     state.platformGyms = gymsData.gyms || [];
     state.platformGymDirectoryLoaded = true;
-  } catch {
+    state.platformAccessDenied = false;
+  } catch (error) {
+    state.platformGyms = [];
     state.platformGymDirectoryLoaded = false;
+    state.platformAccessDenied = error instanceof ApiError && (error.status === 401 || error.status === 403);
   }
 }
 
@@ -931,6 +963,10 @@ function normalizeInitialPublicSlug(wasExplicitSlug: boolean) {
   }
 }
 
+function currentGymSlugFromUrl() {
+  return new URLSearchParams(window.location.search).get("gymSlug")?.trim().toLowerCase() ?? "";
+}
+
 async function refreshDashboard(options: { silent?: boolean; renderAfter?: boolean } = {}) {
   if (!state.session) {
     return;
@@ -944,12 +980,22 @@ async function refreshDashboard(options: { silent?: boolean; renderAfter?: boole
     const me = (await client.me()) as MeResponse;
     state.me = me;
     state.gym = me.activeGym ?? me.memberships[0]?.gym ?? null;
+    const requestedGymSlug = currentGymSlugFromUrl();
+    if (requestedGymSlug && state.gym?.slug !== requestedGymSlug) {
+      clearDashboardState();
+      state.publicSlug = requestedGymSlug;
+      localStorage.setItem(PUBLIC_SLUG_STORAGE_KEY, requestedGymSlug);
+      setBanner("error", `That login does not have access to ${state.publicGym?.name ?? requestedGymSlug}.`);
+      return;
+    }
     if (state.gym) {
       const canReadMembers = hasPermission(Permission.MemberRead);
       const canReadPlans = hasPermission(Permission.PlanRead);
       const canReadLocations = hasPermission(Permission.LocationRead);
       const canReadClasses = hasPermission(Permission.ClassRead);
       const canReadStaff = hasPermission(Permission.StaffRead);
+      const canViewStaffDirectory =
+        canReadStaff || hasPermission(Permission.StaffDirectoryView);
       const canReadOwnShifts = hasPermission(Permission.GymRead);
       const canReadAccess = hasPermission(Permission.AccessRead);
       const canReadScheduler = hasPermission(Permission.ScheduleRead);
@@ -1027,7 +1073,7 @@ async function refreshDashboard(options: { silent?: boolean; renderAfter?: boole
           { roles: [] }
         ),
         loadPermittedDashboardData(
-          canReadStaff,
+          canViewStaffDirectory,
           () => client.listStaff(state.gym!.id) as Promise<{ staff?: StaffRecord[] }>,
           { staff: [] }
         ),
@@ -1039,8 +1085,8 @@ async function refreshDashboard(options: { silent?: boolean; renderAfter?: boole
           { shifts: [] }
         ),
         loadPermittedDashboardData(
-          canReadStaff || canReadOwnShifts,
-          () => canReadStaff
+          canViewStaffDirectory || canReadOwnShifts,
+          () => canViewStaffDirectory
             ? client.listStaffTimeEntries(state.gym!.id) as Promise<StaffTimeEntryListResponse>
             : client.listMyStaffTimeEntries(state.gym!.id) as Promise<StaffTimeEntryListResponse>,
           { entries: [] }
@@ -1137,11 +1183,6 @@ async function refreshDashboard(options: { silent?: boolean; renderAfter?: boole
         localStorage.setItem(PUBLIC_SLUG_STORAGE_KEY, state.publicSlug);
       }
     } else {
-      const isPlatformAdmin = state.me?.memberships?.some(m => m.role?.permissions?.includes("platform:admin"));
-      if (isPlatformAdmin) {
-        const gymsData = await client.listGyms() as { gyms: GymRecord[] };
-        state.platformGyms = gymsData.gyms || [];
-      }
       state.members = [];
       state.roles = [];
       state.staff = [];
@@ -2394,9 +2435,9 @@ function renderSchedulerDraft(canPublish: boolean) {
 }
 
 function renderSchedulerRequests(canAutoResolve: boolean, canManageRequests: boolean) {
-  const requests = state.schedulerRequests;
+  const requests = state.schedulerRequests.filter((request) => request.status === "open");
   if (requests.length === 0) {
-    return `<div class="settings-placeholder"><strong>No requests yet</strong><p>Employees can submit schedule issues from this tab.</p></div>`;
+    return `<div class="settings-placeholder"><strong>No open requests</strong><p>Accepted or declined schedule requests are cleared from this queue.</p></div>`;
   }
   return `
     <div class="staff-role-list">
@@ -2416,8 +2457,8 @@ function renderSchedulerRequests(canAutoResolve: boolean, canManageRequests: boo
               ${request.resolutionNote ? `<span class="staff-clock-chip">${escapeHtml(request.resolutionNote)}</span>` : ""}
             </div>
             <div class="staff-role-actions">
-              <button type="button" class="ghost-button" data-scheduler-resolve="${escapeAttribute(request.id)}" data-scheduler-resolve-auto="${request.shiftId ? "true" : "false"}" ${canApplyRequest && request.status === "open" ? "" : "disabled"}>${request.shiftId ? "Apply change" : "Mark reviewed"}</button>
-              <button type="button" class="ghost-button danger" data-scheduler-decline="${escapeAttribute(request.id)}" ${canManageRequests && request.status === "open" ? "" : "disabled"}>Decline</button>
+              <button type="button" class="ghost-button" data-scheduler-resolve="${escapeAttribute(request.id)}" data-scheduler-resolve-auto="${request.shiftId ? "true" : "false"}" ${canApplyRequest ? "" : "disabled"}>${request.shiftId ? "Apply change" : "Mark reviewed"}</button>
+              <button type="button" class="ghost-button danger" data-scheduler-decline="${escapeAttribute(request.id)}" ${canManageRequests ? "" : "disabled"}>Decline</button>
             </div>
           </article>
         `;
@@ -2427,9 +2468,9 @@ function renderSchedulerRequests(canAutoResolve: boolean, canManageRequests: boo
 }
 
 function renderSchedulerPreferenceRequests(canManageRequests: boolean) {
-  const requests = state.schedulerPreferenceRequests;
+  const requests = state.schedulerPreferenceRequests.filter((request) => request.status === "open");
   if (requests.length === 0) {
-    return `<div class="settings-placeholder"><strong>No preference requests yet</strong><p>Employees can request long-term schedule preferences from their Staff page.</p></div>`;
+    return `<div class="settings-placeholder"><strong>No open preference requests</strong><p>Approved or declined long-term preferences are cleared from this queue.</p></div>`;
   }
   return `
     <div class="staff-role-list">
@@ -2447,8 +2488,8 @@ function renderSchedulerPreferenceRequests(canManageRequests: boolean) {
               ${request.resolutionNote ? `<span class="staff-clock-chip">${escapeHtml(request.resolutionNote)}</span>` : ""}
             </div>
             <div class="staff-role-actions">
-              <button type="button" class="ghost-button" data-scheduler-preference-approve="${escapeAttribute(request.id)}" ${canManageRequests && request.status === "open" ? "" : "disabled"}>Approve</button>
-              <button type="button" class="ghost-button danger" data-scheduler-preference-decline="${escapeAttribute(request.id)}" ${canManageRequests && request.status === "open" ? "" : "disabled"}>Decline</button>
+              <button type="button" class="ghost-button" data-scheduler-preference-approve="${escapeAttribute(request.id)}" ${canManageRequests ? "" : "disabled"}>Approve</button>
+              <button type="button" class="ghost-button danger" data-scheduler-preference-decline="${escapeAttribute(request.id)}" ${canManageRequests ? "" : "disabled"}>Decline</button>
             </div>
           </article>
         `;
@@ -3065,19 +3106,64 @@ function renderScheduleShiftCard(
 function renderStaffAccessManagement(assignableRoles: RoleRecord[]) {
   const staffRows = staffDirectoryRows();
   const canManageDirectory = hasPermission(Permission.StaffRoleAssign) || hasPermission(Permission.StaffRemove);
+  const canViewFullDirectory = hasPermission(Permission.StaffRead) || hasPermission(Permission.StaffDirectoryView);
   const roleOptions = staffAccessRoleOptions();
   const selectedRoleFilter = roleOptions.some((option) => option.value === state.staffAccessRoleFilter)
     ? state.staffAccessRoleFilter
     : "";
-  const visibleStaffCount = staffRows.filter((staff) =>
-    staffMatchesAccessFilters(staff, selectedRoleFilter, state.staffAccessSearch)
-  ).length;
+  const staffAccessRows = staffRows
+    .map((staff) => {
+      const openTimeEntry = openStaffTimeEntry(staff.userId);
+      return {
+        staff,
+        openTimeEntry,
+        rowVisible: staffMatchesAccessFilters(staff, selectedRoleFilter, state.staffAccessSearch)
+      };
+    })
+    .sort((left, right) => {
+      if (Boolean(left.openTimeEntry) !== Boolean(right.openTimeEntry)) {
+        return left.openTimeEntry ? -1 : 1;
+      }
+      if (left.openTimeEntry && right.openTimeEntry) {
+        return new Date(right.openTimeEntry.clockedInAt).getTime() - new Date(left.openTimeEntry.clockedInAt).getTime();
+      }
+      return staffFullName(left.staff).localeCompare(staffFullName(right.staff));
+    });
+  const clockedInRows = staffAccessRows.filter((row) => row.openTimeEntry);
+  const directoryRows = staffAccessRows.filter((row) => !row.openTimeEntry);
+  const visibleStaffCount = staffAccessRows.filter((row) => row.rowVisible).length;
+  const directoryCopy = canManageDirectory
+    ? "Search staff, review account status, update positions, or remove gym access."
+    : canViewFullDirectory
+      ? "Search staff, review roles, and see who is currently clocked in. This view is read-only."
+      : "Review your role and current clock status.";
+  const renderAccessSection = (
+    section: "clocked-in" | "directory",
+    label: string,
+    rows: typeof staffAccessRows
+  ) => {
+    if (rows.length === 0) {
+      return "";
+    }
+    const visibleSectionCount = rows.filter((row) => row.rowVisible).length;
+    return `
+      <div
+        class="staff-access-subhead"
+        data-staff-access-section-heading="${section}"
+        ${visibleSectionCount > 0 ? "" : "hidden"}
+      >
+        <span>${label}</span>
+        <small>${visibleSectionCount} ${visibleSectionCount === 1 ? "person" : "people"}</small>
+      </div>
+      ${rows.map((row) => renderStaffAccessRow(row.staff, assignableRoles, canManageDirectory, row.openTimeEntry, section, row.rowVisible)).join("")}
+    `;
+  };
   return `
     <div class="club-panel">
       <div class="card-head">
         <div>
           <h3>Staff directory and access</h3>
-          <p class="club-copy">${canManageDirectory ? "Search staff, review account status, update positions, or remove gym access." : "Review your role and current clock status."}</p>
+          <p class="club-copy">${directoryCopy}</p>
         </div>
         <span data-staff-access-filter-count>${visibleStaffCount} of ${staffRows.length} staff</span>
       </div>
@@ -3108,52 +3194,8 @@ function renderStaffAccessManagement(assignableRoles: RoleRecord[]) {
         ${staffRows.length === 0
           ? `<div class="settings-placeholder"><strong>No staff loaded</strong><p>Create staff accounts before managing roles.</p></div>`
           : `
-            ${staffRows.map((staff) => {
-              const canAssign = canAssignStaffRole(staff);
-              const canRemove = canRemoveStaffAccess(staff);
-              const roleChoices = assignableRoles.some((role) => role.id === staff.roleId)
-                ? assignableRoles
-                : [{ id: staff.roleId, name: staff.roleName, permissions: [] }, ...assignableRoles];
-              const openTimeEntry = openStaffTimeEntry(staff.userId);
-              const rowVisible = staffMatchesAccessFilters(staff, selectedRoleFilter, state.staffAccessSearch);
-              return `
-                <article
-                  class="staff-role-row"
-                  data-staff-access-row
-                  data-staff-role-id="${escapeAttribute(staff.roleId)}"
-                  data-staff-filter-text="${escapeAttribute(staffAccessSearchText(staff))}"
-                  ${rowVisible ? "" : "hidden"}
-                >
-                  <div class="staff-role-copy">
-                    <div class="staff-role-title">
-                      <strong>${escapeHtml(staffFullName(staff))}</strong>
-                      <span class="staff-status-chip">${escapeHtml(formatRoleLabel(staff.status))}</span>
-                    </div>
-                    <p>
-                      <span>${escapeHtml(staff.email)}</span>
-                      <span>${escapeHtml(formatRoleLabel(staff.roleName))}</span>
-                    </p>
-                    ${openTimeEntry
-                      ? `<span class="staff-clock-chip active">Clocked in <span data-staff-clock-timer data-clocked-in-at="${escapeAttribute(openTimeEntry.clockedInAt)}">${escapeHtml(formatElapsedSince(openTimeEntry.clockedInAt))}</span></span>`
-                      : `<span class="staff-clock-chip">Not clocked in</span>`}
-                  </div>
-                  <div class="staff-role-actions">
-                    <select data-staff-role-select="${staff.userId}" ${canAssign ? "" : "disabled"}>
-                      ${roleChoices
-                        .map(
-                          (role) =>
-                            `<option value="${role.id}" ${role.id === staff.roleId ? "selected" : ""}>${escapeHtml(formatRoleLabel(role.name))}</option>`
-                        )
-                        .join("")}
-                    </select>
-                    <button type="button" class="ghost-button" data-staff-role-assign="${staff.userId}" ${canAssign ? "" : "disabled"}>Assign</button>
-                    ${canRemove
-                      ? `<button type="button" class="ghost-button danger" data-staff-access-remove="${staff.userId}">Remove</button>`
-                      : `<span class="staff-protection-chip">${escapeHtml(staffRemovalProtectionLabel(staff))}</span>`}
-                  </div>
-                </article>
-              `;
-            }).join("")}
+            ${renderAccessSection("clocked-in", "Clocked in now", clockedInRows)}
+            ${renderAccessSection("directory", clockedInRows.length > 0 ? "Not clocked in" : "Directory", directoryRows)}
             <div class="settings-placeholder" data-staff-access-empty ${visibleStaffCount > 0 ? "hidden" : ""}>
               <strong>No staff match this filter</strong>
               <p>Try another role or search term.</p>
@@ -3161,6 +3203,63 @@ function renderStaffAccessManagement(assignableRoles: RoleRecord[]) {
           `}
       </div>
     </div>
+  `;
+}
+
+function renderStaffAccessRow(
+  staff: StaffRecord,
+  assignableRoles: RoleRecord[],
+  canManageDirectory: boolean,
+  openTimeEntry: StaffTimeEntryRecord | undefined,
+  section: "clocked-in" | "directory",
+  rowVisible: boolean
+) {
+  const canAssign = canAssignStaffRole(staff);
+  const canRemove = canRemoveStaffAccess(staff);
+  const roleChoices = assignableRoles.some((role) => role.id === staff.roleId)
+    ? assignableRoles
+    : [{ id: staff.roleId, name: staff.roleName, permissions: [] }, ...assignableRoles];
+  return `
+    <article
+      class="staff-role-row"
+      data-staff-access-row
+      data-staff-access-section="${section}"
+      data-staff-role-id="${escapeAttribute(staff.roleId)}"
+      data-staff-filter-text="${escapeAttribute(staffAccessSearchText(staff))}"
+      ${rowVisible ? "" : "hidden"}
+    >
+      <div class="staff-role-copy">
+        <div class="staff-role-title">
+          <strong>${escapeHtml(staffFullName(staff))}</strong>
+          <span class="staff-status-chip">${escapeHtml(formatRoleLabel(staff.status))}</span>
+        </div>
+        <p>
+          <span>${escapeHtml(staff.email)}</span>
+          <span>${escapeHtml(formatRoleLabel(staff.roleName))}</span>
+        </p>
+        ${openTimeEntry
+          ? `<span class="staff-clock-chip active">Clocked in <span data-staff-clock-timer data-clocked-in-at="${escapeAttribute(openTimeEntry.clockedInAt)}">${escapeHtml(formatElapsedSince(openTimeEntry.clockedInAt))}</span></span>`
+          : `<span class="staff-clock-chip">Not clocked in</span>`}
+      </div>
+      <div class="staff-role-actions${canManageDirectory ? "" : " staff-role-actions-readonly"}">
+        ${canManageDirectory
+          ? `
+            <select data-staff-role-select="${escapeAttribute(staff.userId)}" ${canAssign ? "" : "disabled"}>
+              ${roleChoices
+                .map(
+                  (role) =>
+                    `<option value="${escapeAttribute(role.id)}" ${role.id === staff.roleId ? "selected" : ""}>${escapeHtml(formatRoleLabel(role.name))}</option>`
+                )
+                .join("")}
+            </select>
+            <button type="button" class="ghost-button" data-staff-role-assign="${escapeAttribute(staff.userId)}" ${canAssign ? "" : "disabled"}>Assign</button>
+            ${canRemove
+              ? `<button type="button" class="ghost-button danger" data-staff-access-remove="${escapeAttribute(staff.userId)}">Remove</button>`
+              : `<span class="staff-protection-chip">${escapeHtml(staffRemovalProtectionLabel(staff))}</span>`}
+          `
+          : `<span class="staff-protection-chip">Read-only view</span>`}
+      </div>
+    </article>
   `;
 }
 
@@ -3876,7 +3975,8 @@ function canAssignStaffRole(staff: StaffRecord) {
     hasPermission(Permission.StaffRoleAssign) &&
     staff.status === UserStatus.Active &&
     staff.roleName !== RoleName.Owner &&
-    staff.userId !== state.me?.user.id
+    staff.userId !== state.me?.user.id &&
+    canManageStaffInVisibleRoleTree(staff)
   );
 }
 
@@ -3885,8 +3985,39 @@ function canRemoveStaffAccess(staff: StaffRecord) {
     hasPermission(Permission.StaffRemove) &&
     staff.status === UserStatus.Active &&
     staff.roleName !== RoleName.Owner &&
-    staff.userId !== state.me?.user.id
+    staff.userId !== state.me?.user.id &&
+    canManageStaffInVisibleRoleTree(staff)
   );
+}
+
+function canManageStaffInVisibleRoleTree(staff: StaffRecord) {
+  const membership = currentMembership();
+  const actorRole = membership?.role;
+  if (!actorRole) {
+    return false;
+  }
+  if (actorRole.name === RoleName.Owner) {
+    return true;
+  }
+  return descendantRoleIds(actorRole.id).has(staff.roleId);
+}
+
+function descendantRoleIds(rootRoleId: string) {
+  const ids = new Set<string>();
+  const queue = state.roles.filter((role) => role.parentRoleId === rootRoleId).map((role) => role.id);
+  while (queue.length > 0) {
+    const roleId = queue.shift();
+    if (!roleId || ids.has(roleId)) {
+      continue;
+    }
+    ids.add(roleId);
+    for (const child of state.roles) {
+      if (child.parentRoleId === roleId) {
+        queue.push(child.id);
+      }
+    }
+  }
+  return ids;
 }
 
 function staffRemovalProtectionLabel(staff: StaffRecord) {
@@ -3898,6 +4029,9 @@ function staffRemovalProtectionLabel(staff: StaffRecord) {
   }
   if (staff.status !== UserStatus.Active) {
     return "Inactive";
+  }
+  if (!canManageStaffInVisibleRoleTree(staff)) {
+    return "Outside branch";
   }
   return "Protected";
 }
@@ -5284,6 +5418,54 @@ function renderCheckInHistoryView() {
 
 
 function renderPlatformDashboard() {
+  if (!state.session) {
+    return `
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Platform Dashboard</p>
+          <h2>Workspace Admin</h2>
+          <p class="club-copy">Sign in with a platform admin account to add, remove, or inspect gyms.</p>
+        </div>
+      </div>
+      <div class="two-up">
+        <form id="login-form" class="form-card">
+          <h3>Admin login</h3>
+          ${renderInput("email", "Email", "email")}
+          ${renderInput("password", "Password", "password")}
+          <button type="submit">Log in</button>
+        </form>
+      </div>
+    `;
+  }
+  if (state.platformAccessDenied) {
+    return `
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Platform Dashboard</p>
+          <h2>Workspace Admin</h2>
+        </div>
+        <button id="logout-button" class="ghost-button" type="button">Log out</button>
+      </div>
+      <section class="data-card">
+        <div class="empty-state">
+          <h3>Platform admin access required</h3>
+          <p>This account can only access its assigned gym. Open that gym's login page, or sign in here with a platform admin account.</p>
+        </div>
+      </section>
+    `;
+  }
+  if (!state.platformGymDirectoryLoaded) {
+    return `
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Platform Dashboard</p>
+          <h2>Workspace Admin</h2>
+        </div>
+        <button id="logout-button" class="ghost-button" type="button">Log out</button>
+      </div>
+      <div class="empty-state"><h3>Loading gyms</h3><p>Checking platform admin access.</p></div>
+    `;
+  }
   return `
     <div class="section-head">
       <div>
@@ -5301,10 +5483,13 @@ function renderPlatformDashboard() {
         </div>
         <div class="gym-cards" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; padding: 1rem;">
           ${state.platformGyms.map(gym => `
-            <a href="?gymSlug=${gym.slug}#/dashboard" class="form-card" style="text-decoration:none; color:inherit;">
-              <h4>${gym.name}</h4>
-              <small>${gym.slug}</small>
-            </a>
+            <article class="form-card platform-gym-card">
+              <a href="?gymSlug=${escapeAttribute(gym.slug)}#/dashboard" style="text-decoration:none; color:inherit;">
+                <h4>${escapeHtml(gym.name)}</h4>
+                <small>${escapeHtml(gym.slug)}</small>
+              </a>
+              <button type="button" class="ghost-button danger" data-platform-gym-archive="${escapeAttribute(gym.id)}">Remove</button>
+            </article>
           `).join('')}
         </div>
       </section>
@@ -6352,7 +6537,7 @@ function bindEvents() {
       return;
     }
     try {
-      const response = (await client.register(data)) as AuthResponse;
+      const response = (await client.createPlatformGymOwner(data)) as AuthResponse;
       setBanner("success", "Gym and owner created successfully.");
       if (response.gym?.slug) {
         state.publicSlug = response.gym.slug;
@@ -6367,6 +6552,26 @@ function bindEvents() {
       setBanner("error", describeError(error));
       render();
     }
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-platform-gym-archive]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const gymId = button.dataset.platformGymArchive;
+      const gym = state.platformGyms.find((candidate) => candidate.id === gymId);
+      if (!gymId || !gym) return;
+      if (!window.confirm(`Remove ${gym.name} from the platform gym list? This archives the gym but keeps its records.`)) {
+        return;
+      }
+      try {
+        await client.archivePlatformGym(gymId);
+        setBanner("success", `${gym.name} was removed from the active gym list.`);
+        await refreshPlatformGymDirectory();
+        render();
+      } catch (error) {
+        setBanner("error", describeError(error));
+        render();
+      }
+    });
   });
 
   bindForm("register-form", async (form) => {
@@ -6392,9 +6597,11 @@ function bindEvents() {
 
   bindForm("login-form", async (form) => {
     const data = formData(form);
+    const gymSlug = currentGymSlugFromUrl();
     const response = (await client.login({
       email: data.email,
-      password: data.password
+      password: data.password,
+      ...(gymSlug ? { gymSlug } : {})
     })) as AuthResponse;
     if (response.twoFactorRequired) {
       throw new Error("This account requires two-factor login, which is not wired into the browser app yet.");
@@ -6408,6 +6615,10 @@ function bindEvents() {
     });
     setBanner("success", "Logged in successfully.");
     await refreshDashboard({ silent: true });
+    if (!gymSlug) {
+      await refreshPlatformGymDirectory();
+      render();
+    }
   });
 
   bindForm("create-gym-form", async (form) => {
@@ -6607,16 +6818,29 @@ function applyStaffAccessFilters() {
 
   let visibleCount = 0;
   let totalCount = 0;
+  const visibleSectionCounts = new Map<string, number>();
   app.querySelectorAll<HTMLElement>("[data-staff-access-row]").forEach((row) => {
     totalCount += 1;
     const rowText = row.dataset.staffFilterText ?? "";
     const rowRoleId = row.dataset.staffRoleId ?? "";
+    const rowSection = row.dataset.staffAccessSection ?? "";
     const matchesSearch = !query || rowText.includes(query);
     const matchesRole = !roleFilter || rowRoleId === roleFilter;
     const visible = matchesSearch && matchesRole;
     row.hidden = !visible;
     if (visible) {
       visibleCount += 1;
+      visibleSectionCounts.set(rowSection, (visibleSectionCounts.get(rowSection) ?? 0) + 1);
+    }
+  });
+
+  app.querySelectorAll<HTMLElement>("[data-staff-access-section-heading]").forEach((heading) => {
+    const section = heading.dataset.staffAccessSectionHeading ?? "";
+    const sectionCount = visibleSectionCounts.get(section) ?? 0;
+    heading.hidden = sectionCount === 0;
+    const counter = heading.querySelector("small");
+    if (counter) {
+      counter.textContent = `${sectionCount} ${sectionCount === 1 ? "person" : "people"}`;
     }
   });
 
@@ -6824,6 +7048,9 @@ function clearDashboardState() {
   tokenStore.clearTokens();
   state.me = null;
   state.gym = null;
+  state.platformGyms = [];
+  state.platformGymDirectoryLoaded = false;
+  state.platformAccessDenied = false;
   state.members = [];
   state.staff = [];
   state.staffShifts = [];

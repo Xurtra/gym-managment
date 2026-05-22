@@ -45,6 +45,34 @@ describe("AuthService", () => {
     );
   });
 
+  it("scopes gym login to the selected gym slug", async () => {
+    const services = createServices(testConfig, fixedClock);
+    const first = await services.authService.register(ownerInput);
+    const second = await services.authService.register({
+      ...ownerInput,
+      email: "second-owner@example.com",
+      gymName: "Second Strength Club"
+    });
+    const firstSlug = first.gym?.slug ?? "";
+    const secondSlug = second.gym?.slug ?? "";
+
+    await expect(
+      services.authService.login({
+        email: ownerInput.email,
+        password: ownerInput.password,
+        gymSlug: secondSlug
+      })
+    ).rejects.toThrow(/this gym/i);
+
+    const login = await services.authService.login({
+      email: ownerInput.email,
+      password: ownerInput.password,
+      gymSlug: firstSlug
+    });
+
+    expect(login).toMatchObject({ user: { email: ownerInput.email } });
+  });
+
   it("resets a password and invalidates existing refresh tokens", async () => {
     const services = createServices(testConfig, fixedClock);
     await services.authService.register(ownerInput);

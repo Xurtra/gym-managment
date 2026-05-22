@@ -20,6 +20,11 @@ export const registerSchema = z.object({
 export const loginSchema = z.object({
     email: emailSchema,
     password: z.string().min(1),
+    gymSlug: trimmed
+        .min(2)
+        .max(80)
+        .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+        .optional(),
     twoFactorCode: trimmed.regex(/^\d{6}$/).optional(),
     recoveryCode: trimmed.min(8).max(40).optional()
 });

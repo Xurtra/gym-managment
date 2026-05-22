@@ -172,6 +172,7 @@ export const Permission = {
   LocationCreate: "location:create",
   LocationUpdate: "location:update",
   LocationArchive: "location:archive",
+  StaffDirectoryView: "staff:directory_view",
   StaffRead: "staff:read",
   StaffInvite: "staff:invite",
   StaffRoleAssign: "staff:role_assign",
@@ -230,6 +231,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
     Permission.LocationCreate,
     Permission.LocationUpdate,
     Permission.LocationArchive,
+    Permission.StaffDirectoryView,
     Permission.StaffRead,
     Permission.StaffInvite,
     Permission.StaffRoleAssign,
@@ -250,6 +252,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
   [RoleName.Trainer]: [
     Permission.GymRead,
     Permission.LocationRead,
+    Permission.StaffDirectoryView,
     Permission.MemberRead,
     Permission.ClassRead,
     Permission.ClassWrite,
@@ -259,6 +262,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
   [RoleName.FrontDesk]: [
     Permission.GymRead,
     Permission.LocationRead,
+    Permission.StaffDirectoryView,
     Permission.MemberRead,
     Permission.MemberWrite,
     Permission.ClassRead,
@@ -270,6 +274,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
   ],
   [RoleName.Sales]: [
     Permission.GymRead,
+    Permission.StaffDirectoryView,
     Permission.MemberRead,
     Permission.MemberWrite,
     Permission.PlanRead,
@@ -278,6 +283,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
   [RoleName.Accountant]: [
     Permission.GymRead,
     Permission.LocationRead,
+    Permission.StaffDirectoryView,
     Permission.MemberRead,
     Permission.PlanRead,
     Permission.PaymentRead,

@@ -297,7 +297,30 @@ function createRoutes() {
   });
 
   add("GET", "/gyms", async (context) => {
+    const auth = requireAuth(context);
+    await requirePlatformAdmin(context, auth);
     return { gyms: await context.services.tenancyService.listSettingsGyms() };
+  });
+
+  add("POST", "/platform/gyms", async (context) => {
+    const auth = requireAuth(context);
+    await requirePlatformAdmin(context, auth);
+    const input = parseWith(registerSchema, context.body);
+    if (!input.gymName) {
+      throw badRequest("Gym name is required.", "gym_name_required");
+    }
+    const result = await context.services.authService.register(input);
+    return {
+      user: result.user,
+      gym: result.gym,
+      emailVerificationToken: result.emailVerificationToken
+    };
+  });
+
+  add("DELETE", "/platform/gyms/:gymId", async (context) => {
+    const auth = requireAuth(context);
+    await requirePlatformAdmin(context, auth);
+    return context.services.tenancyService.archiveGym(requiredParam(context, "gymId"));
   });
 
   add("POST", "/gyms", (context) => {
@@ -466,8 +489,16 @@ function createRoutes() {
     const auth = requireAuth(context);
     const gymId = requiredParam(context, "gymId");
     await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
-    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.StaffRead);
-    return { staff: await context.services.roleService.listStaffAccess(gymId, auth.sub) };
+    const permissions = await requireAnyPermission(context, gymId, auth.sub, [
+      Permission.StaffRead,
+      Permission.StaffDirectoryView
+    ]);
+    return {
+      staff: await context.services.roleService.listStaffAccess(
+        gymId,
+        permissions.includes(Permission.StaffDirectoryView) ? undefined : auth.sub
+      )
+    };
   });
 
   add("GET", "/gyms/:gymId/staff/audit", async (context) => {
@@ -762,8 +793,16 @@ function createRoutes() {
     const auth = requireAuth(context);
     const gymId = requiredParam(context, "gymId");
     await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
-    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.StaffRead);
+    const permissions = await requireAnyPermission(context, gymId, auth.sub, [
+      Permission.StaffRead,
+      Permission.StaffDirectoryView
+    ]);
     const entries = await context.services.staffTimeClockService.listEntries(gymId);
+    if (!permissions.includes(Permission.StaffRead)) {
+      return {
+        entries: entries.filter((entry) => entry.userId === auth.sub || !entry.clockedOutAt)
+      };
+    }
     const visibleStaffUserIds = await context.services.roleService.visibleStaffUserIds(
       gymId,
       auth.sub
@@ -1295,6 +1334,33 @@ function requiredParam(context: RequestContext, key: string) {
 
 function parseWith<T extends ZodSchema>(schema: T, body: unknown): z.infer<T> {
   return schema.parse(body);
+}
+
+async function requireAnyPermission(
+  context: RequestContext,
+  gymId: string,
+  userId: string,
+  permissions: Permission[]
+) {
+  const granted = await context.services.roleService.permissionsForUser(gymId, userId);
+  if (!permissions.some((permission) => granted.includes(permission))) {
+    throw forbidden();
+  }
+  return granted;
+}
+
+async function requirePlatformAdmin(context: RequestContext, auth: AccessTokenPayload) {
+  if (context.config.platformAdminEmails.includes(auth.email.toLowerCase())) {
+    return;
+  }
+  if (!auth.gymId) {
+    throw forbidden("Platform admin access is required.");
+  }
+  await context.services.roleService.requirePermission(
+    auth.gymId,
+    auth.sub,
+    Permission.PlatformAdmin
+  );
 }
 
 async function readBody(req: IncomingMessage) {

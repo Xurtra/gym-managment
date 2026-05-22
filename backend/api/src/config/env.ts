@@ -12,6 +12,7 @@ export interface ApiConfig {
   refreshTokenTtlDays: number;
   passwordResetTokenTtlMinutes: number;
   emailVerificationTokenTtlHours: number;
+  platformAdminEmails: string[];
   databaseUrl?: string;
   redisUrl?: string;
 }
@@ -44,7 +45,8 @@ export function loadConfig(): ApiConfig {
     accessTokenTtlSeconds: numberFromEnv("ACCESS_TOKEN_TTL_SECONDS", 15 * 60),
     refreshTokenTtlDays: numberFromEnv("REFRESH_TOKEN_TTL_DAYS", 30),
     passwordResetTokenTtlMinutes: numberFromEnv("PASSWORD_RESET_TOKEN_TTL_MINUTES", 30),
-    emailVerificationTokenTtlHours: numberFromEnv("EMAIL_VERIFICATION_TOKEN_TTL_HOURS", 24)
+    emailVerificationTokenTtlHours: numberFromEnv("EMAIL_VERIFICATION_TOKEN_TTL_HOURS", 24),
+    platformAdminEmails: emailsFromEnv(process.env.PLATFORM_ADMIN_EMAILS)
   };
   if (process.env.DATABASE_URL) {
     config.databaseUrl = process.env.DATABASE_URL;
@@ -53,6 +55,13 @@ export function loadConfig(): ApiConfig {
     config.redisUrl = process.env.REDIS_URL;
   }
   return config;
+}
+
+function emailsFromEnv(value: string | undefined) {
+  return (value ?? "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
 }
 
 function parsePersistenceDriver(value: string | undefined): ApiConfig["persistenceDriver"] {

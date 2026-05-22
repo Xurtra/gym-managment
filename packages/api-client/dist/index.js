@@ -55,6 +55,12 @@ export class GymApiClient {
     createGym(input) {
         return this.request("POST", "/gyms", input);
     }
+    createPlatformGymOwner(input) {
+        return this.request("POST", "/platform/gyms", input);
+    }
+    archivePlatformGym(gymId) {
+        return this.request("DELETE", `/platform/gyms/${gymId}`);
+    }
     getGym(gymId) {
         return this.request("GET", `/gyms/${gymId}`);
     }

@@ -168,6 +168,7 @@ const permissionLabels: Record<PermissionValue, string> = {
   [Permission.LocationCreate]: "Create locations",
   [Permission.LocationUpdate]: "Update locations",
   [Permission.LocationArchive]: "Archive locations",
+  [Permission.StaffDirectoryView]: "View employee directory",
   [Permission.StaffRead]: "View staff",
   [Permission.StaffInvite]: "Invite staff",
   [Permission.StaffRoleAssign]: "Assign roles",
@@ -217,6 +218,7 @@ const permissionGroups: Array<{
     key: "staff",
     label: "Staff",
     permissions: [
+      Permission.StaffDirectoryView,
       Permission.StaffRead,
       Permission.StaffInvite,
       Permission.StaffRoleAssign,
