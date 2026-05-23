@@ -1,4 +1,4 @@
-import { MemberStatus, PlanStatus } from "@gym-platform/constants";
+import { ConsumerRecordStatus, MemberStatus, PlanStatus } from "@gym-platform/constants";
 import type { MemberMembershipAssignInput } from "@gym-platform/validation";
 import { randomUUID } from "node:crypto";
 import { badRequest, notFound } from "../../http/errors.js";
@@ -18,11 +18,12 @@ export class MemberMembershipService {
   }
 
   async assignPlan(gymId: string, memberId: string, input: MemberMembershipAssignInput) {
-    await this.getScopedMember(gymId, memberId);
+    const member = await this.getScopedMember(gymId, memberId);
     const plan = await this.repositories.membershipPlans.getMembershipPlan(input.planId);
     if (!plan || plan.gymId !== gymId || plan.status === PlanStatus.Archived) {
       throw notFound("Membership plan was not found.");
     }
+    assertEligibleForRecurringMembership(member, plan.billingInterval);
     const now = this.clock.now();
     const startsAt = input.startsAt ? new Date(input.startsAt) : now;
     const membership: MemberMembership = {
@@ -47,9 +48,31 @@ export class MemberMembershipService {
 
   private async getScopedMember(gymId: string, memberId: string) {
     const member = await this.repositories.members.getMember(memberId);
-    if (!member || member.gymId !== gymId || member.status === MemberStatus.Archived) {
+    if (
+      !member ||
+      member.gymId !== gymId ||
+      member.status === MemberStatus.Archived ||
+      member.recordStatus === ConsumerRecordStatus.Archived
+    ) {
       throw notFound("Member was not found.");
     }
     return member;
   }
+}
+
+function assertEligibleForRecurringMembership(
+  member: { email?: string; phone?: string },
+  billingInterval: string
+) {
+  if (billingInterval !== "monthly" && billingInterval !== "yearly") {
+    return;
+  }
+  const hasContact = Boolean(member.email?.trim() || member.phone?.trim());
+  if (hasContact) {
+    return;
+  }
+  throw badRequest(
+    "Members need at least an email or phone number before assigning a recurring membership.",
+    "member_profile_incomplete"
+  );
 }

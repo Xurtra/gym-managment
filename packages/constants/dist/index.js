@@ -30,6 +30,22 @@ export const MembershipStatus = {
     Canceled: "canceled",
     Expired: "expired"
 };
+export const ConsumerRecordStatus = {
+    Active: "active",
+    Inactive: "inactive",
+    Archived: "archived"
+};
+export const LeadStage = {
+    None: "none",
+    Open: "open",
+    Converted: "converted",
+    Closed: "closed"
+};
+export const ConsumerSegment = {
+    Lead: "lead",
+    Customer: "customer",
+    Member: "member"
+};
 export const MemberStatus = {
     Lead: "lead",
     Trial: "trial",
@@ -63,6 +79,34 @@ export const BookingStatus = {
 export const BookingSource = {
     Member: "member",
     Staff: "staff"
+};
+export const ReservableResourceStatus = {
+    Active: "active",
+    Archived: "archived"
+};
+export const ResourceAllocationSource = {
+    ClassSession: "class_session",
+    FacilityReservation: "facility_reservation"
+};
+export const FacilityReservationStatus = {
+    Pending: "pending",
+    Confirmed: "confirmed",
+    Cancelled: "cancelled"
+};
+export const ReservationPaymentRequirement = {
+    Free: "free",
+    PayUpfront: "pay_upfront",
+    PayLater: "pay_later"
+};
+export const ReservationPaymentStatus = {
+    NotRequired: "not_required",
+    Unpaid: "unpaid",
+    Paid: "paid",
+    Refunded: "refunded"
+};
+export const ReservationConfirmationMode = {
+    Automatic: "automatic",
+    StaffApproval: "staff_approval"
 };
 export const NotificationEventStatus = {
     Pending: "pending",

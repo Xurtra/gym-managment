@@ -10,6 +10,7 @@ import type {
   CheckIn,
   ClassSession,
   ClassType,
+  FacilityReservation,
   Location,
   Member,
   MemberMembership,
@@ -17,7 +18,12 @@ import type {
   NotificationEvent,
   OperatingHours,
   PurposeToken,
+  ReservableResource,
   RefreshToken,
+  ResourceAllocation,
+  ResourceCancellationPolicy,
+  ResourcePricingConfig,
+  ResourceSlotRules,
   Role,
   SchedulerAvailability,
   SchedulerCoverageRule,
@@ -71,6 +77,7 @@ interface GymRow extends QueryResultRow {
   timezone: string;
   locale: string;
   logo_url: string | null;
+  stripe_account_id: string | null;
   brand_colors: unknown;
   business_info: unknown;
   operating_hours: unknown;
@@ -250,6 +257,8 @@ interface MemberRow extends QueryResultRow {
   barcode: string | null;
   profile_image_url: string | null;
   status: Member["status"];
+  record_status: Member["recordStatus"];
+  lead_stage: Member["leadStage"];
   emergency_contact: unknown;
   notes: string | null;
   tag_names: unknown;
@@ -340,6 +349,70 @@ interface ClassBookingRow extends QueryResultRow {
   staff_override: boolean;
   override_reason: string | null;
   promoted_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface ReservableResourceRow extends QueryResultRow {
+  id: string;
+  gym_id: string;
+  location_id: string;
+  parent_resource_id: string | null;
+  name: string;
+  resource_type: string;
+  status: ReservableResource["status"];
+  is_bookable: boolean;
+  is_exclusive: boolean;
+  capacity: number;
+  amenities: unknown;
+  rentable_hours: unknown;
+  slot_rules: unknown;
+  pricing: unknown;
+  payment_requirement: ReservableResource["paymentRequirement"];
+  confirmation_mode: ReservableResource["confirmationMode"];
+  cancellation_policy: unknown;
+  archived_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface ResourceAllocationRow extends QueryResultRow {
+  id: string;
+  gym_id: string;
+  resource_id: string;
+  source: ResourceAllocation["source"];
+  class_session_id: string | null;
+  facility_reservation_id: string | null;
+  starts_at: Date;
+  ends_at: Date;
+  buffer_before_minutes: number;
+  buffer_after_minutes: number;
+  staff_override: boolean;
+  override_reason: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface FacilityReservationRow extends QueryResultRow {
+  id: string;
+  gym_id: string;
+  resource_id: string;
+  allocation_id: string | null;
+  member_id: string;
+  created_by_user_id: string;
+  status: FacilityReservation["status"];
+  starts_at: Date;
+  ends_at: Date;
+  amount_cents: number;
+  payment_requirement: FacilityReservation["paymentRequirement"];
+  payment_status: FacilityReservation["paymentStatus"];
+  payment_reference: string | null;
+  cancellation_fee_cents: number;
+  refund_amount_cents: number;
+  cancelled_at: Date | null;
+  cancelled_by_user_id: string | null;
+  cancellation_reason: string | null;
+  note: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -583,6 +656,27 @@ export class PostgresRepositories implements Repositories {
     updateClassBooking: (booking: ClassBooking) => this.updateClassBooking(booking)
   };
 
+  readonly reservationResources = {
+    createResource: (resource: ReservableResource) => this.createResource(resource),
+    getResource: (resourceId: string) => this.getResource(resourceId),
+    listResourcesForGym: (gymId: string) => this.listResourcesForGym(gymId),
+    updateResource: (resource: ReservableResource) => this.updateResource(resource),
+    createAllocation: (allocation: ResourceAllocation) => this.createAllocation(allocation),
+    getAllocation: (allocationId: string) => this.getAllocation(allocationId),
+    listAllocationsForGym: (gymId: string) => this.listAllocationsForGym(gymId),
+    listAllocationsForResource: (resourceId: string) =>
+      this.listAllocationsForResource(resourceId),
+    updateAllocation: (allocation: ResourceAllocation) => this.updateAllocation(allocation),
+    createFacilityReservation: (reservation: FacilityReservation) =>
+      this.createFacilityReservation(reservation),
+    getFacilityReservation: (reservationId: string) =>
+      this.getFacilityReservation(reservationId),
+    listFacilityReservationsForGym: (gymId: string) =>
+      this.listFacilityReservationsForGym(gymId),
+    updateFacilityReservation: (reservation: FacilityReservation) =>
+      this.updateFacilityReservation(reservation)
+  };
+
   readonly notifications = {
     createNotificationEvent: (event: NotificationEvent) => this.createNotificationEvent(event),
     listNotificationEventsForGym: (gymId: string) => this.listNotificationEventsForGym(gymId)
@@ -716,9 +810,9 @@ export class PostgresRepositories implements Repositories {
   async createGym(gym: Gym) {
     const result = await this.executor.query<GymRow>(
       `INSERT INTO gyms (
-        id, name, slug, owner_user_id, status, timezone, locale, logo_url, brand_colors,
+        id, name, slug, owner_user_id, status, timezone, locale, logo_url, stripe_account_id, brand_colors,
         business_info, operating_hours, feature_flags, onboarding_completed_steps, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb, $14, $15)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb, $15, $16)
       RETURNING *`,
       [
         gym.id,
@@ -729,6 +823,7 @@ export class PostgresRepositories implements Repositories {
         gym.timezone,
         gym.locale,
         gym.logoUrl ?? null,
+        gym.stripeAccountId ?? null,
         JSON.stringify(gym.brandColors ?? {}),
         JSON.stringify(gym.businessInfo ?? {}),
         JSON.stringify(gym.operatingHours),
@@ -763,13 +858,14 @@ export class PostgresRepositories implements Repositories {
            timezone = $3,
            locale = $4,
            logo_url = $5,
-           brand_colors = $6::jsonb,
-           business_info = $7::jsonb,
-           operating_hours = $8::jsonb,
-           feature_flags = $9::jsonb,
-           onboarding_completed_steps = $10::jsonb,
-           status = $11,
-           updated_at = $12
+           stripe_account_id = $6,
+           brand_colors = $7::jsonb,
+           business_info = $8::jsonb,
+           operating_hours = $9::jsonb,
+           feature_flags = $10::jsonb,
+           onboarding_completed_steps = $11::jsonb,
+           status = $12,
+           updated_at = $13
        WHERE id = $1
        RETURNING *`,
       [
@@ -778,6 +874,7 @@ export class PostgresRepositories implements Repositories {
         gym.timezone,
         gym.locale,
         gym.logoUrl ?? null,
+        gym.stripeAccountId ?? null,
         JSON.stringify(gym.brandColors ?? {}),
         JSON.stringify(gym.businessInfo ?? {}),
         JSON.stringify(gym.operatingHours),
@@ -1519,8 +1616,8 @@ export class PostgresRepositories implements Repositories {
     const result = await this.executor.query<MemberRow>(
       `INSERT INTO members (
         id, gym_id, first_name, last_name, email, phone, barcode, profile_image_url, status,
-        emergency_contact, notes, tag_names, archived_at, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12::jsonb, $13, $14, $15)
+        record_status, lead_stage, emergency_contact, notes, tag_names, archived_at, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14::jsonb, $15, $16, $17)
       RETURNING *`,
       [
         member.id,
@@ -1532,6 +1629,8 @@ export class PostgresRepositories implements Repositories {
         member.barcode ?? null,
         member.profileImageUrl ?? null,
         member.status,
+        member.recordStatus,
+        member.leadStage,
         member.emergencyContact ? JSON.stringify(member.emergencyContact) : null,
         member.notes ?? null,
         JSON.stringify(member.tagNames),
@@ -1568,11 +1667,13 @@ export class PostgresRepositories implements Repositories {
           barcode = $6,
           profile_image_url = $7,
           status = $8,
-          emergency_contact = $9::jsonb,
-          notes = $10,
-          tag_names = $11::jsonb,
-          archived_at = $12,
-          updated_at = $13
+          record_status = $9,
+          lead_stage = $10,
+          emergency_contact = $11::jsonb,
+          notes = $12,
+          tag_names = $13::jsonb,
+          archived_at = $14,
+          updated_at = $15
       WHERE id = $1
       RETURNING *`,
       [
@@ -1584,6 +1685,8 @@ export class PostgresRepositories implements Repositories {
         member.barcode ?? null,
         member.profileImageUrl ?? null,
         member.status,
+        member.recordStatus,
+        member.leadStage,
         member.emergencyContact ? JSON.stringify(member.emergencyContact) : null,
         member.notes ?? null,
         JSON.stringify(member.tagNames),
@@ -1946,6 +2049,263 @@ export class PostgresRepositories implements Repositories {
     return mapClassBooking(one(result));
   }
 
+  async createResource(resource: ReservableResource) {
+    const result = await this.executor.query<ReservableResourceRow>(
+      `INSERT INTO reservable_resources (
+        id, gym_id, location_id, parent_resource_id, name, resource_type, status,
+        is_bookable, is_exclusive, capacity, amenities, rentable_hours, slot_rules,
+        pricing, payment_requirement, confirmation_mode, cancellation_policy,
+        archived_at, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb, $15, $16, $17::jsonb, $18, $19, $20)
+      RETURNING *`,
+      [
+        resource.id,
+        resource.gymId,
+        resource.locationId,
+        resource.parentResourceId ?? null,
+        resource.name,
+        resource.resourceType,
+        resource.status,
+        resource.isBookable,
+        resource.isExclusive,
+        resource.capacity,
+        JSON.stringify(resource.amenities),
+        resource.rentableHours ? JSON.stringify(resource.rentableHours) : null,
+        JSON.stringify(resource.slotRules),
+        JSON.stringify(resource.pricing),
+        resource.paymentRequirement,
+        resource.confirmationMode,
+        JSON.stringify(resource.cancellationPolicy),
+        resource.archivedAt ?? null,
+        resource.createdAt,
+        resource.updatedAt
+      ]
+    );
+    return mapReservableResource(one(result));
+  }
+
+  async getResource(resourceId: string) {
+    const result = await this.executor.query<ReservableResourceRow>(
+      "SELECT * FROM reservable_resources WHERE id = $1",
+      [resourceId]
+    );
+    return result.rows[0] ? mapReservableResource(result.rows[0]) : undefined;
+  }
+
+  async listResourcesForGym(gymId: string) {
+    const result = await this.executor.query<ReservableResourceRow>(
+      "SELECT * FROM reservable_resources WHERE gym_id = $1 ORDER BY name",
+      [gymId]
+    );
+    return result.rows.map(mapReservableResource);
+  }
+
+  async updateResource(resource: ReservableResource) {
+    const result = await this.executor.query<ReservableResourceRow>(
+      `UPDATE reservable_resources
+      SET name = $2,
+          resource_type = $3,
+          status = $4,
+          is_bookable = $5,
+          is_exclusive = $6,
+          capacity = $7,
+          amenities = $8::jsonb,
+          rentable_hours = $9::jsonb,
+          slot_rules = $10::jsonb,
+          pricing = $11::jsonb,
+          payment_requirement = $12,
+          confirmation_mode = $13,
+          cancellation_policy = $14::jsonb,
+          archived_at = $15,
+          updated_at = $16
+      WHERE id = $1
+      RETURNING *`,
+      [
+        resource.id,
+        resource.name,
+        resource.resourceType,
+        resource.status,
+        resource.isBookable,
+        resource.isExclusive,
+        resource.capacity,
+        JSON.stringify(resource.amenities),
+        resource.rentableHours ? JSON.stringify(resource.rentableHours) : null,
+        JSON.stringify(resource.slotRules),
+        JSON.stringify(resource.pricing),
+        resource.paymentRequirement,
+        resource.confirmationMode,
+        JSON.stringify(resource.cancellationPolicy),
+        resource.archivedAt ?? null,
+        resource.updatedAt
+      ]
+    );
+    return mapReservableResource(one(result));
+  }
+
+  async createAllocation(allocation: ResourceAllocation) {
+    const result = await this.executor.query<ResourceAllocationRow>(
+      `INSERT INTO resource_allocations (
+        id, gym_id, resource_id, source, class_session_id, facility_reservation_id,
+        starts_at, ends_at, buffer_before_minutes, buffer_after_minutes,
+        staff_override, override_reason, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      RETURNING *`,
+      [
+        allocation.id,
+        allocation.gymId,
+        allocation.resourceId,
+        allocation.source,
+        allocation.classSessionId ?? null,
+        allocation.facilityReservationId ?? null,
+        allocation.startsAt,
+        allocation.endsAt,
+        allocation.bufferBeforeMinutes,
+        allocation.bufferAfterMinutes,
+        allocation.staffOverride,
+        allocation.overrideReason ?? null,
+        allocation.createdAt,
+        allocation.updatedAt
+      ]
+    );
+    return mapResourceAllocation(one(result));
+  }
+
+  async getAllocation(allocationId: string) {
+    const result = await this.executor.query<ResourceAllocationRow>(
+      "SELECT * FROM resource_allocations WHERE id = $1",
+      [allocationId]
+    );
+    return result.rows[0] ? mapResourceAllocation(result.rows[0]) : undefined;
+  }
+
+  async listAllocationsForGym(gymId: string) {
+    const result = await this.executor.query<ResourceAllocationRow>(
+      "SELECT * FROM resource_allocations WHERE gym_id = $1 ORDER BY starts_at, id",
+      [gymId]
+    );
+    return result.rows.map(mapResourceAllocation);
+  }
+
+  async listAllocationsForResource(resourceId: string) {
+    const result = await this.executor.query<ResourceAllocationRow>(
+      "SELECT * FROM resource_allocations WHERE resource_id = $1 ORDER BY starts_at, id",
+      [resourceId]
+    );
+    return result.rows.map(mapResourceAllocation);
+  }
+
+  async updateAllocation(allocation: ResourceAllocation) {
+    const result = await this.executor.query<ResourceAllocationRow>(
+      `UPDATE resource_allocations
+      SET starts_at = $2,
+          ends_at = $3,
+          buffer_before_minutes = $4,
+          buffer_after_minutes = $5,
+          staff_override = $6,
+          override_reason = $7,
+          updated_at = $8
+      WHERE id = $1
+      RETURNING *`,
+      [
+        allocation.id,
+        allocation.startsAt,
+        allocation.endsAt,
+        allocation.bufferBeforeMinutes,
+        allocation.bufferAfterMinutes,
+        allocation.staffOverride,
+        allocation.overrideReason ?? null,
+        allocation.updatedAt
+      ]
+    );
+    return mapResourceAllocation(one(result));
+  }
+
+  async createFacilityReservation(reservation: FacilityReservation) {
+    const result = await this.executor.query<FacilityReservationRow>(
+      `INSERT INTO facility_reservations (
+        id, gym_id, resource_id, allocation_id, member_id, created_by_user_id, status,
+        starts_at, ends_at, amount_cents, payment_requirement, payment_status,
+        payment_reference, cancellation_fee_cents, refund_amount_cents, cancelled_at,
+        cancelled_by_user_id, cancellation_reason, note, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+      RETURNING *`,
+      [
+        reservation.id,
+        reservation.gymId,
+        reservation.resourceId,
+        reservation.allocationId ?? null,
+        reservation.memberId,
+        reservation.createdByUserId,
+        reservation.status,
+        reservation.startsAt,
+        reservation.endsAt,
+        reservation.amountCents,
+        reservation.paymentRequirement,
+        reservation.paymentStatus,
+        reservation.paymentReference ?? null,
+        reservation.cancellationFeeCents,
+        reservation.refundAmountCents,
+        reservation.cancelledAt ?? null,
+        reservation.cancelledByUserId ?? null,
+        reservation.cancellationReason ?? null,
+        reservation.note ?? null,
+        reservation.createdAt,
+        reservation.updatedAt
+      ]
+    );
+    return mapFacilityReservation(one(result));
+  }
+
+  async getFacilityReservation(reservationId: string) {
+    const result = await this.executor.query<FacilityReservationRow>(
+      "SELECT * FROM facility_reservations WHERE id = $1",
+      [reservationId]
+    );
+    return result.rows[0] ? mapFacilityReservation(result.rows[0]) : undefined;
+  }
+
+  async listFacilityReservationsForGym(gymId: string) {
+    const result = await this.executor.query<FacilityReservationRow>(
+      "SELECT * FROM facility_reservations WHERE gym_id = $1 ORDER BY starts_at, id",
+      [gymId]
+    );
+    return result.rows.map(mapFacilityReservation);
+  }
+
+  async updateFacilityReservation(reservation: FacilityReservation) {
+    const result = await this.executor.query<FacilityReservationRow>(
+      `UPDATE facility_reservations
+      SET allocation_id = $2,
+          status = $3,
+          payment_status = $4,
+          payment_reference = $5,
+          cancellation_fee_cents = $6,
+          refund_amount_cents = $7,
+          cancelled_at = $8,
+          cancelled_by_user_id = $9,
+          cancellation_reason = $10,
+          note = $11,
+          updated_at = $12
+      WHERE id = $1
+      RETURNING *`,
+      [
+        reservation.id,
+        reservation.allocationId ?? null,
+        reservation.status,
+        reservation.paymentStatus,
+        reservation.paymentReference ?? null,
+        reservation.cancellationFeeCents,
+        reservation.refundAmountCents,
+        reservation.cancelledAt ?? null,
+        reservation.cancelledByUserId ?? null,
+        reservation.cancellationReason ?? null,
+        reservation.note ?? null,
+        reservation.updatedAt
+      ]
+    );
+    return mapFacilityReservation(one(result));
+  }
+
   async createNotificationEvent(event: NotificationEvent) {
     const result = await this.executor.query<NotificationEventRow>(
       `INSERT INTO notification_events (
@@ -2302,6 +2662,9 @@ function mapGym(row: GymRow): Gym {
   if (row.logo_url) {
     gym.logoUrl = row.logo_url;
   }
+  if (row.stripe_account_id) {
+    gym.stripeAccountId = row.stripe_account_id;
+  }
   if (isRecord(row.brand_colors) && typeof row.brand_colors.primary === "string") {
     gym.brandColors = row.brand_colors as unknown as NonNullable<Gym["brandColors"]>;
   }
@@ -2566,6 +2929,8 @@ function mapMember(row: MemberRow): Member {
     firstName: row.first_name,
     lastName: row.last_name,
     status: row.status,
+    recordStatus: row.record_status,
+    leadStage: row.lead_stage,
     tagNames: stringArray(row.tag_names),
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -2727,6 +3092,103 @@ function mapClassBooking(row: ClassBookingRow): ClassBooking {
     booking.promotedAt = row.promoted_at;
   }
   return booking;
+}
+
+function mapReservableResource(row: ReservableResourceRow): ReservableResource {
+  const resource: ReservableResource = {
+    id: row.id,
+    gymId: row.gym_id,
+    locationId: row.location_id,
+    name: row.name,
+    resourceType: row.resource_type,
+    status: row.status,
+    isBookable: row.is_bookable,
+    isExclusive: row.is_exclusive,
+    capacity: row.capacity,
+    amenities: stringArray(row.amenities),
+    slotRules: resourceSlotRules(row.slot_rules),
+    pricing: resourcePricing(row.pricing),
+    paymentRequirement: row.payment_requirement,
+    confirmationMode: row.confirmation_mode,
+    cancellationPolicy: resourceCancellationPolicy(row.cancellation_policy),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+  if (row.parent_resource_id) {
+    resource.parentResourceId = row.parent_resource_id;
+  }
+  if (isRecord(row.rentable_hours)) {
+    resource.rentableHours = row.rentable_hours as OperatingHours;
+  }
+  if (row.archived_at) {
+    resource.archivedAt = row.archived_at;
+  }
+  return resource;
+}
+
+function mapResourceAllocation(row: ResourceAllocationRow): ResourceAllocation {
+  const allocation: ResourceAllocation = {
+    id: row.id,
+    gymId: row.gym_id,
+    resourceId: row.resource_id,
+    source: row.source,
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
+    bufferBeforeMinutes: row.buffer_before_minutes,
+    bufferAfterMinutes: row.buffer_after_minutes,
+    staffOverride: row.staff_override,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+  if (row.class_session_id) {
+    allocation.classSessionId = row.class_session_id;
+  }
+  if (row.facility_reservation_id) {
+    allocation.facilityReservationId = row.facility_reservation_id;
+  }
+  if (row.override_reason) {
+    allocation.overrideReason = row.override_reason;
+  }
+  return allocation;
+}
+
+function mapFacilityReservation(row: FacilityReservationRow): FacilityReservation {
+  const reservation: FacilityReservation = {
+    id: row.id,
+    gymId: row.gym_id,
+    resourceId: row.resource_id,
+    memberId: row.member_id,
+    createdByUserId: row.created_by_user_id,
+    status: row.status,
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
+    amountCents: row.amount_cents,
+    paymentRequirement: row.payment_requirement,
+    paymentStatus: row.payment_status,
+    cancellationFeeCents: row.cancellation_fee_cents,
+    refundAmountCents: row.refund_amount_cents,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+  if (row.allocation_id) {
+    reservation.allocationId = row.allocation_id;
+  }
+  if (row.payment_reference) {
+    reservation.paymentReference = row.payment_reference;
+  }
+  if (row.cancelled_at) {
+    reservation.cancelledAt = row.cancelled_at;
+  }
+  if (row.cancelled_by_user_id) {
+    reservation.cancelledByUserId = row.cancelled_by_user_id;
+  }
+  if (row.cancellation_reason) {
+    reservation.cancellationReason = row.cancellation_reason;
+  }
+  if (row.note) {
+    reservation.note = row.note;
+  }
+  return reservation;
 }
 
 function mapNotificationEvent(row: NotificationEventRow): NotificationEvent {
@@ -2915,12 +3377,43 @@ function operatingHours(value: unknown): OperatingHours {
   return isRecord(value) ? (value as OperatingHours) : {};
 }
 
+function resourceSlotRules(value: unknown): ResourceSlotRules {
+  const record = isRecord(value) ? value : {};
+  return {
+    minDurationMinutes: numberField(record, "minDurationMinutes", 30),
+    maxDurationMinutes: numberField(record, "maxDurationMinutes", 120),
+    incrementMinutes: numberField(record, "incrementMinutes", 30),
+    bufferBeforeMinutes: numberField(record, "bufferBeforeMinutes", 0),
+    bufferAfterMinutes: numberField(record, "bufferAfterMinutes", 0)
+  };
+}
+
+function resourcePricing(value: unknown): ResourcePricingConfig {
+  const record = isRecord(value) ? value : {};
+  return {
+    amountCents: numberField(record, "amountCents", 0)
+  };
+}
+
+function resourceCancellationPolicy(value: unknown): ResourceCancellationPolicy {
+  const record = isRecord(value) ? value : {};
+  return {
+    cutoffMinutes: numberField(record, "cutoffMinutes", 0),
+    feeCents: numberField(record, "feeCents", 0)
+  };
+}
+
 function stringField(record: Record<string, unknown>, key: string) {
   const value = record[key];
   if (typeof value !== "string") {
     throw new Error(`Database field ${key} is invalid.`);
   }
   return value;
+}
+
+function numberField(record: Record<string, unknown>, key: string, fallback: number) {
+  const value = record[key];
+  return typeof value === "number" ? value : fallback;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -8,13 +8,16 @@ import type {
   CheckIn,
   ClassSession,
   ClassType,
+  FacilityReservation,
   Location,
   Member,
   MemberMembership,
   MembershipPlan,
   NotificationEvent,
   PurposeToken,
+  ReservableResource,
   RefreshToken,
+  ResourceAllocation,
   Role,
   SchedulerAvailability,
   SchedulerCoverageRule,
@@ -166,6 +169,28 @@ export interface BookingRepository {
   updateClassBooking(booking: ClassBooking): RepositoryResult<ClassBooking>;
 }
 
+export interface ReservationResourceRepository {
+  createResource(resource: ReservableResource): RepositoryResult<ReservableResource>;
+  getResource(resourceId: string): RepositoryResult<ReservableResource | undefined>;
+  listResourcesForGym(gymId: string): RepositoryResult<ReservableResource[]>;
+  updateResource(resource: ReservableResource): RepositoryResult<ReservableResource>;
+  createAllocation(allocation: ResourceAllocation): RepositoryResult<ResourceAllocation>;
+  getAllocation(allocationId: string): RepositoryResult<ResourceAllocation | undefined>;
+  listAllocationsForGym(gymId: string): RepositoryResult<ResourceAllocation[]>;
+  listAllocationsForResource(resourceId: string): RepositoryResult<ResourceAllocation[]>;
+  updateAllocation(allocation: ResourceAllocation): RepositoryResult<ResourceAllocation>;
+  createFacilityReservation(
+    reservation: FacilityReservation
+  ): RepositoryResult<FacilityReservation>;
+  getFacilityReservation(
+    reservationId: string
+  ): RepositoryResult<FacilityReservation | undefined>;
+  listFacilityReservationsForGym(gymId: string): RepositoryResult<FacilityReservation[]>;
+  updateFacilityReservation(
+    reservation: FacilityReservation
+  ): RepositoryResult<FacilityReservation>;
+}
+
 export interface NotificationRepository {
   createNotificationEvent(event: NotificationEvent): RepositoryResult<NotificationEvent>;
   listNotificationEventsForGym(gymId: string): RepositoryResult<NotificationEvent[]>;
@@ -219,6 +244,7 @@ export interface Repositories {
   memberMemberships: MemberMembershipRepository;
   classes: ClassRepository;
   bookings: BookingRepository;
+  reservationResources: ReservationResourceRepository;
   notifications: NotificationRepository;
   checkIns: CheckInRepository;
   accessControl: AccessControlRepository;

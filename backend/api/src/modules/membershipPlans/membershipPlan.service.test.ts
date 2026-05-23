@@ -2,7 +2,7 @@ import { BillingInterval, PlanStatus } from "@gym-platform/constants";
 import type { MembershipPlanCreateInput } from "@gym-platform/validation";
 import { describe, expect, it } from "vitest";
 import { createServices, type Services } from "../../app.js";
-import { fixedClock, testConfig } from "../../testUtils.js";
+import { createGym, fixedClock, testConfig } from "../../testUtils.js";
 
 describe("MembershipPlanService", () => {
   it("creates pricing plans, updates plan details, and archives plans", async () => {
@@ -36,11 +36,15 @@ describe("MembershipPlanService", () => {
       priceCents: 19000,
       description: "Ten classes with updated pricing."
     });
+    const dropIn = (await services.membershipPlanService.list(gymId)).find(
+      (plan) => plan.name === "Drop In"
+    );
     const archived = await services.membershipPlanService.archive(gymId, monthly.id);
     const activePlans = await services.membershipPlanService.list(gymId);
 
     expect(updated.priceCents).toBe(19000);
     expect(updated.classAccessLimit).toBe(10);
+    expect(dropIn?.classAccessLimit).toBe(1);
     expect(archived.status).toBe(PlanStatus.Archived);
     expect(activePlans.map((plan) => plan.billingInterval).sort()).toEqual([
       BillingInterval.OneTime,
@@ -59,6 +63,22 @@ describe("MembershipPlanService", () => {
       services.membershipPlanService.create(gymId, planInput({ name: "monthly unlimited" }))
     ).rejects.toThrow(/already exists/i);
   });
+
+  it("requires package plans to declare a class access limit", async () => {
+    const services = createServices(testConfig, fixedClock);
+    const gymId = await createGym(services);
+
+    await expect(
+      services.membershipPlanService.create(
+        gymId,
+        planInput({
+          name: "Class Pack",
+          billingInterval: BillingInterval.Package,
+          autoRenew: false
+        })
+      )
+    ).rejects.toThrow(/class access limit/i);
+  });
 });
 
 function planInput(overrides: Partial<MembershipPlanCreateInput>): MembershipPlanCreateInput {
@@ -72,20 +92,4 @@ function planInput(overrides: Partial<MembershipPlanCreateInput>): MembershipPla
     isPublic: true,
     ...overrides
   };
-}
-
-async function createGym(services: Services) {
-  const owner = await services.authService.register({
-    email: "owner@example.com",
-    password: "Password123",
-    firstName: "Demo",
-    lastName: "Owner",
-    gymName: "Demo Strength Club",
-    timezone: "America/New_York",
-    locale: "en-US"
-  });
-  if (!owner.gym) {
-    throw new Error("Expected gym to be created.");
-  }
-  return owner.gym.id;
 }

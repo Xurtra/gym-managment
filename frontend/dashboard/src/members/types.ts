@@ -1,4 +1,10 @@
-import type { MemberStatus, MembershipStatus } from "@gym-platform/constants";
+import type {
+  ConsumerRecordStatus,
+  ConsumerSegment,
+  LeadStage,
+  MemberStatus,
+  MembershipStatus
+} from "@gym-platform/constants";
 
 export interface EmergencyContactView {
   name: string;
@@ -17,6 +23,12 @@ export interface MemberView {
   barcode?: string;
   profileImageUrl?: string;
   emergencyContact?: EmergencyContactView;
+  recordStatus?: ConsumerRecordStatus;
+  leadStage?: LeadStage;
+  segments?: ConsumerSegment[];
+  isLead?: boolean;
+  isCustomer?: boolean;
+  isMember?: boolean;
   notes?: string;
   tagNames: string[];
   createdAt: string;

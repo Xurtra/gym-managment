@@ -4,16 +4,16 @@ This slice adds the first gym operations modules behind the existing tenant and 
 
 ## Modules
 
-- `members` - member profile lifecycle with create, update, list, archive, duplicate email checks, and duplicate barcode checks.
+- `members` / `consumers` - consumer profile lifecycle with create, update, list, archive, duplicate email checks, duplicate barcode checks, lead stage, and derived lead/customer/member segments. Member APIs remain compatibility aliases.
 - `membershipPlans` - plan lifecycle with monthly, yearly, one-time, and package billing intervals.
-- `memberMemberships` - assignment of active plans to existing members for membership history and booking eligibility.
+- `memberMemberships` - v1 consumer entitlement assignment for recurring subscription membership, one-time class access, package class access, membership history, and booking eligibility.
 - `classes` - class type creation, class session scheduling, capacity/waitlist settings, trainer membership validation, and public schedule lookup.
 
 ## Dashboard Models
 
-The dashboard member-management layer in `frontend/dashboard/src/members` now covers:
+The dashboard consumer/member-management layer in `frontend/dashboard/src/members` now covers:
 
-- member list state with search, status and tag filters, summary counts, filter-count metadata, and permission-aware actions
+- consumer list state with search, status and tag filters, summary counts, Lead/Customer/Member segment metadata, filter-count metadata, and permission-aware actions
 - member profile state with identity, contact, emergency-contact, tags, notes, section counts, action counts, and membership summaries
 - member directory search state with result counts, selection metadata, and browse or found summaries
 - reusable member status badges with category, check-in eligibility, sort order, and legend summary state
@@ -21,10 +21,10 @@ The dashboard member-management layer in `frontend/dashboard/src/members` now co
 
 The dashboard leads-and-CRM layer in `frontend/dashboard/src/leads` now covers:
 
-- lead list state with lead-only search and tag filters, summary counts, filter-count metadata, and permission-aware actions
+- lead list state with open-lead-stage search and tag filters, summary counts, filter-count metadata, and permission-aware actions
 - lead profile state with shared contact, emergency-contact, tags, notes, section counts, and tag summaries
 - lead directory search state with result counts, selected-lead metadata, and browse or found summaries
-- lead conversion state with target-status options, blocked reasons, and normalized submission
+- lead conversion state with converted lead stage, blocked reasons, normalized submission, and valid customer/member overlap
 
 The dashboard membership-plan layer in `frontend/dashboard/src/membershipPlans` now covers:
 
@@ -95,6 +95,8 @@ The second migration, `002_operations_core.sql`, adds:
 - `class_sessions`
 
 Both in-memory and Postgres repositories implement the same repository interfaces for these models. Public schedule queries only return scheduled sessions attached to public class types.
+
+Migration `014_consumer_model.sql` adds consumer record status and lead stage fields to the existing `members` table, migrates legacy `status = "lead"` rows to `lead_stage = "open"` with neutral active status, and backfills one-time/package plan class limits for entitlement compatibility.
 
 ## Seed Data
 

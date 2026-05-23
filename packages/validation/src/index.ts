@@ -2,7 +2,10 @@ import {
   AccessDeviceType,
   BillingInterval,
   CheckInMethod,
+  LeadStage,
   FeatureFlag,
+  ReservationConfirmationMode,
+  ReservationPaymentRequirement,
   MemberStatus,
   MembershipStatus,
   Permission,
@@ -130,6 +133,7 @@ export const gymUpdateSchema = z
     timezone: trimmed.min(1).max(80).optional(),
     locale: trimmed.min(2).max(20).optional(),
     logoUrl: trimmed.url().optional(),
+    stripeAccountId: trimmed.regex(/^acct_[A-Za-z0-9]+$/).optional(),
     brandColors: brandColorsSchema.optional(),
     businessInfo: gymBusinessInfoSchema.optional(),
     operatingHours: operatingHoursSchema.optional(),
@@ -308,6 +312,7 @@ export const memberCreateSchema = z.object({
   barcode: trimmed.max(80).optional(),
   profileImageUrl: trimmed.url().or(z.literal("")).optional(),
   status: z.nativeEnum(MemberStatus).default(MemberStatus.Active),
+  leadStage: z.nativeEnum(LeadStage).default(LeadStage.None),
   emergencyContact: z
     .object({
       name: trimmed.min(1).max(120),
@@ -323,7 +328,44 @@ export const memberUpdateSchema = memberCreateSchema
   .partial()
   .refine((value) => Object.keys(value).length > 0, "At least one field must be provided.");
 
-export const membershipPlanCreateSchema = z.object({
+export const consumerCreateSchema = memberCreateSchema;
+
+export const consumerUpdateSchema = memberUpdateSchema;
+
+export const consumerProfileImageUploadSchema = z.object({
+  consumerId: id.optional(),
+  fileName: trimmed.min(1).max(180),
+  contentType: trimmed.regex(/^image\/[a-z0-9.+-]+$/i),
+  base64Data: trimmed.min(16).max(8_000_000)
+});
+
+export const posPurchaseSchema = z
+  .object({
+    consumerId: id.optional(),
+    firstName: trimmed.min(1).max(80).optional(),
+    lastName: trimmed.min(1).max(80).optional(),
+    email: emailSchema.optional(),
+    phone: trimmed.min(7).max(40).optional(),
+    amountCents: z.number().int().positive(),
+    paymentMethod: z.enum(["card_reader", "manual_entry"]),
+    note: trimmed.max(500).optional(),
+    receiptEmail: emailSchema.optional(),
+    planId: id.optional()
+  })
+  .refine(
+    (value) =>
+      Boolean(
+        value.consumerId ||
+          (value.firstName && value.lastName && (value.email || value.phone))
+      ),
+    "Choose an existing consumer or provide the buyer's name plus email or phone."
+  );
+
+export const posStripeFinalizeSchema = z.object({
+  paymentIntentId: trimmed.min(1).max(120)
+});
+
+const membershipPlanBaseSchema = z.object({
   name: trimmed.min(1).max(120),
   description: trimmed.max(1000).optional(),
   billingInterval: z.nativeEnum(BillingInterval),
@@ -336,8 +378,18 @@ export const membershipPlanCreateSchema = z.object({
   isPublic: z.boolean().default(true)
 });
 
-export const membershipPlanUpdateSchema = membershipPlanCreateSchema
+export const membershipPlanCreateSchema = membershipPlanBaseSchema.refine(
+  (value) => value.billingInterval !== BillingInterval.Package || value.classAccessLimit !== undefined,
+  "Package plans require a class access limit."
+);
+
+export const membershipPlanUpdateSchema = membershipPlanBaseSchema
   .partial()
+  .refine(
+    (value) =>
+      value.billingInterval !== BillingInterval.Package || value.classAccessLimit !== undefined,
+    "Package plans require a class access limit."
+  )
   .refine((value) => Object.keys(value).length > 0, "At least one field must be provided.");
 
 export const memberMembershipAssignSchema = z
@@ -395,6 +447,92 @@ export const staffManualBookingSchema = z
   );
 
 export const waitlistJoinSchema = classBookingCreateSchema;
+
+const slotRulesSchema = z.object({
+  minDurationMinutes: z.number().int().min(5).max(1440).default(30),
+  maxDurationMinutes: z.number().int().min(5).max(1440).default(120),
+  incrementMinutes: z.number().int().min(5).max(240).default(30),
+  bufferBeforeMinutes: z.number().int().min(0).max(240).default(0),
+  bufferAfterMinutes: z.number().int().min(0).max(240).default(0)
+}).refine(
+  (value) => value.maxDurationMinutes >= value.minDurationMinutes,
+  "Maximum duration must be at least the minimum duration."
+);
+
+const pricingConfigSchema = z.object({
+  amountCents: z.number().int().min(0).default(0)
+});
+
+const cancellationPolicySchema = z.object({
+  cutoffMinutes: z.number().int().min(0).max(10080).default(0),
+  feeCents: z.number().int().min(0).default(0)
+});
+
+export const resourceCreateSchema = z.object({
+  locationId: id,
+  parentResourceId: id.optional(),
+  name: trimmed.min(1).max(120),
+  resourceType: trimmed.min(1).max(80),
+  isBookable: z.boolean().default(true),
+  isExclusive: z.boolean().default(true),
+  capacity: z.number().int().min(1).max(1000).default(1),
+  amenities: z.array(trimmed.min(1).max(80)).default([]),
+  rentableHours: operatingHoursSchema.optional(),
+  slotRules: slotRulesSchema.default({}),
+  pricing: pricingConfigSchema.default({}),
+  paymentRequirement: z.nativeEnum(ReservationPaymentRequirement).default(ReservationPaymentRequirement.Free),
+  confirmationMode: z.nativeEnum(ReservationConfirmationMode).default(ReservationConfirmationMode.Automatic),
+  cancellationPolicy: cancellationPolicySchema.default({})
+});
+
+export const resourceUpdateSchema = resourceCreateSchema
+  .omit({ locationId: true, parentResourceId: true })
+  .partial()
+  .refine((value) => Object.keys(value).length > 0, "At least one field must be provided.");
+
+export const resourceAvailabilityQuerySchema = z.object({
+  from: z.string().datetime(),
+  to: z.string().datetime()
+}).refine((value) => new Date(value.to) > new Date(value.from), {
+  message: "Availability end time must be after start time."
+});
+
+export const classSessionResourceAllocationSchema = z
+  .object({
+    resourceId: id,
+    startsAt: z.string().datetime().optional(),
+    endsAt: z.string().datetime().optional(),
+    overrideConflict: z.boolean().default(false),
+    overrideReason: trimmed.max(500).optional()
+  })
+  .refine((value) => !value.startsAt || !value.endsAt || new Date(value.endsAt) > new Date(value.startsAt), {
+    message: "Allocation end time must be after start time."
+  })
+  .refine((value) => !value.overrideConflict || Boolean(value.overrideReason), {
+    message: "An override reason is required when resource conflicts are overridden."
+  });
+
+export const facilityReservationCreateSchema = z
+  .object({
+    resourceId: id,
+    memberId: id,
+    startsAt: z.string().datetime(),
+    endsAt: z.string().datetime(),
+    overrideConflict: z.boolean().default(false),
+    overrideReason: trimmed.max(500).optional(),
+    paymentReference: trimmed.max(120).optional(),
+    note: trimmed.max(500).optional()
+  })
+  .refine((value) => new Date(value.endsAt) > new Date(value.startsAt), {
+    message: "Reservation end time must be after start time."
+  })
+  .refine((value) => !value.overrideConflict || Boolean(value.overrideReason), {
+    message: "An override reason is required when resource conflicts are overridden."
+  });
+
+export const facilityReservationCancelSchema = z.object({
+  reason: trimmed.max(500).optional()
+});
 
 export const checkInCreateSchema = z
   .object({
@@ -493,8 +631,13 @@ export type SchedulerRequestCreateInput = z.infer<typeof schedulerRequestCreateS
 export type SchedulerGenerateInput = z.infer<typeof schedulerGenerateSchema>;
 export type SchedulerPublishInput = z.infer<typeof schedulerPublishSchema>;
 export type SchedulerRequestResolveInput = z.infer<typeof schedulerRequestResolveSchema>;
-export type MemberCreateInput = z.infer<typeof memberCreateSchema>;
-export type MemberUpdateInput = z.infer<typeof memberUpdateSchema>;
+export type ConsumerCreateInput = z.input<typeof consumerCreateSchema>;
+export type ConsumerUpdateInput = z.input<typeof consumerUpdateSchema>;
+export type ConsumerProfileImageUploadInput = z.infer<typeof consumerProfileImageUploadSchema>;
+export type PosPurchaseInput = z.infer<typeof posPurchaseSchema>;
+export type PosStripeFinalizeInput = z.infer<typeof posStripeFinalizeSchema>;
+export type MemberCreateInput = z.input<typeof memberCreateSchema>;
+export type MemberUpdateInput = z.input<typeof memberUpdateSchema>;
 export type MembershipPlanCreateInput = z.infer<typeof membershipPlanCreateSchema>;
 export type MembershipPlanUpdateInput = z.infer<typeof membershipPlanUpdateSchema>;
 export type MemberMembershipAssignInput = z.infer<typeof memberMembershipAssignSchema>;
@@ -503,6 +646,12 @@ export type ClassSessionCreateInput = z.input<typeof classSessionCreateSchema>;
 export type ClassBookingCreateInput = z.infer<typeof classBookingCreateSchema>;
 export type StaffManualBookingInput = z.infer<typeof staffManualBookingSchema>;
 export type WaitlistJoinInput = z.infer<typeof waitlistJoinSchema>;
+export type ResourceCreateInput = z.input<typeof resourceCreateSchema>;
+export type ResourceUpdateInput = z.input<typeof resourceUpdateSchema>;
+export type ResourceAvailabilityQueryInput = z.infer<typeof resourceAvailabilityQuerySchema>;
+export type ClassSessionResourceAllocationInput = z.input<typeof classSessionResourceAllocationSchema>;
+export type FacilityReservationCreateInput = z.input<typeof facilityReservationCreateSchema>;
+export type FacilityReservationCancelInput = z.infer<typeof facilityReservationCancelSchema>;
 export type CheckInCreateInput = z.input<typeof checkInCreateSchema>;
 export type AccessDeviceCreateInput = z.input<typeof accessDeviceCreateSchema>;
 export type AccessRuleCreateInput = z.input<typeof accessRuleCreateSchema>;

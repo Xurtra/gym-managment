@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Clanka\\\\Documents\\\\Projects\\\\gym-managment\" -Force)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Clanka\\\\Documents\\\\Projects\\\\gym-managment\" -Recurse -Force)",
+      "Bash(Select-Object FullName)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Clanka\\\\Documents\\\\Projects\\\\gym-managment\" -Recurse -Directory)",
+      "Bash(Head -50)",
+      "Bash(rm c:/Users/Clanka/Documents/Projects/gym-managment/tracker_dump.txt)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\Clanka\\Documents\\Projects\\gym-managment"
+    ]
+  }
+}

@@ -254,6 +254,7 @@ export declare const gymUpdateSchema: z.ZodEffects<z.ZodObject<{
     timezone: z.ZodOptional<z.ZodString>;
     locale: z.ZodOptional<z.ZodString>;
     logoUrl: z.ZodOptional<z.ZodString>;
+    stripeAccountId: z.ZodOptional<z.ZodString>;
     brandColors: z.ZodOptional<z.ZodObject<{
         primary: z.ZodString;
         secondary: z.ZodOptional<z.ZodString>;
@@ -350,6 +351,7 @@ export declare const gymUpdateSchema: z.ZodEffects<z.ZodObject<{
     name?: string | undefined;
     featureFlags?: ("online_signup" | "class_booking" | "personal_training" | "member_portal" | "website_builder" | "point_of_sale" | "access_control")[] | undefined;
     logoUrl?: string | undefined;
+    stripeAccountId?: string | undefined;
     brandColors?: {
         primary: string;
         secondary?: string | undefined;
@@ -381,6 +383,7 @@ export declare const gymUpdateSchema: z.ZodEffects<z.ZodObject<{
     name?: string | undefined;
     featureFlags?: ("online_signup" | "class_booking" | "personal_training" | "member_portal" | "website_builder" | "point_of_sale" | "access_control")[] | undefined;
     logoUrl?: string | undefined;
+    stripeAccountId?: string | undefined;
     brandColors?: {
         primary: string;
         secondary?: string | undefined;
@@ -412,6 +415,7 @@ export declare const gymUpdateSchema: z.ZodEffects<z.ZodObject<{
     name?: string | undefined;
     featureFlags?: ("online_signup" | "class_booking" | "personal_training" | "member_portal" | "website_builder" | "point_of_sale" | "access_control")[] | undefined;
     logoUrl?: string | undefined;
+    stripeAccountId?: string | undefined;
     brandColors?: {
         primary: string;
         secondary?: string | undefined;
@@ -443,6 +447,7 @@ export declare const gymUpdateSchema: z.ZodEffects<z.ZodObject<{
     name?: string | undefined;
     featureFlags?: ("online_signup" | "class_booking" | "personal_training" | "member_portal" | "website_builder" | "point_of_sale" | "access_control")[] | undefined;
     logoUrl?: string | undefined;
+    stripeAccountId?: string | undefined;
     brandColors?: {
         primary: string;
         secondary?: string | undefined;
@@ -1073,6 +1078,12 @@ export declare const memberCreateSchema: z.ZodObject<{
         readonly Expired: "expired";
         readonly Archived: "archived";
     }>>;
+    leadStage: z.ZodDefault<z.ZodNativeEnum<{
+        readonly None: "none";
+        readonly Open: "open";
+        readonly Converted: "converted";
+        readonly Closed: "closed";
+    }>>;
     emergencyContact: z.ZodOptional<z.ZodObject<{
         name: z.ZodString;
         phone: z.ZodString;
@@ -1092,6 +1103,7 @@ export declare const memberCreateSchema: z.ZodObject<{
     firstName: string;
     lastName: string;
     status: "lead" | "trial" | "active" | "past_due" | "frozen" | "cancelled" | "expired" | "archived";
+    leadStage: "none" | "open" | "converted" | "closed";
     tagNames: string[];
     email?: string | undefined;
     phone?: string | undefined;
@@ -1112,6 +1124,7 @@ export declare const memberCreateSchema: z.ZodObject<{
     notes?: string | undefined;
     barcode?: string | undefined;
     profileImageUrl?: string | undefined;
+    leadStage?: "none" | "open" | "converted" | "closed" | undefined;
     emergencyContact?: {
         phone: string;
         name: string;
@@ -1135,6 +1148,12 @@ export declare const memberUpdateSchema: z.ZodEffects<z.ZodObject<{
         readonly Cancelled: "cancelled";
         readonly Expired: "expired";
         readonly Archived: "archived";
+    }>>>;
+    leadStage: z.ZodOptional<z.ZodDefault<z.ZodNativeEnum<{
+        readonly None: "none";
+        readonly Open: "open";
+        readonly Converted: "converted";
+        readonly Closed: "closed";
     }>>>;
     emergencyContact: z.ZodOptional<z.ZodOptional<z.ZodObject<{
         name: z.ZodString;
@@ -1160,6 +1179,7 @@ export declare const memberUpdateSchema: z.ZodEffects<z.ZodObject<{
     notes?: string | undefined;
     barcode?: string | undefined;
     profileImageUrl?: string | undefined;
+    leadStage?: "none" | "open" | "converted" | "closed" | undefined;
     emergencyContact?: {
         phone: string;
         name: string;
@@ -1175,6 +1195,7 @@ export declare const memberUpdateSchema: z.ZodEffects<z.ZodObject<{
     notes?: string | undefined;
     barcode?: string | undefined;
     profileImageUrl?: string | undefined;
+    leadStage?: "none" | "open" | "converted" | "closed" | undefined;
     emergencyContact?: {
         phone: string;
         name: string;
@@ -1190,6 +1211,7 @@ export declare const memberUpdateSchema: z.ZodEffects<z.ZodObject<{
     notes?: string | undefined;
     barcode?: string | undefined;
     profileImageUrl?: string | undefined;
+    leadStage?: "none" | "open" | "converted" | "closed" | undefined;
     emergencyContact?: {
         phone: string;
         name: string;
@@ -1205,6 +1227,7 @@ export declare const memberUpdateSchema: z.ZodEffects<z.ZodObject<{
     notes?: string | undefined;
     barcode?: string | undefined;
     profileImageUrl?: string | undefined;
+    leadStage?: "none" | "open" | "converted" | "closed" | undefined;
     emergencyContact?: {
         phone: string;
         name: string;
@@ -1212,7 +1235,260 @@ export declare const memberUpdateSchema: z.ZodEffects<z.ZodObject<{
     } | undefined;
     tagNames?: string[] | undefined;
 }>;
-export declare const membershipPlanCreateSchema: z.ZodObject<{
+export declare const consumerCreateSchema: z.ZodObject<{
+    firstName: z.ZodString;
+    lastName: z.ZodString;
+    email: z.ZodOptional<z.ZodEffects<z.ZodString, string, string>>;
+    phone: z.ZodOptional<z.ZodString>;
+    barcode: z.ZodOptional<z.ZodString>;
+    profileImageUrl: z.ZodOptional<z.ZodUnion<[z.ZodString, z.ZodLiteral<"">]>>;
+    status: z.ZodDefault<z.ZodNativeEnum<{
+        readonly Lead: "lead";
+        readonly Trial: "trial";
+        readonly Active: "active";
+        readonly PastDue: "past_due";
+        readonly Frozen: "frozen";
+        readonly Cancelled: "cancelled";
+        readonly Expired: "expired";
+        readonly Archived: "archived";
+    }>>;
+    leadStage: z.ZodDefault<z.ZodNativeEnum<{
+        readonly None: "none";
+        readonly Open: "open";
+        readonly Converted: "converted";
+        readonly Closed: "closed";
+    }>>;
+    emergencyContact: z.ZodOptional<z.ZodObject<{
+        name: z.ZodString;
+        phone: z.ZodString;
+        relationship: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        phone: string;
+        name: string;
+        relationship?: string | undefined;
+    }, {
+        phone: string;
+        name: string;
+        relationship?: string | undefined;
+    }>>;
+    notes: z.ZodOptional<z.ZodString>;
+    tagNames: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+}, "strip", z.ZodTypeAny, {
+    firstName: string;
+    lastName: string;
+    status: "lead" | "trial" | "active" | "past_due" | "frozen" | "cancelled" | "expired" | "archived";
+    leadStage: "none" | "open" | "converted" | "closed";
+    tagNames: string[];
+    email?: string | undefined;
+    phone?: string | undefined;
+    notes?: string | undefined;
+    barcode?: string | undefined;
+    profileImageUrl?: string | undefined;
+    emergencyContact?: {
+        phone: string;
+        name: string;
+        relationship?: string | undefined;
+    } | undefined;
+}, {
+    firstName: string;
+    lastName: string;
+    email?: string | undefined;
+    status?: "lead" | "trial" | "active" | "past_due" | "frozen" | "cancelled" | "expired" | "archived" | undefined;
+    phone?: string | undefined;
+    notes?: string | undefined;
+    barcode?: string | undefined;
+    profileImageUrl?: string | undefined;
+    leadStage?: "none" | "open" | "converted" | "closed" | undefined;
+    emergencyContact?: {
+        phone: string;
+        name: string;
+        relationship?: string | undefined;
+    } | undefined;
+    tagNames?: string[] | undefined;
+}>;
+export declare const consumerUpdateSchema: z.ZodEffects<z.ZodObject<{
+    firstName: z.ZodOptional<z.ZodString>;
+    lastName: z.ZodOptional<z.ZodString>;
+    email: z.ZodOptional<z.ZodOptional<z.ZodEffects<z.ZodString, string, string>>>;
+    phone: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    barcode: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    profileImageUrl: z.ZodOptional<z.ZodOptional<z.ZodUnion<[z.ZodString, z.ZodLiteral<"">]>>>;
+    status: z.ZodOptional<z.ZodDefault<z.ZodNativeEnum<{
+        readonly Lead: "lead";
+        readonly Trial: "trial";
+        readonly Active: "active";
+        readonly PastDue: "past_due";
+        readonly Frozen: "frozen";
+        readonly Cancelled: "cancelled";
+        readonly Expired: "expired";
+        readonly Archived: "archived";
+    }>>>;
+    leadStage: z.ZodOptional<z.ZodDefault<z.ZodNativeEnum<{
+        readonly None: "none";
+        readonly Open: "open";
+        readonly Converted: "converted";
+        readonly Closed: "closed";
+    }>>>;
+    emergencyContact: z.ZodOptional<z.ZodOptional<z.ZodObject<{
+        name: z.ZodString;
+        phone: z.ZodString;
+        relationship: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        phone: string;
+        name: string;
+        relationship?: string | undefined;
+    }, {
+        phone: string;
+        name: string;
+        relationship?: string | undefined;
+    }>>>;
+    notes: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    tagNames: z.ZodOptional<z.ZodDefault<z.ZodArray<z.ZodString, "many">>>;
+}, "strip", z.ZodTypeAny, {
+    email?: string | undefined;
+    firstName?: string | undefined;
+    lastName?: string | undefined;
+    status?: "lead" | "trial" | "active" | "past_due" | "frozen" | "cancelled" | "expired" | "archived" | undefined;
+    phone?: string | undefined;
+    notes?: string | undefined;
+    barcode?: string | undefined;
+    profileImageUrl?: string | undefined;
+    leadStage?: "none" | "open" | "converted" | "closed" | undefined;
+    emergencyContact?: {
+        phone: string;
+        name: string;
+        relationship?: string | undefined;
+    } | undefined;
+    tagNames?: string[] | undefined;
+}, {
+    email?: string | undefined;
+    firstName?: string | undefined;
+    lastName?: string | undefined;
+    status?: "lead" | "trial" | "active" | "past_due" | "frozen" | "cancelled" | "expired" | "archived" | undefined;
+    phone?: string | undefined;
+    notes?: string | undefined;
+    barcode?: string | undefined;
+    profileImageUrl?: string | undefined;
+    leadStage?: "none" | "open" | "converted" | "closed" | undefined;
+    emergencyContact?: {
+        phone: string;
+        name: string;
+        relationship?: string | undefined;
+    } | undefined;
+    tagNames?: string[] | undefined;
+}>, {
+    email?: string | undefined;
+    firstName?: string | undefined;
+    lastName?: string | undefined;
+    status?: "lead" | "trial" | "active" | "past_due" | "frozen" | "cancelled" | "expired" | "archived" | undefined;
+    phone?: string | undefined;
+    notes?: string | undefined;
+    barcode?: string | undefined;
+    profileImageUrl?: string | undefined;
+    leadStage?: "none" | "open" | "converted" | "closed" | undefined;
+    emergencyContact?: {
+        phone: string;
+        name: string;
+        relationship?: string | undefined;
+    } | undefined;
+    tagNames?: string[] | undefined;
+}, {
+    email?: string | undefined;
+    firstName?: string | undefined;
+    lastName?: string | undefined;
+    status?: "lead" | "trial" | "active" | "past_due" | "frozen" | "cancelled" | "expired" | "archived" | undefined;
+    phone?: string | undefined;
+    notes?: string | undefined;
+    barcode?: string | undefined;
+    profileImageUrl?: string | undefined;
+    leadStage?: "none" | "open" | "converted" | "closed" | undefined;
+    emergencyContact?: {
+        phone: string;
+        name: string;
+        relationship?: string | undefined;
+    } | undefined;
+    tagNames?: string[] | undefined;
+}>;
+export declare const consumerProfileImageUploadSchema: z.ZodObject<{
+    consumerId: z.ZodOptional<z.ZodString>;
+    fileName: z.ZodString;
+    contentType: z.ZodString;
+    base64Data: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    fileName: string;
+    contentType: string;
+    base64Data: string;
+    consumerId?: string | undefined;
+}, {
+    fileName: string;
+    contentType: string;
+    base64Data: string;
+    consumerId?: string | undefined;
+}>;
+export declare const posPurchaseSchema: z.ZodEffects<z.ZodObject<{
+    consumerId: z.ZodOptional<z.ZodString>;
+    firstName: z.ZodOptional<z.ZodString>;
+    lastName: z.ZodOptional<z.ZodString>;
+    email: z.ZodOptional<z.ZodEffects<z.ZodString, string, string>>;
+    phone: z.ZodOptional<z.ZodString>;
+    amountCents: z.ZodNumber;
+    paymentMethod: z.ZodEnum<["card_reader", "manual_entry"]>;
+    note: z.ZodOptional<z.ZodString>;
+    receiptEmail: z.ZodOptional<z.ZodEffects<z.ZodString, string, string>>;
+    planId: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    amountCents: number;
+    paymentMethod: "card_reader" | "manual_entry";
+    email?: string | undefined;
+    firstName?: string | undefined;
+    lastName?: string | undefined;
+    planId?: string | undefined;
+    phone?: string | undefined;
+    consumerId?: string | undefined;
+    note?: string | undefined;
+    receiptEmail?: string | undefined;
+}, {
+    amountCents: number;
+    paymentMethod: "card_reader" | "manual_entry";
+    email?: string | undefined;
+    firstName?: string | undefined;
+    lastName?: string | undefined;
+    planId?: string | undefined;
+    phone?: string | undefined;
+    consumerId?: string | undefined;
+    note?: string | undefined;
+    receiptEmail?: string | undefined;
+}>, {
+    amountCents: number;
+    paymentMethod: "card_reader" | "manual_entry";
+    email?: string | undefined;
+    firstName?: string | undefined;
+    lastName?: string | undefined;
+    planId?: string | undefined;
+    phone?: string | undefined;
+    consumerId?: string | undefined;
+    note?: string | undefined;
+    receiptEmail?: string | undefined;
+}, {
+    amountCents: number;
+    paymentMethod: "card_reader" | "manual_entry";
+    email?: string | undefined;
+    firstName?: string | undefined;
+    lastName?: string | undefined;
+    planId?: string | undefined;
+    phone?: string | undefined;
+    consumerId?: string | undefined;
+    note?: string | undefined;
+    receiptEmail?: string | undefined;
+}>;
+export declare const posStripeFinalizeSchema: z.ZodObject<{
+    paymentIntentId: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    paymentIntentId: string;
+}, {
+    paymentIntentId: string;
+}>;
+export declare const membershipPlanCreateSchema: z.ZodEffects<z.ZodObject<{
     name: z.ZodString;
     description: z.ZodOptional<z.ZodString>;
     billingInterval: z.ZodNativeEnum<{
@@ -1250,8 +1526,30 @@ export declare const membershipPlanCreateSchema: z.ZodObject<{
     contractLengthMonths?: number | undefined;
     classAccessLimit?: number | undefined;
     isPublic?: boolean | undefined;
+}>, {
+    name: string;
+    billingInterval: "monthly" | "yearly" | "one_time" | "package";
+    priceCents: number;
+    signupFeeCents: number;
+    trialDays: number;
+    autoRenew: boolean;
+    isPublic: boolean;
+    description?: string | undefined;
+    contractLengthMonths?: number | undefined;
+    classAccessLimit?: number | undefined;
+}, {
+    name: string;
+    billingInterval: "monthly" | "yearly" | "one_time" | "package";
+    priceCents: number;
+    description?: string | undefined;
+    signupFeeCents?: number | undefined;
+    trialDays?: number | undefined;
+    autoRenew?: boolean | undefined;
+    contractLengthMonths?: number | undefined;
+    classAccessLimit?: number | undefined;
+    isPublic?: boolean | undefined;
 }>;
-export declare const membershipPlanUpdateSchema: z.ZodEffects<z.ZodObject<{
+export declare const membershipPlanUpdateSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     name: z.ZodOptional<z.ZodString>;
     description: z.ZodOptional<z.ZodOptional<z.ZodString>>;
     billingInterval: z.ZodOptional<z.ZodNativeEnum<{
@@ -1268,6 +1566,28 @@ export declare const membershipPlanUpdateSchema: z.ZodEffects<z.ZodObject<{
     classAccessLimit: z.ZodOptional<z.ZodOptional<z.ZodNumber>>;
     isPublic: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
 }, "strip", z.ZodTypeAny, {
+    name?: string | undefined;
+    description?: string | undefined;
+    billingInterval?: "monthly" | "yearly" | "one_time" | "package" | undefined;
+    priceCents?: number | undefined;
+    signupFeeCents?: number | undefined;
+    trialDays?: number | undefined;
+    autoRenew?: boolean | undefined;
+    contractLengthMonths?: number | undefined;
+    classAccessLimit?: number | undefined;
+    isPublic?: boolean | undefined;
+}, {
+    name?: string | undefined;
+    description?: string | undefined;
+    billingInterval?: "monthly" | "yearly" | "one_time" | "package" | undefined;
+    priceCents?: number | undefined;
+    signupFeeCents?: number | undefined;
+    trialDays?: number | undefined;
+    autoRenew?: boolean | undefined;
+    contractLengthMonths?: number | undefined;
+    classAccessLimit?: number | undefined;
+    isPublic?: boolean | undefined;
+}>, {
     name?: string | undefined;
     description?: string | undefined;
     billingInterval?: "monthly" | "yearly" | "one_time" | "package" | undefined;
@@ -1445,6 +1765,454 @@ export declare const waitlistJoinSchema: z.ZodObject<{
     memberId: string;
 }, {
     memberId: string;
+}>;
+export declare const resourceCreateSchema: z.ZodObject<{
+    locationId: z.ZodString;
+    parentResourceId: z.ZodOptional<z.ZodString>;
+    name: z.ZodString;
+    resourceType: z.ZodString;
+    isBookable: z.ZodDefault<z.ZodBoolean>;
+    isExclusive: z.ZodDefault<z.ZodBoolean>;
+    capacity: z.ZodDefault<z.ZodNumber>;
+    amenities: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+    rentableHours: z.ZodOptional<z.ZodRecord<z.ZodEnum<["mon", "tue", "wed", "thu", "fri", "sat", "sun"]>, z.ZodArray<z.ZodObject<{
+        opensAt: z.ZodString;
+        closesAt: z.ZodString;
+    }, "strip", z.ZodTypeAny, {
+        opensAt: string;
+        closesAt: string;
+    }, {
+        opensAt: string;
+        closesAt: string;
+    }>, "many">>>;
+    slotRules: z.ZodDefault<z.ZodEffects<z.ZodObject<{
+        minDurationMinutes: z.ZodDefault<z.ZodNumber>;
+        maxDurationMinutes: z.ZodDefault<z.ZodNumber>;
+        incrementMinutes: z.ZodDefault<z.ZodNumber>;
+        bufferBeforeMinutes: z.ZodDefault<z.ZodNumber>;
+        bufferAfterMinutes: z.ZodDefault<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        minDurationMinutes: number;
+        maxDurationMinutes: number;
+        incrementMinutes: number;
+        bufferBeforeMinutes: number;
+        bufferAfterMinutes: number;
+    }, {
+        minDurationMinutes?: number | undefined;
+        maxDurationMinutes?: number | undefined;
+        incrementMinutes?: number | undefined;
+        bufferBeforeMinutes?: number | undefined;
+        bufferAfterMinutes?: number | undefined;
+    }>, {
+        minDurationMinutes: number;
+        maxDurationMinutes: number;
+        incrementMinutes: number;
+        bufferBeforeMinutes: number;
+        bufferAfterMinutes: number;
+    }, {
+        minDurationMinutes?: number | undefined;
+        maxDurationMinutes?: number | undefined;
+        incrementMinutes?: number | undefined;
+        bufferBeforeMinutes?: number | undefined;
+        bufferAfterMinutes?: number | undefined;
+    }>>;
+    pricing: z.ZodDefault<z.ZodObject<{
+        amountCents: z.ZodDefault<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        amountCents: number;
+    }, {
+        amountCents?: number | undefined;
+    }>>;
+    paymentRequirement: z.ZodDefault<z.ZodNativeEnum<{
+        readonly Free: "free";
+        readonly PayUpfront: "pay_upfront";
+        readonly PayLater: "pay_later";
+    }>>;
+    confirmationMode: z.ZodDefault<z.ZodNativeEnum<{
+        readonly Automatic: "automatic";
+        readonly StaffApproval: "staff_approval";
+    }>>;
+    cancellationPolicy: z.ZodDefault<z.ZodObject<{
+        cutoffMinutes: z.ZodDefault<z.ZodNumber>;
+        feeCents: z.ZodDefault<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        cutoffMinutes: number;
+        feeCents: number;
+    }, {
+        cutoffMinutes?: number | undefined;
+        feeCents?: number | undefined;
+    }>>;
+}, "strip", z.ZodTypeAny, {
+    name: string;
+    locationId: string;
+    capacity: number;
+    resourceType: string;
+    isBookable: boolean;
+    isExclusive: boolean;
+    amenities: string[];
+    slotRules: {
+        minDurationMinutes: number;
+        maxDurationMinutes: number;
+        incrementMinutes: number;
+        bufferBeforeMinutes: number;
+        bufferAfterMinutes: number;
+    };
+    pricing: {
+        amountCents: number;
+    };
+    paymentRequirement: "free" | "pay_upfront" | "pay_later";
+    confirmationMode: "automatic" | "staff_approval";
+    cancellationPolicy: {
+        cutoffMinutes: number;
+        feeCents: number;
+    };
+    parentResourceId?: string | undefined;
+    rentableHours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+        opensAt: string;
+        closesAt: string;
+    }[]>> | undefined;
+}, {
+    name: string;
+    locationId: string;
+    resourceType: string;
+    capacity?: number | undefined;
+    parentResourceId?: string | undefined;
+    isBookable?: boolean | undefined;
+    isExclusive?: boolean | undefined;
+    amenities?: string[] | undefined;
+    rentableHours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+        opensAt: string;
+        closesAt: string;
+    }[]>> | undefined;
+    slotRules?: {
+        minDurationMinutes?: number | undefined;
+        maxDurationMinutes?: number | undefined;
+        incrementMinutes?: number | undefined;
+        bufferBeforeMinutes?: number | undefined;
+        bufferAfterMinutes?: number | undefined;
+    } | undefined;
+    pricing?: {
+        amountCents?: number | undefined;
+    } | undefined;
+    paymentRequirement?: "free" | "pay_upfront" | "pay_later" | undefined;
+    confirmationMode?: "automatic" | "staff_approval" | undefined;
+    cancellationPolicy?: {
+        cutoffMinutes?: number | undefined;
+        feeCents?: number | undefined;
+    } | undefined;
+}>;
+export declare const resourceUpdateSchema: z.ZodEffects<z.ZodObject<{
+    name: z.ZodOptional<z.ZodString>;
+    capacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    resourceType: z.ZodOptional<z.ZodString>;
+    isBookable: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+    isExclusive: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+    amenities: z.ZodOptional<z.ZodDefault<z.ZodArray<z.ZodString, "many">>>;
+    rentableHours: z.ZodOptional<z.ZodOptional<z.ZodRecord<z.ZodEnum<["mon", "tue", "wed", "thu", "fri", "sat", "sun"]>, z.ZodArray<z.ZodObject<{
+        opensAt: z.ZodString;
+        closesAt: z.ZodString;
+    }, "strip", z.ZodTypeAny, {
+        opensAt: string;
+        closesAt: string;
+    }, {
+        opensAt: string;
+        closesAt: string;
+    }>, "many">>>>;
+    slotRules: z.ZodOptional<z.ZodDefault<z.ZodEffects<z.ZodObject<{
+        minDurationMinutes: z.ZodDefault<z.ZodNumber>;
+        maxDurationMinutes: z.ZodDefault<z.ZodNumber>;
+        incrementMinutes: z.ZodDefault<z.ZodNumber>;
+        bufferBeforeMinutes: z.ZodDefault<z.ZodNumber>;
+        bufferAfterMinutes: z.ZodDefault<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        minDurationMinutes: number;
+        maxDurationMinutes: number;
+        incrementMinutes: number;
+        bufferBeforeMinutes: number;
+        bufferAfterMinutes: number;
+    }, {
+        minDurationMinutes?: number | undefined;
+        maxDurationMinutes?: number | undefined;
+        incrementMinutes?: number | undefined;
+        bufferBeforeMinutes?: number | undefined;
+        bufferAfterMinutes?: number | undefined;
+    }>, {
+        minDurationMinutes: number;
+        maxDurationMinutes: number;
+        incrementMinutes: number;
+        bufferBeforeMinutes: number;
+        bufferAfterMinutes: number;
+    }, {
+        minDurationMinutes?: number | undefined;
+        maxDurationMinutes?: number | undefined;
+        incrementMinutes?: number | undefined;
+        bufferBeforeMinutes?: number | undefined;
+        bufferAfterMinutes?: number | undefined;
+    }>>>;
+    pricing: z.ZodOptional<z.ZodDefault<z.ZodObject<{
+        amountCents: z.ZodDefault<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        amountCents: number;
+    }, {
+        amountCents?: number | undefined;
+    }>>>;
+    paymentRequirement: z.ZodOptional<z.ZodDefault<z.ZodNativeEnum<{
+        readonly Free: "free";
+        readonly PayUpfront: "pay_upfront";
+        readonly PayLater: "pay_later";
+    }>>>;
+    confirmationMode: z.ZodOptional<z.ZodDefault<z.ZodNativeEnum<{
+        readonly Automatic: "automatic";
+        readonly StaffApproval: "staff_approval";
+    }>>>;
+    cancellationPolicy: z.ZodOptional<z.ZodDefault<z.ZodObject<{
+        cutoffMinutes: z.ZodDefault<z.ZodNumber>;
+        feeCents: z.ZodDefault<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        cutoffMinutes: number;
+        feeCents: number;
+    }, {
+        cutoffMinutes?: number | undefined;
+        feeCents?: number | undefined;
+    }>>>;
+}, "strip", z.ZodTypeAny, {
+    name?: string | undefined;
+    capacity?: number | undefined;
+    resourceType?: string | undefined;
+    isBookable?: boolean | undefined;
+    isExclusive?: boolean | undefined;
+    amenities?: string[] | undefined;
+    rentableHours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+        opensAt: string;
+        closesAt: string;
+    }[]>> | undefined;
+    slotRules?: {
+        minDurationMinutes: number;
+        maxDurationMinutes: number;
+        incrementMinutes: number;
+        bufferBeforeMinutes: number;
+        bufferAfterMinutes: number;
+    } | undefined;
+    pricing?: {
+        amountCents: number;
+    } | undefined;
+    paymentRequirement?: "free" | "pay_upfront" | "pay_later" | undefined;
+    confirmationMode?: "automatic" | "staff_approval" | undefined;
+    cancellationPolicy?: {
+        cutoffMinutes: number;
+        feeCents: number;
+    } | undefined;
+}, {
+    name?: string | undefined;
+    capacity?: number | undefined;
+    resourceType?: string | undefined;
+    isBookable?: boolean | undefined;
+    isExclusive?: boolean | undefined;
+    amenities?: string[] | undefined;
+    rentableHours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+        opensAt: string;
+        closesAt: string;
+    }[]>> | undefined;
+    slotRules?: {
+        minDurationMinutes?: number | undefined;
+        maxDurationMinutes?: number | undefined;
+        incrementMinutes?: number | undefined;
+        bufferBeforeMinutes?: number | undefined;
+        bufferAfterMinutes?: number | undefined;
+    } | undefined;
+    pricing?: {
+        amountCents?: number | undefined;
+    } | undefined;
+    paymentRequirement?: "free" | "pay_upfront" | "pay_later" | undefined;
+    confirmationMode?: "automatic" | "staff_approval" | undefined;
+    cancellationPolicy?: {
+        cutoffMinutes?: number | undefined;
+        feeCents?: number | undefined;
+    } | undefined;
+}>, {
+    name?: string | undefined;
+    capacity?: number | undefined;
+    resourceType?: string | undefined;
+    isBookable?: boolean | undefined;
+    isExclusive?: boolean | undefined;
+    amenities?: string[] | undefined;
+    rentableHours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+        opensAt: string;
+        closesAt: string;
+    }[]>> | undefined;
+    slotRules?: {
+        minDurationMinutes: number;
+        maxDurationMinutes: number;
+        incrementMinutes: number;
+        bufferBeforeMinutes: number;
+        bufferAfterMinutes: number;
+    } | undefined;
+    pricing?: {
+        amountCents: number;
+    } | undefined;
+    paymentRequirement?: "free" | "pay_upfront" | "pay_later" | undefined;
+    confirmationMode?: "automatic" | "staff_approval" | undefined;
+    cancellationPolicy?: {
+        cutoffMinutes: number;
+        feeCents: number;
+    } | undefined;
+}, {
+    name?: string | undefined;
+    capacity?: number | undefined;
+    resourceType?: string | undefined;
+    isBookable?: boolean | undefined;
+    isExclusive?: boolean | undefined;
+    amenities?: string[] | undefined;
+    rentableHours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+        opensAt: string;
+        closesAt: string;
+    }[]>> | undefined;
+    slotRules?: {
+        minDurationMinutes?: number | undefined;
+        maxDurationMinutes?: number | undefined;
+        incrementMinutes?: number | undefined;
+        bufferBeforeMinutes?: number | undefined;
+        bufferAfterMinutes?: number | undefined;
+    } | undefined;
+    pricing?: {
+        amountCents?: number | undefined;
+    } | undefined;
+    paymentRequirement?: "free" | "pay_upfront" | "pay_later" | undefined;
+    confirmationMode?: "automatic" | "staff_approval" | undefined;
+    cancellationPolicy?: {
+        cutoffMinutes?: number | undefined;
+        feeCents?: number | undefined;
+    } | undefined;
+}>;
+export declare const resourceAvailabilityQuerySchema: z.ZodEffects<z.ZodObject<{
+    from: z.ZodString;
+    to: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    from: string;
+    to: string;
+}, {
+    from: string;
+    to: string;
+}>, {
+    from: string;
+    to: string;
+}, {
+    from: string;
+    to: string;
+}>;
+export declare const classSessionResourceAllocationSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
+    resourceId: z.ZodString;
+    startsAt: z.ZodOptional<z.ZodString>;
+    endsAt: z.ZodOptional<z.ZodString>;
+    overrideConflict: z.ZodDefault<z.ZodBoolean>;
+    overrideReason: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    resourceId: string;
+    overrideConflict: boolean;
+    startsAt?: string | undefined;
+    endsAt?: string | undefined;
+    overrideReason?: string | undefined;
+}, {
+    resourceId: string;
+    startsAt?: string | undefined;
+    endsAt?: string | undefined;
+    overrideReason?: string | undefined;
+    overrideConflict?: boolean | undefined;
+}>, {
+    resourceId: string;
+    overrideConflict: boolean;
+    startsAt?: string | undefined;
+    endsAt?: string | undefined;
+    overrideReason?: string | undefined;
+}, {
+    resourceId: string;
+    startsAt?: string | undefined;
+    endsAt?: string | undefined;
+    overrideReason?: string | undefined;
+    overrideConflict?: boolean | undefined;
+}>, {
+    resourceId: string;
+    overrideConflict: boolean;
+    startsAt?: string | undefined;
+    endsAt?: string | undefined;
+    overrideReason?: string | undefined;
+}, {
+    resourceId: string;
+    startsAt?: string | undefined;
+    endsAt?: string | undefined;
+    overrideReason?: string | undefined;
+    overrideConflict?: boolean | undefined;
+}>;
+export declare const facilityReservationCreateSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
+    resourceId: z.ZodString;
+    memberId: z.ZodString;
+    startsAt: z.ZodString;
+    endsAt: z.ZodString;
+    overrideConflict: z.ZodDefault<z.ZodBoolean>;
+    overrideReason: z.ZodOptional<z.ZodString>;
+    paymentReference: z.ZodOptional<z.ZodString>;
+    note: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    startsAt: string;
+    endsAt: string;
+    memberId: string;
+    resourceId: string;
+    overrideConflict: boolean;
+    note?: string | undefined;
+    overrideReason?: string | undefined;
+    paymentReference?: string | undefined;
+}, {
+    startsAt: string;
+    endsAt: string;
+    memberId: string;
+    resourceId: string;
+    note?: string | undefined;
+    overrideReason?: string | undefined;
+    overrideConflict?: boolean | undefined;
+    paymentReference?: string | undefined;
+}>, {
+    startsAt: string;
+    endsAt: string;
+    memberId: string;
+    resourceId: string;
+    overrideConflict: boolean;
+    note?: string | undefined;
+    overrideReason?: string | undefined;
+    paymentReference?: string | undefined;
+}, {
+    startsAt: string;
+    endsAt: string;
+    memberId: string;
+    resourceId: string;
+    note?: string | undefined;
+    overrideReason?: string | undefined;
+    overrideConflict?: boolean | undefined;
+    paymentReference?: string | undefined;
+}>, {
+    startsAt: string;
+    endsAt: string;
+    memberId: string;
+    resourceId: string;
+    overrideConflict: boolean;
+    note?: string | undefined;
+    overrideReason?: string | undefined;
+    paymentReference?: string | undefined;
+}, {
+    startsAt: string;
+    endsAt: string;
+    memberId: string;
+    resourceId: string;
+    note?: string | undefined;
+    overrideReason?: string | undefined;
+    overrideConflict?: boolean | undefined;
+    paymentReference?: string | undefined;
+}>;
+export declare const facilityReservationCancelSchema: z.ZodObject<{
+    reason: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    reason?: string | undefined;
+}, {
+    reason?: string | undefined;
 }>;
 export declare const checkInCreateSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     memberId: z.ZodOptional<z.ZodString>;
@@ -1694,8 +2462,13 @@ export type SchedulerRequestCreateInput = z.infer<typeof schedulerRequestCreateS
 export type SchedulerGenerateInput = z.infer<typeof schedulerGenerateSchema>;
 export type SchedulerPublishInput = z.infer<typeof schedulerPublishSchema>;
 export type SchedulerRequestResolveInput = z.infer<typeof schedulerRequestResolveSchema>;
-export type MemberCreateInput = z.infer<typeof memberCreateSchema>;
-export type MemberUpdateInput = z.infer<typeof memberUpdateSchema>;
+export type ConsumerCreateInput = z.input<typeof consumerCreateSchema>;
+export type ConsumerUpdateInput = z.input<typeof consumerUpdateSchema>;
+export type ConsumerProfileImageUploadInput = z.infer<typeof consumerProfileImageUploadSchema>;
+export type PosPurchaseInput = z.infer<typeof posPurchaseSchema>;
+export type PosStripeFinalizeInput = z.infer<typeof posStripeFinalizeSchema>;
+export type MemberCreateInput = z.input<typeof memberCreateSchema>;
+export type MemberUpdateInput = z.input<typeof memberUpdateSchema>;
 export type MembershipPlanCreateInput = z.infer<typeof membershipPlanCreateSchema>;
 export type MembershipPlanUpdateInput = z.infer<typeof membershipPlanUpdateSchema>;
 export type MemberMembershipAssignInput = z.infer<typeof memberMembershipAssignSchema>;
@@ -1704,6 +2477,12 @@ export type ClassSessionCreateInput = z.input<typeof classSessionCreateSchema>;
 export type ClassBookingCreateInput = z.infer<typeof classBookingCreateSchema>;
 export type StaffManualBookingInput = z.infer<typeof staffManualBookingSchema>;
 export type WaitlistJoinInput = z.infer<typeof waitlistJoinSchema>;
+export type ResourceCreateInput = z.input<typeof resourceCreateSchema>;
+export type ResourceUpdateInput = z.input<typeof resourceUpdateSchema>;
+export type ResourceAvailabilityQueryInput = z.infer<typeof resourceAvailabilityQuerySchema>;
+export type ClassSessionResourceAllocationInput = z.input<typeof classSessionResourceAllocationSchema>;
+export type FacilityReservationCreateInput = z.input<typeof facilityReservationCreateSchema>;
+export type FacilityReservationCancelInput = z.infer<typeof facilityReservationCancelSchema>;
 export type CheckInCreateInput = z.input<typeof checkInCreateSchema>;
 export type AccessDeviceCreateInput = z.input<typeof accessDeviceCreateSchema>;
 export type AccessRuleCreateInput = z.input<typeof accessRuleCreateSchema>;

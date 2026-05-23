@@ -48,6 +48,32 @@ export const MembershipStatus = {
 
 export type MembershipStatus = (typeof MembershipStatus)[keyof typeof MembershipStatus];
 
+export const ConsumerRecordStatus = {
+  Active: "active",
+  Inactive: "inactive",
+  Archived: "archived"
+} as const;
+
+export type ConsumerRecordStatus =
+  (typeof ConsumerRecordStatus)[keyof typeof ConsumerRecordStatus];
+
+export const LeadStage = {
+  None: "none",
+  Open: "open",
+  Converted: "converted",
+  Closed: "closed"
+} as const;
+
+export type LeadStage = (typeof LeadStage)[keyof typeof LeadStage];
+
+export const ConsumerSegment = {
+  Lead: "lead",
+  Customer: "customer",
+  Member: "member"
+} as const;
+
+export type ConsumerSegment = (typeof ConsumerSegment)[keyof typeof ConsumerSegment];
+
 export const MemberStatus = {
   Lead: "lead",
   Trial: "trial",
@@ -99,6 +125,58 @@ export const BookingSource = {
 } as const;
 
 export type BookingSource = (typeof BookingSource)[keyof typeof BookingSource];
+
+export const ReservableResourceStatus = {
+  Active: "active",
+  Archived: "archived"
+} as const;
+
+export type ReservableResourceStatus =
+  (typeof ReservableResourceStatus)[keyof typeof ReservableResourceStatus];
+
+export const ResourceAllocationSource = {
+  ClassSession: "class_session",
+  FacilityReservation: "facility_reservation"
+} as const;
+
+export type ResourceAllocationSource =
+  (typeof ResourceAllocationSource)[keyof typeof ResourceAllocationSource];
+
+export const FacilityReservationStatus = {
+  Pending: "pending",
+  Confirmed: "confirmed",
+  Cancelled: "cancelled"
+} as const;
+
+export type FacilityReservationStatus =
+  (typeof FacilityReservationStatus)[keyof typeof FacilityReservationStatus];
+
+export const ReservationPaymentRequirement = {
+  Free: "free",
+  PayUpfront: "pay_upfront",
+  PayLater: "pay_later"
+} as const;
+
+export type ReservationPaymentRequirement =
+  (typeof ReservationPaymentRequirement)[keyof typeof ReservationPaymentRequirement];
+
+export const ReservationPaymentStatus = {
+  NotRequired: "not_required",
+  Unpaid: "unpaid",
+  Paid: "paid",
+  Refunded: "refunded"
+} as const;
+
+export type ReservationPaymentStatus =
+  (typeof ReservationPaymentStatus)[keyof typeof ReservationPaymentStatus];
+
+export const ReservationConfirmationMode = {
+  Automatic: "automatic",
+  StaffApproval: "staff_approval"
+} as const;
+
+export type ReservationConfirmationMode =
+  (typeof ReservationConfirmationMode)[keyof typeof ReservationConfirmationMode];
 
 export const NotificationEventStatus = {
   Pending: "pending",

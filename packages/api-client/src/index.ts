@@ -4,11 +4,17 @@ import type {
   AccessDeviceHeartbeatInput,
   AccessRuleCreateInput,
   ClassBookingCreateInput,
+  ClassSessionResourceAllocationInput,
   CheckInCreateInput,
   ClassSessionCreateInput,
   ClassTypeCreateInput,
+  ConsumerCreateInput,
+  ConsumerProfileImageUploadInput,
+  ConsumerUpdateInput,
   CustomRoleCreateInput,
   CustomRoleUpdateInput,
+  FacilityReservationCancelInput,
+  FacilityReservationCreateInput,
   GymCreateInput,
   GymUpdateInput,
   LocationCreateInput,
@@ -19,9 +25,13 @@ import type {
   MemberUpdateInput,
   MembershipPlanCreateInput,
   MembershipPlanUpdateInput,
+  PosPurchaseInput,
+  PosStripeFinalizeInput,
   PublicSignupInput,
   RegisterInput,
   ResetPasswordInput,
+  ResourceCreateInput,
+  ResourceUpdateInput,
   RoleAssignmentInput,
   SchedulerAvailabilityCreateInput,
   SchedulerCoverageRuleCreateInput,
@@ -332,6 +342,50 @@ export class GymApiClient {
     return this.request("GET", `/gyms/${gymId}/members`);
   }
 
+  listConsumers(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/consumers`);
+  }
+
+  createConsumer(gymId: string, input: ConsumerCreateInput) {
+    return this.request("POST", `/gyms/${gymId}/consumers`, input);
+  }
+
+  uploadConsumerProfileImage(gymId: string, input: ConsumerProfileImageUploadInput) {
+    return this.request("POST", `/gyms/${gymId}/consumers/profile-image`, input);
+  }
+
+  updateConsumer(gymId: string, consumerId: string, input: ConsumerUpdateInput) {
+    return this.request("PATCH", `/gyms/${gymId}/consumers/${consumerId}`, input);
+  }
+
+  archiveConsumer(gymId: string, consumerId: string) {
+    return this.request("DELETE", `/gyms/${gymId}/consumers/${consumerId}`);
+  }
+
+  listConsumerMemberships(gymId: string, consumerId: string) {
+    return this.request("GET", `/gyms/${gymId}/consumers/${consumerId}/memberships`);
+  }
+
+  assignConsumerMembership(gymId: string, consumerId: string, input: MemberMembershipAssignInput) {
+    return this.request("POST", `/gyms/${gymId}/consumers/${consumerId}/memberships`, input);
+  }
+
+  createPosPurchase(gymId: string, input: PosPurchaseInput) {
+    return this.request("POST", `/gyms/${gymId}/pos/purchases`, input);
+  }
+
+  getPosStripeConfig(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/pos/stripe/config`);
+  }
+
+  createPosPaymentIntent(gymId: string, input: PosPurchaseInput) {
+    return this.request("POST", `/gyms/${gymId}/pos/payment-intents`, input);
+  }
+
+  finalizePosPaymentIntent(gymId: string, paymentIntentId: string) {
+    return this.request("POST", `/gyms/${gymId}/pos/payment-intents/${paymentIntentId}/finalize`, {} as PosStripeFinalizeInput);
+  }
+
   createMember(gymId: string, input: MemberCreateInput) {
     return this.request("POST", `/gyms/${gymId}/members`, input);
   }
@@ -378,6 +432,63 @@ export class GymApiClient {
 
   createClassSession(gymId: string, input: ClassSessionCreateInput) {
     return this.request("POST", `/gyms/${gymId}/class-sessions`, input);
+  }
+
+  allocateClassSessionResource(
+    gymId: string,
+    sessionId: string,
+    input: ClassSessionResourceAllocationInput
+  ) {
+    return this.request(
+      "POST",
+      `/gyms/${gymId}/class-sessions/${sessionId}/resource-allocations`,
+      input
+    );
+  }
+
+  listResources(gymId: string, locationId?: string) {
+    const query = locationId ? `?locationId=${encodeURIComponent(locationId)}` : "";
+    return this.request("GET", `/gyms/${gymId}/resources${query}`);
+  }
+
+  createResource(gymId: string, input: ResourceCreateInput) {
+    return this.request("POST", `/gyms/${gymId}/resources`, input);
+  }
+
+  updateResource(gymId: string, resourceId: string, input: ResourceUpdateInput) {
+    return this.request("PATCH", `/gyms/${gymId}/resources/${resourceId}`, input);
+  }
+
+  archiveResource(gymId: string, resourceId: string) {
+    return this.request("DELETE", `/gyms/${gymId}/resources/${resourceId}`);
+  }
+
+  resourceAvailability(gymId: string, resourceId: string, from: string, to: string) {
+    const params = new URLSearchParams({ from, to });
+    return this.request(
+      "GET",
+      `/gyms/${gymId}/resources/${resourceId}/availability?${params.toString()}`
+    );
+  }
+
+  listFacilityReservations(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/facility-reservations`);
+  }
+
+  createFacilityReservation(gymId: string, input: FacilityReservationCreateInput) {
+    return this.request("POST", `/gyms/${gymId}/facility-reservations`, input);
+  }
+
+  getFacilityReservation(gymId: string, reservationId: string) {
+    return this.request("GET", `/gyms/${gymId}/facility-reservations/${reservationId}`);
+  }
+
+  cancelFacilityReservation(
+    gymId: string,
+    reservationId: string,
+    input: FacilityReservationCancelInput = {}
+  ) {
+    return this.request("DELETE", `/gyms/${gymId}/facility-reservations/${reservationId}`, input);
   }
 
   listClassBookings(gymId: string, sessionId: string) {

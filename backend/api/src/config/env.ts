@@ -15,6 +15,14 @@ export interface ApiConfig {
   platformAdminEmails: string[];
   databaseUrl?: string;
   redisUrl?: string;
+  mediaBaseUrl?: string;
+  r2Bucket?: string;
+  r2Endpoint?: string;
+  r2AccessKeyId?: string;
+  r2SecretAccessKey?: string;
+  stripePublishableKey?: string;
+  stripeSecretKey?: string;
+  stripeWebhookSecret?: string;
 }
 
 function numberFromEnv(name: string, fallback: number) {
@@ -53,6 +61,30 @@ export function loadConfig(): ApiConfig {
   }
   if (process.env.REDIS_URL) {
     config.redisUrl = process.env.REDIS_URL;
+  }
+  if (process.env.MEDIA_BASE_URL) {
+    config.mediaBaseUrl = process.env.MEDIA_BASE_URL;
+  }
+  if (process.env.R2_BUCKET) {
+    config.r2Bucket = process.env.R2_BUCKET;
+  }
+  if (process.env.R2_ENDPOINT) {
+    config.r2Endpoint = process.env.R2_ENDPOINT;
+  }
+  if (process.env.R2_ACCESS_KEY_ID) {
+    config.r2AccessKeyId = process.env.R2_ACCESS_KEY_ID;
+  }
+  if (process.env.R2_SECRET_ACCESS_KEY) {
+    config.r2SecretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+  }
+  if (process.env.STRIPE_PUBLISHABLE_KEY) {
+    config.stripePublishableKey = process.env.STRIPE_PUBLISHABLE_KEY;
+  }
+  if (process.env.STRIPE_SECRET_KEY) {
+    config.stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+  }
+  if (process.env.STRIPE_WEBHOOK_SECRET) {
+    config.stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   }
   return config;
 }

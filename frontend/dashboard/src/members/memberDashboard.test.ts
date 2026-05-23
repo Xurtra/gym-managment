@@ -83,6 +83,7 @@ describe("member dashboard screens", () => {
     expect(page.rows[0]?.initials).toBe("JR");
     expect(page.rows[0]?.contactLabel).toBe("jamie@example.com");
     expect(page.rows[0]?.statusLabel).toBe("Active");
+    expect(page.rows[0]?.segmentLabel).toBe("Member");
     expect(page.rows[0]?.statusBadge.label).toBe("Active");
     expect(page.rows[0]?.statusBadge.tone).toBe("success");
     expect(page.rows[0]?.tagLabel).toBe("Strength, Founding");
@@ -92,6 +93,9 @@ describe("member dashboard screens", () => {
     );
     expect(page.summary).toMatchObject({
       totalCount: 4,
+      leadCount: 0,
+      customerCount: 0,
+      memberCount: 2,
       activeCount: 1,
       trialCount: 1,
       pastDueCount: 1,

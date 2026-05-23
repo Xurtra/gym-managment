@@ -152,6 +152,52 @@ describe("BookingService", () => {
     ).rejects.toThrow(/active membership/i);
   });
 
+  it("lets one-time customers book a covered class and rejects bookings beyond the entitlement limit", async () => {
+    const services = createServices(testConfig, fixedClock);
+    const { gymId, session, locationId, classTypeId } = await createBookingFixture(services, {
+      capacity: 3,
+      waitlistCapacity: 1
+    });
+    const customer = await services.memberService.create(gymId, {
+      firstName: "Casey",
+      lastName: "Customer",
+      email: "casey@example.com",
+      status: MemberStatus.Active,
+      tagNames: []
+    });
+    const dropIn = await services.membershipPlanService.create(gymId, {
+      name: "Drop In",
+      billingInterval: BillingInterval.OneTime,
+      priceCents: 2500,
+      signupFeeCents: 0,
+      trialDays: 0,
+      autoRenew: false,
+      isPublic: true
+    });
+    await services.memberMembershipService.assignPlan(gymId, customer.id, {
+      planId: dropIn.id,
+      status: MembershipStatus.Active
+    });
+    const secondSession = await services.classScheduleService.createSession(gymId, {
+      classTypeId,
+      locationId,
+      startsAt: "2026-05-19T14:00:00.000Z",
+      endsAt: "2026-05-19T15:00:00.000Z",
+      capacity: 3,
+      waitlistCapacity: 1
+    });
+
+    const booking = await services.bookingService.createBooking(gymId, session.id, {
+      memberId: customer.id
+    });
+
+    expect(booking.status).toBe(BookingStatus.Booked);
+    expect(dropIn.classAccessLimit).toBe(1);
+    await expect(
+      services.bookingService.createBooking(gymId, secondSession.id, { memberId: customer.id })
+    ).rejects.toThrow(/limit/i);
+  });
+
   it("applies late cancellation fees inside the session cancellation cutoff", async () => {
     const services = createServices(testConfig, fixedClock);
     const { gymId, session, members } = await createBookingFixture(services, {

@@ -1800,7 +1800,7 @@ describe("staff invite dashboard flow", () => {
       Permission.BookingRead,
       Permission.BookingWrite
     ]);
-    expect(trainerView.visibleRoutes).toEqual(["/", "/locations", "/members", "/classes"]);
+    expect(trainerView.visibleRoutes).toEqual(["/", "/locations", "/consumers", "/classes"]);
     expect(trainerView.visibleRouteCount).toBe(4);
     expect(trainerView.hiddenRoutes).toContain("/check-ins");
     expect(trainerView.hiddenRoutes).toContain("/settings");
@@ -1809,7 +1809,7 @@ describe("staff invite dashboard flow", () => {
     expect(trainerView.navItems.map((item) => item.label)).toEqual([
       "Dashboard",
       "Locations",
-      "Members",
+      "Consumers",
       "Classes"
     ]);
     expect(trainerView.navItems.find((item) => item.href === "/classes")?.active).toBe(true);
@@ -1851,7 +1851,7 @@ describe("staff invite dashboard flow", () => {
     expect(frontDeskView.navItems.map((item) => item.label)).toEqual([
       "Dashboard",
       "Locations",
-      "Members",
+      "Consumers",
       "Classes",
       "Check-Ins",
       "Access Control"

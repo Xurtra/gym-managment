@@ -1,4 +1,5 @@
-import { GymApiClient, ApiError, type ApiTokenStore } from "@gym-platform/api-client";
+﻿import { GymApiClient, ApiError, type ApiTokenStore } from "@gym-platform/api-client";
+import { loadStripe, type Stripe, type StripeCardElement, type StripeElements } from "@stripe/stripe-js";
 import {
   AccessDeviceType,
   BillingInterval,
@@ -13,6 +14,7 @@ import {
   RoleName,
   UserStatus
 } from "@gym-platform/constants";
+import type { ConsumerRecordStatus, ConsumerSegment, LeadStage } from "@gym-platform/constants";
 import {
   buildAccessDeviceListScreen,
   buildAccessDeviceRegistrationScreen,
@@ -27,8 +29,6 @@ import {
   buildMembershipPlanListPage,
   buildPersonalTrainingSessionListPage,
   buildStaffListPage,
-  buildStripePaymentCollectionScreen,
-  buildStripePaymentConnectionScreen,
   ContractWaiverType,
   PersonalTrainingSessionStatus,
   StripePaymentMethod,
@@ -38,8 +38,7 @@ import {
   type ClassBookingView,
   type ClassSessionView,
   type CheckInRecord,
-  type ContractWaiverDocumentView,
-  type StripePaymentAccountView
+  type ContractWaiverDocumentView
 } from "@gym-platform/dashboard";
 import { buildMemberPortalLayout } from "@gym-platform/member-portal";
 import {
@@ -50,6 +49,20 @@ import {
   buildPublicSiteLayout,
   buildPublicWebsiteHomePage
 } from "@gym-platform/website-renderer";
+import {
+  consumerSegmentLabel,
+  consumerSummary,
+  consumersForSegment,
+  isLeadConsumerRecord,
+  isMemberConsumerRecord,
+  type ConsumerSegmentFilter
+} from "./consumerData.js";
+import {
+  assertRecurringMembershipRequirements,
+  consumerCreateKindOptions,
+  defaultConsumerCreateKind,
+  defaultRecurringPlanId
+} from "./consumerCreate.js";
 import "./style.css";
 
 const API_BASE_URL = "http://127.0.0.1:4000";
@@ -292,6 +305,7 @@ interface GymRecord {
   locale: string;
   featureFlags: string[];
   logoUrl?: string;
+  stripeAccountId?: string;
   brandColors?: { primary: string; secondary?: string; accent?: string };
   businessInfo?: { email?: string; phone?: string; website?: string };
 }
@@ -383,6 +397,12 @@ interface MemberRecord {
   barcode?: string;
   profileImageUrl?: string;
   emergencyContact?: { name: string; phone: string; relationship?: string };
+  recordStatus?: ConsumerRecordStatus;
+  leadStage?: LeadStage;
+  segments?: ConsumerSegment[];
+  isLead?: boolean;
+  isCustomer?: boolean;
+  isMember?: boolean;
   notes?: string;
   tagNames: string[];
   createdAt: string;
@@ -462,8 +482,8 @@ interface StaffTimeEntryRecord {
   updatedAt: string;
 }
 
-interface MemberListResponse {
-  members: MemberRecord[];
+interface ConsumerListResponse {
+  consumers: MemberRecord[];
 }
 
 interface PlanRecord {
@@ -694,6 +714,7 @@ interface AppState {
   selectedPlanId: string;
   theme: ThemeName;
   settingsSection: SettingsSectionKey;
+  consumerSegment: ConsumerSegmentFilter;
   roles: RoleRecord[];
   selectedRoleId: string;
   staffShifts: StaffShiftRecord[];
@@ -720,6 +741,7 @@ interface AppState {
   // Dashboard sub-views
   dashboardView:
     | "home"
+    | "consumers"
     | "customers"
     | "customer_profile"
     | "customer_edit"
@@ -753,6 +775,12 @@ interface AppState {
     locationId: string;
     payload: CheckInPayload;
   };
+  cameraCapture?: {
+    formId: string;
+    inputName: string;
+    label: string;
+    error?: string;
+  };
   checkInDebug?: {
     title: string;
     message: string;
@@ -761,6 +789,7 @@ interface AppState {
   checkInHistory: CheckInRecord[];
   memberCache: Record<string, { memberships: MemberMembershipRecord[]; checkIns: CheckInRecord[] }>;
   memberDesk: MemberDeskStore;
+  posStripeConfig?: { enabled: boolean; publishableKey?: string };
 }
 
 const initialRoute = readRoute();
@@ -801,6 +830,7 @@ const state: AppState = {
   selectedPlanId: "",
   theme: loadTheme(),
   settingsSection: initialRoute.settingsSection ?? "setup",
+  consumerSegment: initialRoute.consumerSegment ?? "all",
   roles: [],
   selectedRoleId: "",
   staffShifts: [],
@@ -825,11 +855,22 @@ const state: AppState = {
   dashboardView: initialRoute.dashboardView,
   checkInBarcode: "",
   checkInHistory: [],
+  cameraCapture: undefined,
   checkInDebug: undefined,
   checkInReview: undefined,
   memberCache: {},
   memberDesk: loadMemberDeskStore(),
+  posStripeConfig: undefined,
 };
+
+const pendingCameraPhotos = new Map<string, { file: File; previewUrl: string }>();
+let activeCameraStream: MediaStream | undefined;
+let activeCameraSessionKey: string | undefined;
+let cameraStartPromise: Promise<void> | undefined;
+let stripePromise: Promise<Stripe | null> | undefined;
+let stripePromiseKey: string | undefined;
+let stripeElements: StripeElements | undefined;
+let stripeCardElement: StripeCardElement | undefined;
 
 const tokenStore: ApiTokenStore = {
   getAccessToken: () => state.session?.accessToken,
@@ -858,7 +899,7 @@ const client = new GymApiClient({
   }
 });
 
-let staffClockTimerInterval: ReturnType<typeof window.setInterval> | undefined;
+let staffClockTimerInterval: number | undefined;
 
 window.addEventListener("hashchange", () => {
   syncRouteFromHash();
@@ -999,11 +1040,12 @@ async function refreshDashboard(options: { silent?: boolean; renderAfter?: boole
       const canReadOwnShifts = hasPermission(Permission.GymRead);
       const canReadAccess = hasPermission(Permission.AccessRead);
       const canReadScheduler = hasPermission(Permission.ScheduleRead);
-      const [members, plans, locations, checkIns, classTypes] = (await Promise.all([
+      const [gymSettings, consumers, plans, locations, checkIns, classTypes] = (await Promise.all([
+        client.getGym(state.gym.id) as Promise<GymRecord>,
         loadPermittedDashboardData(
           canReadMembers,
-          () => client.listMembers(state.gym!.id) as Promise<MemberListResponse>,
-          { members: [] }
+          () => client.listConsumers(state.gym!.id) as Promise<ConsumerListResponse>,
+          { consumers: [] }
         ),
         loadPermittedDashboardData(
           canReadPlans,
@@ -1026,42 +1068,37 @@ async function refreshDashboard(options: { silent?: boolean; renderAfter?: boole
           { classTypes: [] }
         )
       ])) as [
-        MemberListResponse,
+        GymRecord,
+        ConsumerListResponse,
         PlanListResponse,
         LocationListResponse,
         { checkIns?: CheckInRecord[] } | CheckInRecord[],
         ClassTypeListResponse
       ];
-      state.members = members.members;
+      state.gym = gymSettings;
+      const consumerRecords = resolveConsumerRecords(consumers.consumers);
+      state.members = consumerRecords;
       state.plans = plans.plans;
       state.locations = locations.locations;
       state.classTypes = classTypes.classTypes;
+      try {
+        state.posStripeConfig = (await client.getPosStripeConfig(state.gym.id)) as {
+          enabled: boolean;
+          publishableKey?: string;
+        };
+      } catch {
+        state.posStripeConfig = undefined;
+      }
       if (!state.selectedLocationId || !state.locations.some((location) => location.id === state.selectedLocationId)) {
         state.selectedLocationId = state.locations[0]?.id ?? "";
       }
-      const cachedMembers = members.members
+      const cachedMembers = consumerRecords
         .slice()
         .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
         .slice(0, 6);
       state.memberCache = Object.fromEntries(
         await Promise.all(
-          cachedMembers.map(async (member) => {
-            try {
-              const [membershipResponse, checkInsResponse] = await Promise.all([
-                client.listMemberMemberships(state.gym!.id, member.id) as Promise<{ memberships?: MemberMembershipRecord[] } | MemberMembershipRecord[]>,
-                client.listMemberCheckIns(state.gym!.id, member.id) as Promise<{ checkIns?: CheckInRecord[] } | CheckInRecord[]>
-              ]);
-              const memberships = Array.isArray(membershipResponse)
-                ? membershipResponse
-                : membershipResponse.memberships ?? [];
-              const checkIns = Array.isArray(checkInsResponse)
-                ? checkInsResponse
-                : checkInsResponse.checkIns ?? [];
-              return [member.id, { memberships, checkIns }];
-            } catch {
-              return [member.id, { memberships: [], checkIns: [] }];
-            }
-          })
+          cachedMembers.map(async (member) => [member.id, await loadMemberCacheEntry(state.gym!.id, member.id)] as const)
         )
       );
       const checkInRecords = Array.isArray(checkIns) ? checkIns : checkIns.checkIns ?? [];
@@ -1197,12 +1234,15 @@ async function refreshDashboard(options: { silent?: boolean; renderAfter?: boole
       state.accessEvents = [];
       state.selectedLocationId = "";
       state.memberCache = {};
+      state.posStripeConfig = undefined;
     }
     if (state.publicSlug) {
       await refreshPublic(state.publicSlug, false);
     }
   } catch (error) {
-    clearDashboardState();
+    if (showLoading) {
+      clearDashboardState();
+    }
     setBanner("error", describeError(error));
   } finally {
     state.dashboardLoading = false;
@@ -1210,6 +1250,42 @@ async function refreshDashboard(options: { silent?: boolean; renderAfter?: boole
       render();
     }
   }
+}
+
+async function loadMemberCacheEntry(gymId: string, memberId: string) {
+  try {
+    const [membershipResponse, checkInsResponse] = await Promise.all([
+      client.listConsumerMemberships(gymId, memberId) as Promise<{ memberships?: MemberMembershipRecord[] } | MemberMembershipRecord[]>,
+      client.listMemberCheckIns(gymId, memberId) as Promise<{ checkIns?: CheckInRecord[] } | CheckInRecord[]>
+    ]);
+    return {
+      memberships: Array.isArray(membershipResponse)
+        ? membershipResponse
+        : membershipResponse.memberships ?? [],
+      checkIns: Array.isArray(checkInsResponse)
+        ? checkInsResponse
+        : checkInsResponse.checkIns ?? []
+    };
+  } catch {
+    return { memberships: [], checkIns: [] };
+  }
+}
+
+async function refreshCreatedConsumerState(gymId: string, consumerId: string) {
+  const consumers = (await client.listConsumers(gymId)) as ConsumerListResponse;
+  const consumerRecords = resolveConsumerRecords(consumers.consumers);
+  state.members = consumerRecords;
+  const visibleConsumerIds = new Set(consumerRecords.map((member) => member.id));
+  state.memberCache = Object.fromEntries(
+    Object.entries(state.memberCache).filter(([memberId]) => visibleConsumerIds.has(memberId))
+  );
+  if (!visibleConsumerIds.has(consumerId)) {
+    return;
+  }
+  state.memberCache = {
+    ...state.memberCache,
+    [consumerId]: await loadMemberCacheEntry(gymId, consumerId)
+  };
 }
 
 async function refreshPublic(slug: string, shouldRender = true) {
@@ -1304,6 +1380,7 @@ async function refreshSelectedClassBookings() {
 }
 
 function render() {
+  const preservedForms = captureRenderableFormState();
   applyTheme();
   const publicPlanPage = state.publicGym
     ? buildPublicPlansPage({
@@ -1347,8 +1424,68 @@ function render() {
         </div>
       `}
   `;
+  restoreRenderableFormState(preservedForms);
   bindEvents();
   startStaffClockTimers();
+  void syncCameraCaptureModal();
+  void syncPosStripeCardField();
+}
+
+type PreservedFormValue =
+  | { kind: "checkbox"; checked: boolean }
+  | { kind: "radio"; checked: boolean }
+  | { kind: "value"; value: string };
+
+function captureRenderableFormState() {
+  const preservedForms = new Map<string, Map<string, PreservedFormValue>>();
+  app.querySelectorAll<HTMLFormElement>("form[id]").forEach((form) => {
+    const formState = new Map<string, PreservedFormValue>();
+    form.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input[name], select[name], textarea[name]").forEach((field) => {
+      const fieldName = field.name;
+      if (!fieldName) {
+        return;
+      }
+      if (field instanceof HTMLInputElement) {
+        if (field.type === "file") {
+          return;
+        }
+        if (field.type === "checkbox" || field.type === "radio") {
+          const key = `${fieldName}::${field.value}`;
+          formState.set(key, { kind: field.type, checked: field.checked });
+          return;
+        }
+      }
+      formState.set(fieldName, { kind: "value", value: field.value });
+    });
+    preservedForms.set(form.id, formState);
+  });
+  return preservedForms;
+}
+
+function restoreRenderableFormState(preservedForms: Map<string, Map<string, PreservedFormValue>>) {
+  preservedForms.forEach((formState, formId) => {
+    const form = app.querySelector<HTMLFormElement>(`#${CSS.escape(formId)}`);
+    if (!form) {
+      return;
+    }
+    formState.forEach((savedValue, fieldKey) => {
+      if (savedValue.kind === "value") {
+        const field = form.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
+          `[name="${CSS.escape(fieldKey)}"]`
+        );
+        if (field) {
+          field.value = savedValue.value;
+        }
+        return;
+      }
+      const [fieldName, fieldValue] = fieldKey.split("::");
+      const selector = `[name="${CSS.escape(fieldName)}"][value="${CSS.escape(fieldValue)}"]`;
+      const field = form.querySelector<HTMLInputElement>(selector);
+      if (field) {
+        field.checked = savedValue.checked;
+      }
+    });
+  });
 }
 
 function renderDashboard() {
@@ -1401,6 +1538,9 @@ function renderDashboard() {
 
   let content = '';
   switch (state.dashboardView) {
+    case 'consumers':
+      content = renderConsumersView();
+      break;
     case 'customers':
       content = renderCustomersView();
       break;
@@ -1499,8 +1639,7 @@ function renderDashboard() {
       <nav class="club-tabs">
         ${dashboardTab("home", "Club Home")}
         ${dashboardTab("check_in", "Check In")}
-        ${dashboardTab("customers", "Customers")}
-        ${dashboardTab("leads", "Leads")}
+        ${dashboardTab("consumers", "Consumers")}
         ${dashboardTab("staff", "Staff")}
         ${dashboardTab("scheduler", "Scheduler")}
         ${dashboardTab("pos", "Point Of Sale")}
@@ -1528,6 +1667,7 @@ function renderDashboard() {
     </div>
     ${state.staffClockModalOpen ? renderStaffClockModal() : ""}
     ${state.checkInReview ? renderCheckInReviewModal(state.checkInReview) : ""}
+    ${state.cameraCapture ? renderCameraCaptureModal(state.cameraCapture) : ""}
   `;
 }
 
@@ -1702,8 +1842,8 @@ function renderRailCheckInCard(checkIn: CheckInRecord) {
 }
 
 function renderDashboardHome() {
-  const leadCount = state.members.filter((member) => member.status === MemberStatus.Lead).length;
-  const activeCount = state.members.filter((member) => member.status === MemberStatus.Active).length;
+  const leadCount = state.members.filter(isLeadConsumerRecord).length;
+  const activeCount = state.members.filter(isMemberConsumerRecord).length;
   const spotlight = selectedMember() ?? state.members[0];
   const recentMembers = [...state.members]
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
@@ -1714,10 +1854,10 @@ function renderDashboardHome() {
       <section class="club-panel club-customers">
         <div class="card-head">
           <div>
-            <p class="eyebrow">Customers</p>
-            <h2>${state.gym?.name ?? "Customer Cards"}</h2>
+            <p class="eyebrow">Consumers</p>
+            <h2>${state.gym?.name ?? "Consumer Cards"}</h2>
           </div>
-          <span class="club-kicker">${state.members.length} total · ${activeCount} active · ${leadCount} leads</span>
+          <span class="club-kicker">${state.members.length} consumers Â· ${activeCount} members Â· ${leadCount} leads</span>
         </div>
         ${spotlight ? `
           <article class="club-focus-card">
@@ -1732,7 +1872,7 @@ function renderDashboardHome() {
               <p>${spotlight.status}</p>
               <div class="club-mini-nav">
                 <button type="button" class="ghost-button" data-dashboard-view="customer_profile" data-preserve-context="true">Open Profile</button>
-                <button type="button" class="ghost-button" data-dashboard-view="customer_edit" data-preserve-context="true">Edit Customer</button>
+                <button type="button" class="ghost-button" data-dashboard-view="customer_edit" data-preserve-context="true">Edit Consumer</button>
               </div>
             </div>
           </article>
@@ -1741,7 +1881,7 @@ function renderDashboardHome() {
         `}
         <div class="club-customer-grid">
           ${recentMembers.length === 0
-            ? `<div class="empty-state"><p>No customer cards available.</p></div>`
+            ? `<div class="empty-state"><p>No consumer cards available.</p></div>`
             : recentMembers.map((member) => `
                 <button type="button" class="club-customer-card" data-action="view-member" data-member-id="${member.id}">
                   <div class="club-customer-avatar">
@@ -1764,9 +1904,9 @@ function renderDashboardHome() {
           </div>
           <span class="club-kicker">Operations</span>
         </div>
-        <p class="club-copy">Use the top navigation to jump between customers, leads, staff, POS, marketing, and reporting. Edit a customer from the profile view and adjust barcodes or profile pictures at any time.</p>
+        <p class="club-copy">Use the top navigation to jump between consumers, staff, POS, marketing, and reporting. Edit a consumer from the profile view and adjust barcodes or profile pictures at any time.</p>
         <div class="club-mini-nav">
-          <button type="button" class="ghost-button" data-dashboard-view="customers">Open Customers</button>
+          <button type="button" class="ghost-button" data-dashboard-view="consumers">Open Consumers</button>
           <button type="button" class="ghost-button" data-dashboard-view="pos">Open POS</button>
         </div>
       </section>
@@ -1790,7 +1930,7 @@ function renderDashboardHome() {
                   </div>
                   <div>
                     <strong>${member.firstName} ${member.lastName}</strong>
-                    <p>${member.status}${member.barcode ? ` · ${member.barcode}` : ""}</p>
+                    <p>${member.status}${member.barcode ? ` Â· ${member.barcode}` : ""}</p>
                   </div>
                 </article>
               `).join("")}
@@ -1823,7 +1963,7 @@ function renderDashboardHome() {
             <p class="eyebrow">Spotlight Member</p>
             <h2>${spotlight ? `${spotlight.firstName} ${spotlight.lastName}` : "No customer selected"}</h2>
           </div>
-          <button type="button" class="ghost-button" data-dashboard-view="customers" data-preserve-context="true">View Customers</button>
+          <button type="button" class="ghost-button" data-dashboard-view="consumers" data-preserve-context="true">View Consumers</button>
         </div>
         ${spotlight ? `
           <div class="spotlight-card">
@@ -1843,6 +1983,148 @@ function renderDashboardHome() {
         `}
       </section>
     </div>
+  `;
+}
+
+function renderConsumersView() {
+  const canWriteConsumers = currentPermissions().includes(Permission.MemberWrite);
+  const segmentConsumers = consumersForSegment(state.members, state.consumerSegment);
+  const memberPage = buildMemberListPage({
+    members: segmentConsumers,
+    permissions: currentPermissions(),
+    surface: "consumer",
+    detailBasePath: "#/dashboard/consumers/profile",
+    editBasePath: "#/dashboard/consumers/edit"
+  });
+  const leadPage = buildLeadListPage({
+    members: state.members,
+    permissions: currentPermissions(),
+    detailBasePath: "#/dashboard/consumers/profile",
+    editBasePath: "#/dashboard/consumers/edit"
+  });
+  const recentConsumers = segmentConsumers
+    .slice()
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, 8);
+  const spotlight = selectedMember() ?? recentConsumers[0];
+  const summary = consumerSummary(state.members);
+  const table =
+    state.consumerSegment === "leads"
+      ? renderModelTable(leadPage.table, "No lead rows to display.")
+      : renderModelTable(memberPage.table, "No consumer rows to display.");
+
+  return `
+    <section class="club-panel club-page consumer-page">
+      <div class="card-head">
+        <div>
+          <p class="eyebrow">Consumers</p>
+          <h2>Consumer Directory</h2>
+        </div>
+        <span class="club-kicker">${summary.total} total Â· ${summary.members} members Â· ${summary.customers} customers Â· ${summary.leads} leads</span>
+      </div>
+
+      <div class="consumer-segment-tabs">
+        ${consumerSegmentTab("all", "All", summary.total)}
+        ${consumerSegmentTab("members", "Members", summary.members)}
+        ${consumerSegmentTab("customers", "Customers", summary.customers)}
+        ${consumerSegmentTab("leads", "Leads", summary.leads)}
+      </div>
+
+      <div class="club-page-split">
+        <div class="club-customer-grid consumer-card-grid">
+          ${recentConsumers.length === 0
+            ? `<div class="empty-state"><p>No consumers yet.</p></div>`
+            : recentConsumers.map(renderConsumerCard).join("")}
+        </div>
+        <div class="club-panel club-focus-panel consumer-detail-panel">
+          ${canWriteConsumers ? renderConsumerCreatePanel() : ""}
+          ${spotlight
+            ? `
+              <div class="club-focus-card compact">
+                <div class="club-focus-photo">
+                  ${spotlight.profileImageUrl
+                    ? `<img src="${escapeAttribute(spotlight.profileImageUrl)}" alt="${escapeAttribute(`${spotlight.firstName} ${spotlight.lastName}`.trim())}" />`
+                    : customerInitials(spotlight)}
+                </div>
+                <div class="club-focus-copy">
+                  <p class="eyebrow">Selected consumer</p>
+                  <h3>${spotlight.firstName} ${spotlight.lastName}</h3>
+                  <p>${consumerSegmentLabel(spotlight)}</p>
+                </div>
+                <div class="club-mini-nav consumer-card-actions">
+                  <button type="button" class="ghost-button" data-dashboard-view="customer_profile" data-preserve-context="true">Open Profile</button>
+                  <button type="button" class="ghost-button" data-dashboard-view="customer_edit" data-preserve-context="true">Edit Consumer</button>
+                </div>
+              </div>
+            `
+            : `<div class="empty-state"><p>Select a consumer to see details.</p></div>`}
+          ${table}
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderConsumerCreatePanel() {
+  const recurringPlans = recurringMembershipPlanOptions();
+  const defaultPlanId = defaultRecurringPlanId(recurringPlans);
+  const createKindOptions = consumerCreateKindOptions(recurringPlans);
+  const defaultCreateKind = defaultConsumerCreateKind(recurringPlans);
+  const recurringPlanNote =
+    recurringPlans.length > 0
+      ? "Members need at least an email or phone number and a recurring plan. Profile photos can be added now or later."
+      : "No active monthly or yearly plans exist yet. Create a recurring plan before adding subscription members.";
+  const recurringPlanChoices = [
+    {
+      value: "",
+      label: recurringPlans.length > 0 ? "Choose a recurring plan" : "No recurring plans available"
+    },
+    ...recurringPlans.map((plan) => ({ value: plan.id, label: `${plan.name} Â· ${formatCurrency(plan.priceCents)}` }))
+  ];
+  return `
+    <form id="create-member-form" class="form-card compact-form" style="margin-bottom:16px;">
+      <div class="card-head">
+        <h3>Add consumer</h3>
+        <span>Consumer tab</span>
+      </div>
+      <p class="club-copy">Create a lead, standard consumer, or full member without leaving the directory.</p>
+      ${renderSelect("createKind", "Create as", createKindOptions, defaultCreateKind)}
+      ${renderInput("firstName", "First name")}
+      ${renderInput("lastName", "Last name")}
+      ${renderInput("email", "Email", "email")}
+      ${renderInput("phone", "Phone", "tel")}
+      ${renderCameraCaptureInput("create-member-form", "profileImageFile", "Take profile picture")}
+      ${renderSelect("planId", "Recurring membership plan", recurringPlanChoices, defaultPlanId)}
+      ${renderSelect("membershipStatus", "Membership status", [
+        { value: MembershipStatus.Active, label: "Active" },
+        { value: MembershipStatus.Trialing, label: "Trialing" },
+        { value: MembershipStatus.PastDue, label: "Past due" },
+        { value: MembershipStatus.Paused, label: "Frozen" }
+      ], MembershipStatus.Active)}
+      <div class="club-note">
+        <p>${recurringPlanNote}</p>
+      </div>
+      <button type="submit">Add consumer</button>
+    </form>
+  `;
+}
+
+function consumerSegmentTab(segment: ConsumerSegmentFilter, label: string, count: number) {
+  const active = state.consumerSegment === segment ? " active" : "";
+  return `<button type="button" class="tab-btn${active}" data-consumer-segment="${segment}">${label}<span class="consumer-tab-count">${count}</span></button>`;
+}
+
+function renderConsumerCard(member: MemberRecord) {
+  return `
+    <button type="button" class="club-customer-card" data-action="view-member" data-member-id="${member.id}">
+      <div class="club-customer-avatar">
+        ${member.profileImageUrl
+          ? `<img src="${escapeAttribute(member.profileImageUrl)}" alt="${escapeAttribute(`${member.firstName} ${member.lastName}`.trim())}" />`
+          : customerInitials(member)}
+      </div>
+      <strong>${member.firstName} ${member.lastName}</strong>
+      <span class="consumer-card-segments">${consumerSegmentLabel(member)}</span>
+    </button>
   `;
 }
 
@@ -1911,25 +2193,25 @@ function renderCustomersView() {
 function renderCustomerProfileView() {
   const member = selectedMember();
   if (!member) {
-    return `<div class="empty-state"><h3>Customer not found</h3><p>The selected customer could not be found.</p></div>`;
+    return `<div class="empty-state"><h3>Consumer not found</h3><p>The selected consumer could not be found.</p></div>`;
   }
   const summary = buildCheckInMemberSummary(member);
   const planOptions = state.plans
     .filter((plan) => plan.status !== "archived")
-    .map((plan) => ({ value: plan.id, label: `${plan.name} · ${formatCurrency(plan.priceCents)}` }));
+    .map((plan) => ({ value: plan.id, label: `${plan.name} Â· ${formatCurrency(plan.priceCents)}` }));
   const photoMarkup = member.profileImageUrl
     ? `<img src="${escapeAttribute(member.profileImageUrl)}" alt="${escapeAttribute(`${member.firstName} ${member.lastName}`.trim() || "Customer")} profile picture" style="width:112px;height:112px;border-radius:28px;object-fit:cover;border:1px solid var(--line);background:#111;" />`
     : `<div style="width:112px;height:112px;border-radius:28px;display:grid;place-items:center;background:#262626;border:1px solid var(--line);font-weight:700;">${customerInitials(member)}</div>`;
   return `
     <div style="margin-bottom:1rem;">
-      <button class="tab-btn active" data-dashboard-view="customers" data-preserve-context="true">← Back to Customers</button>
+      <button class="tab-btn active" data-dashboard-view="consumers" data-preserve-context="true">â† Back to Consumers</button>
     </div>
     <section class="club-panel profile-sheet">
       <div class="profile-header">
         <div class="profile-header-main">
           <div class="profile-avatar">${photoMarkup}</div>
           <div class="profile-header-copy">
-            <p class="eyebrow">Customer Profile</p>
+            <p class="eyebrow">Consumer Profile</p>
             <h2>${member.firstName} ${member.lastName}</h2>
             <div class="checkin-sheet-badges">
               <span class="club-note-label">${summary.planLabel}</span>
@@ -1938,37 +2220,31 @@ function renderCustomerProfileView() {
             </div>
             <div class="checkin-sheet-meta">
               <span><strong>Amount due:</strong> ${summary.amountDueLabel}</span>
-              <span><strong>Barcode:</strong> ${member.barcode || "Not set"}</span>
               <span><strong>Profile image:</strong> ${member.profileImageUrl || "Not set"}</span>
             </div>
             ${renderLinkedMemberChips(summary)}
           </div>
         </div>
         <div class="club-mini-nav">
-          <button type="button" class="ghost-button" data-customer-action="edit" data-member-id="${member.id}">Edit customer</button>
+          <button type="button" class="ghost-button" data-customer-action="edit" data-member-id="${member.id}">Edit consumer</button>
           <button type="button" class="ghost-button" data-dashboard-view="check_in" data-preserve-context="true">Open check-in</button>
           <button type="button" class="ghost-button" data-sheet-view="pos">POS</button>
         </div>
       </div>
 
       <div class="profile-tools-grid">
-        <form id="member-barcode-form" class="form-card compact-form">
-          <input type="hidden" name="memberId" value="${member.id}" />
-          ${renderInput("barcode", "Barcode", "text", member.barcode ?? "")}
-          <button type="submit">Save barcode</button>
-        </form>
-
         ${planOptions.length === 0
           ? `<div class="settings-placeholder"><strong>No plans loaded</strong><p>Create a plan before adding a membership.</p></div>`
           : `
             <form id="member-add-membership-form" class="form-card compact-form">
               <input type="hidden" name="memberId" value="${member.id}" />
+              <p class="muted">Monthly and yearly plans convert this consumer into a member. Recurring members need at least an email or phone number.</p>
               ${renderSelect("planId", "Add membership", planOptions, summary.primaryPlan?.id ?? planOptions[0]?.value ?? "")}
               ${renderSelect("status", "Membership status", [
                 { value: MembershipStatus.Active, label: "Active" },
                 { value: MembershipStatus.Trialing, label: "Trialing" },
                 { value: MembershipStatus.PastDue, label: "Past due" },
-                { value: MembershipStatus.Frozen, label: "Frozen" },
+                { value: MembershipStatus.Paused, label: "Frozen" },
                 { value: MembershipStatus.Expired, label: "Expired" }
               ], MembershipStatus.Active)}
               <button type="submit">Add membership</button>
@@ -2030,13 +2306,13 @@ function renderCustomerProfileView() {
 function renderCustomerEditView() {
   const member = selectedMember();
   if (!member) {
-    return `<div class="empty-state"><h3>Customer not found</h3><p>The selected customer could not be found.</p></div>`;
+    return `<div class="empty-state"><h3>Consumer not found</h3><p>The selected consumer could not be found.</p></div>`;
   }
   return `
     <section class="data-card customer-edit-shell">
       <div class="card-head customer-edit-head">
         <div>
-          <p class="eyebrow">Edit Customer</p>
+          <p class="eyebrow">Edit Consumer</p>
           <h3>${member.firstName} ${member.lastName}</h3>
         </div>
         <span>${member.id}</span>
@@ -2049,8 +2325,8 @@ function renderCustomerEditView() {
             <span>Use the sections below to update the member record.</span>
           </div>
           <div class="customer-edit-actions">
-            <button type="submit" class="save-button">Save customer</button>
-            <button type="button" class="ghost-button" data-dashboard-view="customers" data-preserve-context="true">Back to customers</button>
+            <button type="submit" class="save-button">Save consumer</button>
+            <button type="button" class="ghost-button" data-dashboard-view="consumers" data-preserve-context="true">Back to consumers</button>
           </div>
         </div>
 
@@ -2064,14 +2340,14 @@ function renderCustomerEditView() {
 
           <section class="customer-edit-card">
             <h4>Contact</h4>
+            <p class="muted">Recurring memberships require at least one contact method plus a profile image. Capture both email and phone when you can.</p>
             ${renderInput("email", "Email", "email", member.email ?? "")}
             ${renderInput("phone", "Phone", "tel", member.phone ?? "")}
-            ${renderInput("profileImageUrl", "Profile image URL", "url", member.profileImageUrl ?? "")}
+            ${renderCameraCaptureInput("update-member-form", "profileImageFile", "Take profile picture", member.profileImageUrl)}
           </section>
 
           <section class="customer-edit-card">
-            <h4>Access</h4>
-            ${renderInput("barcode", "Barcode", "text", member.barcode ?? "")}
+            <h4>Tags</h4>
             ${renderInput("tagNames", "Tags, comma separated", "text", member.tagNames.join(", "))}
           </section>
 
@@ -2092,8 +2368,8 @@ function renderCustomerEditView() {
         </div>
 
         <div class="customer-edit-footer">
-          <button type="submit" class="save-button">Save customer</button>
-          <button type="button" class="ghost-button" data-dashboard-view="customers" data-preserve-context="true">Cancel</button>
+          <button type="submit" class="save-button">Save consumer</button>
+          <button type="button" class="ghost-button" data-dashboard-view="consumers" data-preserve-context="true">Cancel</button>
         </div>
       </form>
     </section>
@@ -2127,7 +2403,7 @@ function renderLeadsView() {
                       : customerInitials(member)}
                   </div>
                   <strong>${member.fullName}</strong>
-                  <span>${member.contactLabel} · ${member.tagLabel}</span>
+                  <span>${member.contactLabel} Â· ${member.tagLabel}</span>
                 </button>
               `).join("")}
         </div>
@@ -2179,7 +2455,7 @@ function renderStaffView() {
           <p class="eyebrow">Staff</p>
           <h2>Team access</h2>
         </div>
-        <span>${directoryStaff.length} staff · ${activeStaff.length} active</span>
+        <span>${directoryStaff.length} staff Â· ${activeStaff.length} active</span>
       </div>
       <div class="club-page-split">
         <div class="section-stack">
@@ -2232,7 +2508,7 @@ function renderSchedulerView() {
           <h2>Automated schedule builder</h2>
           <p class="club-copy">Create coverage rules, track availability, generate a draft schedule, then publish shifts to staff.</p>
         </div>
-        <span>${state.schedulerRules.length} rules · ${openScheduleRequests + openPreferenceRequests} open requests</span>
+        <span>${state.schedulerRules.length} rules Â· ${openScheduleRequests + openPreferenceRequests} open requests</span>
       </div>
       <div class="club-page-split">
         <div class="section-stack">
@@ -2347,7 +2623,7 @@ function renderSchedulerRequestFields() {
     { value: "", label: "No specific shift" },
     ...signedInStaffShifts().map((shift) => ({
       value: shift.id,
-      label: `${shiftTimeLabel(shift)}${shift.locationId ? ` · ${locationName(shift.locationId)}` : ""}`
+      label: `${shiftTimeLabel(shift)}${shift.locationId ? ` Â· ${locationName(shift.locationId)}` : ""}`
     }))
   ];
   return `
@@ -2408,7 +2684,7 @@ function renderSchedulerDraft(canPublish: boolean) {
   return `
     <div class="scheduler-draft">
       <div class="staff-shift-head-actions">
-        <span>${draft.assignments.length} draft assignments · ${draft.warnings.length} warnings</span>
+        <span>${draft.assignments.length} draft assignments Â· ${draft.warnings.length} warnings</span>
         <button type="button" class="ghost-button" data-scheduler-publish ${canPublish && draft.assignments.some((assignment) => assignment.userId) ? "" : "disabled"}>Publish shifts</button>
       </div>
       ${draft.warnings.length
@@ -2423,7 +2699,7 @@ function renderSchedulerDraft(canPublish: boolean) {
               <div class="staff-role-copy">
                 <strong>${escapeHtml(staff ? staffFullName(staff) : "Unassigned")}</strong>
                 <p>${escapeHtml(new Date(assignment.startsAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" }))} - ${escapeHtml(new Date(assignment.endsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }))}</p>
-                <span class="staff-clock-chip">${escapeHtml(role ? formatRoleLabel(role.name) : "Staff")} · ${escapeHtml(assignment.reason)}</span>
+                <span class="staff-clock-chip">${escapeHtml(role ? formatRoleLabel(role.name) : "Staff")} Â· ${escapeHtml(assignment.reason)}</span>
               </div>
               <span class="staff-status-chip">${assignment.score}</span>
             </article>
@@ -2452,7 +2728,7 @@ function renderSchedulerRequests(canAutoResolve: boolean, canManageRequests: boo
                 <strong>${escapeHtml(staff ? staffFullName(staff) : "Employee")}</strong>
                 <span class="staff-status-chip">${escapeHtml(formatRoleLabel(request.status))}</span>
               </div>
-              <p>${escapeHtml(formatRoleLabel(request.requestType))} · ${escapeHtml(request.message)}</p>
+              <p>${escapeHtml(formatRoleLabel(request.requestType))} Â· ${escapeHtml(request.message)}</p>
               ${replacement ? `<span class="staff-clock-chip active">Replacement: ${escapeHtml(staffFullName(replacement))}</span>` : ""}
               ${request.resolutionNote ? `<span class="staff-clock-chip">${escapeHtml(request.resolutionNote)}</span>` : ""}
             </div>
@@ -2483,7 +2759,7 @@ function renderSchedulerPreferenceRequests(canManageRequests: boolean) {
                 <strong>${escapeHtml(staff ? staffFullName(staff) : "Employee")}</strong>
                 <span class="staff-status-chip">${escapeHtml(formatRoleLabel(request.status))}</span>
               </div>
-              <p>${escapeHtml(formatPreferenceLabel(request.preference))} · ${escapeHtml(daysOfWeekLabel(request.daysOfWeek))} · ${escapeHtml(timeRangeLabel(request.startTime, request.endTime))}</p>
+              <p>${escapeHtml(formatPreferenceLabel(request.preference))} Â· ${escapeHtml(daysOfWeekLabel(request.daysOfWeek))} Â· ${escapeHtml(timeRangeLabel(request.startTime, request.endTime))}</p>
               ${request.notes ? `<span class="staff-clock-chip">${escapeHtml(request.notes)}</span>` : ""}
               ${request.resolutionNote ? `<span class="staff-clock-chip">${escapeHtml(request.resolutionNote)}</span>` : ""}
             </div>
@@ -2511,7 +2787,7 @@ function renderSchedulerAvailabilitySummary() {
             <span class="staff-status-chip">${escapeHtml(formatPreferenceLabel(availability.preference))}</span>
             <div>
               <strong>${escapeHtml(staff ? staffFullName(staff) : "Staff")}</strong>
-              <p>${escapeHtml(daysOfWeekLabel(availability.daysOfWeek))} · ${escapeHtml(timeRangeLabel(availability.startTime, availability.endTime))}</p>
+              <p>${escapeHtml(daysOfWeekLabel(availability.daysOfWeek))} Â· ${escapeHtml(timeRangeLabel(availability.startTime, availability.endTime))}</p>
               ${availability.notes ? `<small>${escapeHtml(availability.notes)}</small>` : ""}
             </div>
           </article>
@@ -2522,27 +2798,33 @@ function renderSchedulerAvailabilitySummary() {
 }
 
 function renderPosView() {
-  const publicPlanPage = state.publicGym
-    ? buildPublicPlansPage({
-        plans: state.publicPlans,
-        featureFlags: state.publicGym.featureFlags,
-        featuredPlanId: state.selectedPlanId || state.publicPlans[0]?.id
-      })
-    : undefined;
   const selected = selectedMember() ?? state.members.find((member) => member.status !== MemberStatus.Archived);
-  const stripeAccount = demoStripeAccount();
-  const connection = buildStripePaymentConnectionScreen({
-    permissions: currentPermissions(),
-    ...(stripeAccount ? { account: stripeAccount } : {})
-  });
-  const collection = buildStripePaymentCollectionScreen({
-    permissions: currentPermissions(),
-    featureFlags: state.gym?.featureFlags ?? [],
-    amountCents: selected ? "9900" : "",
-    paymentMethod: StripePaymentMethod.ManualEntry,
-    ...(stripeAccount ? { account: stripeAccount } : {}),
-    ...(selected ? { member: selected } : {})
-  });
+  const canManagePayments = currentPermissions().includes(Permission.PaymentWrite);
+  const canManageGym = currentPermissions().includes(Permission.GymUpdate);
+  const posBlockedReason = !canManagePayments ? "Payment write permission is required." : undefined;
+  const stripeReady = Boolean(state.posStripeConfig?.enabled && state.posStripeConfig.publishableKey);
+  const gymStripeAccountId = state.gym?.stripeAccountId;
+  const posHelperMessage = posBlockedReason
+    ? posBlockedReason
+    : stripeReady
+      ? "Card details are processed through Stripe. If the buyer email or phone matches an existing consumer, the successful payment updates that person instead of creating a duplicate."
+      : gymStripeAccountId
+        ? "Stripe keys are present, but POS card collection is still unavailable for this gym. Check the connected account id and backend Stripe configuration."
+        : "This gym does not have a Stripe connected account yet. Save the gym's Stripe account id below, then POS card collection will become available.";
+  const planOptions = [
+    { value: "", label: "No plan assignment" },
+    ...planSelectOptions().map((plan) => ({ value: plan.value, label: plan.label }))
+  ];
+  const stripeStatusLabel = stripeReady
+    ? "Connected"
+    : gymStripeAccountId
+      ? "Needs verification"
+      : "Not connected";
+  const stripeStatusReason = stripeReady
+    ? `Connected account ${gymStripeAccountId ?? "configured"}`
+    : gymStripeAccountId
+      ? `Saved account ${gymStripeAccountId}. Stripe POS is still disabled until API config and account access both succeed.`
+      : "Save the gym's Stripe connected account id to enable live card collection for this location.";
   return `
     <section class="club-panel club-page">
       <div class="card-head">
@@ -2550,31 +2832,76 @@ function renderPosView() {
           <p class="eyebrow">Point Of Sale</p>
           <h2>Payments and memberships</h2>
         </div>
-        <span>${connection.summaryLabel}</span>
+        <span>${stripeStatusLabel}</span>
       </div>
       <div class="club-page-split">
         <div>
           <div class="club-product-grid compact">
-            ${publicPlanPage?.planCards.slice(0, 6).map((plan) => `
+            ${state.plans
+              .filter((plan) => plan.status === PlanStatus.Active)
+              .slice(0, 6)
+              .map((plan) => `
               <article class="club-product">
                 <div class="club-product-art"></div>
-                <strong>${plan.title}</strong>
-                <span>${plan.priceLabel}</span>
+                <strong>${escapeHtml(plan.name)}</strong>
+                <span>${formatCurrency(plan.priceCents)}</span>
               </article>
-            `).join("") ?? `<div class="empty-state"><p>No plans loaded.</p></div>`}
+            `)
+              .join("") || `<div class="empty-state"><p>No plans loaded.</p></div>`}
           </div>
         </div>
         <div class="section-stack">
           <article class="mini-card">
             <span>Stripe</span>
-            <strong>${connection.statusLabel}</strong>
-            <p class="muted">${connection.reason ?? connection.summaryLabel}</p>
+            <strong>${stripeStatusLabel}</strong>
+            <p class="muted">${escapeHtml(stripeStatusReason)}</p>
           </article>
+          ${!stripeReady ? `
+            <form id="pos-stripe-setup-form" class="form-card compact-form pos-stripe-setup-card">
+              <h3>Set up Stripe for this gym</h3>
+              <p class="muted">Paste the gym's connected account id from your Stripe Connect test setup. This is usually an <code>acct_...</code> value.</p>
+              ${renderInput("stripeAccountId", "Stripe connected account id", "text", gymStripeAccountId ?? "")}
+              <div class="club-note">
+                <p>${canManageGym
+                  ? "After saving, the POS page will refresh and enable Stripe card collection if the platform keys and connected account are valid."
+                  : "You need gym update permission to save the Stripe connected account id for this gym."}</p>
+              </div>
+              <div class="pos-stripe-setup-actions">
+                <button type="submit" ${canManageGym ? "" : "disabled"}>Save Stripe account</button>
+                ${gymStripeAccountId ? '<button type="button" class="ghost-button" data-pos-stripe-copy>Copy current id</button>' : ""}
+              </div>
+            </form>
+          ` : ""}
           <article class="mini-card">
-            <span>Collection</span>
-            <strong>${collection.memberName}</strong>
-            <p class="muted">${collection.blockedReason ?? collection.summaryLabel}</p>
+            <span>Buyer</span>
+            <strong>${selected ? escapeHtml(`${selected.firstName} ${selected.lastName}`.trim()) : "New customer"}</strong>
+            <p class="muted">${selected ? "Selected consumer details are prefilled below. Edit them to record a sale for someone else." : "Record a sale and automatically add the buyer to the consumer directory as a customer."}</p>
           </article>
+          <form id="pos-purchase-form" class="form-card compact-form">
+            <h3>Collect payment</h3>
+            ${renderInput("firstName", "First name", "text", selected?.firstName ?? "")}
+            ${renderInput("lastName", "Last name", "text", selected?.lastName ?? "")}
+            ${renderInput("email", "Email", "email", selected?.email ?? "")}
+            ${renderInput("phone", "Phone", "tel", selected?.phone ?? "")}
+            ${renderSelect("planId", "Assign plan", planOptions, "")}
+            ${renderInput("amount", "Amount (USD)", "number", "")}
+            ${renderSelect("paymentMethod", "Payment method", [
+              { value: StripePaymentMethod.ManualEntry, label: "Manual entry" },
+              { value: StripePaymentMethod.CardReader, label: "Card reader" }
+            ], StripePaymentMethod.ManualEntry)}
+            ${stripeReady ? `
+              <label class="field">
+                <span>Card details</span>
+                <div class="stripe-card-field" data-pos-stripe-card></div>
+              </label>
+            ` : ""}
+            ${renderInput("receiptEmail", "Receipt email", "email", selected?.email ?? "")}
+            ${renderInput("note", "Payment note")}
+            <div class="club-note">
+              <p>${posHelperMessage}</p>
+            </div>
+            <button type="submit" ${posBlockedReason ? "disabled" : ""}>Collect payment</button>
+          </form>
           <div class="club-mini-nav">
             <button type="button" class="ghost-button" data-dashboard-view="plans">Manage plans</button>
             <button type="button" class="ghost-button" data-dashboard-view="customer_profile" data-preserve-context="true">Open selected customer</button>
@@ -2638,7 +2965,7 @@ function renderLocationsView() {
           <p class="eyebrow">Locations</p>
           <h2>Facilities and rooms</h2>
         </div>
-        <span>${page.summary.activeCount} active · ${page.summary.archivedCount} archived</span>
+        <span>${page.summary.activeCount} active Â· ${page.summary.archivedCount} archived</span>
       </div>
       <div class="club-page-split">
         <div class="data-card">
@@ -2733,7 +3060,7 @@ function renderBookingsView() {
         <select data-class-session-select>
           ${sessions.map((item) => {
             const option = bookingSessionView(item);
-            return `<option value="${item.id}" ${item.id === session.id ? "selected" : ""}>${escapeHtml(option.className)} · ${escapeHtml(option.startsAt)}</option>`;
+            return `<option value="${item.id}" ${item.id === session.id ? "selected" : ""}>${escapeHtml(option.className)} Â· ${escapeHtml(option.startsAt)}</option>`;
           }).join("")}
         </select>
       </label>
@@ -2799,7 +3126,7 @@ function renderAccessControlView() {
           <p class="eyebrow">Access Control</p>
           <h2>Doors, rules, and events</h2>
         </div>
-        <span>${deviceList.devices.length} devices · ${events.deniedCount} denied events</span>
+        <span>${deviceList.devices.length} devices Â· ${events.deniedCount} denied events</span>
       </div>
       <div class="stat-grid compact">
         <article class="mini-card"><span>Devices</span><strong>${deviceList.devices.length}</strong></article>
@@ -3357,7 +3684,7 @@ function renderStaffAuthTree() {
         <div class="auth-tree-node">
           <div>
             <strong>${escapeHtml(formatRoleLabel(role.name))}</strong>
-            <span>${role.permissions.length} privileges · ${assignedCount} assigned</span>
+            <span>${role.permissions.length} privileges Â· ${assignedCount} assigned</span>
           </div>
           ${canDelete
             ? `<button type="button" class="ghost-button danger" data-staff-role-delete="${escapeAttribute(role.id)}">Delete</button>`
@@ -3464,7 +3791,7 @@ function renderStaffRemovalModal() {
           <div>
             <strong>${escapeHtml(name)}</strong>
             <span>${escapeHtml(staff.email)}</span>
-            <span>${escapeHtml(formatRoleLabel(staff.roleName))} · ${escapeHtml(formatRoleLabel(staff.status))}</span>
+            <span>${escapeHtml(formatRoleLabel(staff.roleName))} Â· ${escapeHtml(formatRoleLabel(staff.status))}</span>
           </div>
         </div>
         <div class="staff-removal-warning">
@@ -3622,7 +3949,7 @@ function renderStaffShiftList() {
               <article class="staff-role-row">
                 <div>
                   <strong>${escapeHtml(staffNameForShift(shift))}</strong>
-                  <p>${escapeHtml(shiftTimeLabel(shift))}${shift.locationId ? ` · ${escapeHtml(locationName(shift.locationId))}` : ""}</p>
+                  <p>${escapeHtml(shiftTimeLabel(shift))}${shift.locationId ? ` Â· ${escapeHtml(locationName(shift.locationId))}` : ""}</p>
                 </div>
                 <span class="club-note-label">${escapeHtml(roleLabelForShift(shift))}</span>
               </article>
@@ -3676,7 +4003,7 @@ function renderMySchedulerPreferencesSummary() {
           <span class="staff-status-chip">${escapeHtml(formatPreferenceLabel(availability.preference))}</span>
           <div>
             <strong>Approved preference</strong>
-            <p>${escapeHtml(daysOfWeekLabel(availability.daysOfWeek))} · ${escapeHtml(timeRangeLabel(availability.startTime, availability.endTime))}</p>
+            <p>${escapeHtml(daysOfWeekLabel(availability.daysOfWeek))} Â· ${escapeHtml(timeRangeLabel(availability.startTime, availability.endTime))}</p>
             ${availability.notes ? `<small>${escapeHtml(availability.notes)}</small>` : ""}
           </div>
         </article>
@@ -3686,7 +4013,7 @@ function renderMySchedulerPreferencesSummary() {
           <span class="staff-status-chip">${escapeHtml(formatRoleLabel(request.status))}</span>
           <div>
             <strong>${escapeHtml(formatPreferenceLabel(request.preference))}</strong>
-            <p>${escapeHtml(daysOfWeekLabel(request.daysOfWeek))} · ${escapeHtml(timeRangeLabel(request.startTime, request.endTime))}</p>
+            <p>${escapeHtml(daysOfWeekLabel(request.daysOfWeek))} Â· ${escapeHtml(timeRangeLabel(request.startTime, request.endTime))}</p>
             ${request.resolutionNote ? `<small>${escapeHtml(request.resolutionNote)}</small>` : request.notes ? `<small>${escapeHtml(request.notes)}</small>` : ""}
           </div>
         </article>
@@ -3804,7 +4131,7 @@ function renderStaffCalendarDay(day: Date, month: Date, shifts: StaffShiftRecord
           : dayShifts.map((shift) => `
               <div class="staff-calendar-shift">
                 <strong>${escapeHtml(shiftTimeOnlyLabel(shift))}</strong>
-                <span>${escapeHtml(roleLabelForShift(shift))}${shift.locationId ? ` · ${escapeHtml(locationName(shift.locationId))}` : ""}</span>
+                <span>${escapeHtml(roleLabelForShift(shift))}${shift.locationId ? ` Â· ${escapeHtml(locationName(shift.locationId))}` : ""}</span>
               </div>
             `).join("")}
       </div>
@@ -4319,7 +4646,7 @@ function renderSettingsSectionContent(activeLocations: LocationRecord[]) {
                     <article class="staff-role-row">
                       <div>
                         <strong>${escapeHtml(`${staff.firstName} ${staff.lastName}`.trim())}</strong>
-                        <p>${escapeHtml(staff.email)} · ${escapeHtml(staff.roleName)}</p>
+                        <p>${escapeHtml(staff.email)} Â· ${escapeHtml(staff.roleName)}</p>
                       </div>
                       <div class="staff-role-actions">
                         <select data-staff-role-select="${staff.userId}">
@@ -4611,21 +4938,16 @@ function planSelectOptions() {
     .map((plan) => ({ value: plan.id, label: plan.name }));
 }
 
-function demoStripeAccount(): StripePaymentAccountView | undefined {
-  if (!state.gym?.featureFlags.includes(FeatureFlag.PointOfSale)) {
-    return undefined;
-  }
-  return {
-    gymId: state.gym.id,
-    accountId: `acct_${state.gym.id.slice(0, 8)}`,
-    country: "US",
-    defaultCurrency: "usd",
-    businessName: state.gym.name,
-    chargesEnabled: true,
-    payoutsEnabled: true,
-    onboardingComplete: true,
-    requirementsDue: []
-  };
+function recurringMembershipPlanOptions() {
+  return state.plans.filter(
+    (plan) =>
+      plan.status === PlanStatus.Active &&
+      (plan.billingInterval === BillingInterval.Monthly || plan.billingInterval === BillingInterval.Yearly)
+  );
+}
+
+function recurringMembershipPlanById(planId: string) {
+  return recurringMembershipPlanOptions().find((plan) => plan.id === planId);
 }
 
 function dashboardClassSessions(): ClassSessionView[] {
@@ -4797,7 +5119,7 @@ function getMemberSignatures(memberId: string) {
   if (existing && existing.length > 0) {
     return existing;
   }
-  const seeded = DEFAULT_SIGNATURE_REQUIREMENTS.map((label) => ({
+  const seeded: MemberDeskSignatureRecord[] = DEFAULT_SIGNATURE_REQUIREMENTS.map((label) => ({
     id: `${memberId}-${label.toLowerCase().replace(/\s+/g, "-")}`,
     label,
     required: true
@@ -5071,7 +5393,7 @@ function renderBillingHistory(member: MemberRecord) {
               <span>${statusLabel}</span>
             </div>
             <p>${amountLabel}</p>
-            <small>Starts ${new Date(membership.startsAt).toLocaleDateString()} · ${endsAtLabel}</small>
+            <small>Starts ${new Date(membership.startsAt).toLocaleDateString()} Â· ${endsAtLabel}</small>
           </article>
         `;
       }).join("")}
@@ -5140,12 +5462,12 @@ function renderMemberContacts(member: MemberRecord, summary: ReturnType<typeof b
     <div class="contact-stack">
       <article class="mini-card">
         <strong>Primary contact</strong>
-        <p style="margin:0.5rem 0 0;color:var(--muted);">${member.email || "No email"} · ${member.phone || "No phone"}</p>
+        <p style="margin:0.5rem 0 0;color:var(--muted);">${member.email || "No email"} Â· ${member.phone || "No phone"}</p>
       </article>
       <article class="mini-card">
         <strong>Emergency contact</strong>
         ${emergencyContact
-          ? `<p style="margin:0.5rem 0 0;color:var(--muted);">${escapeHtml(emergencyContact.name)} · ${escapeHtml(emergencyContact.phone)}${emergencyContact.relationship ? ` · ${escapeHtml(emergencyContact.relationship)}` : ""}</p>`
+          ? `<p style="margin:0.5rem 0 0;color:var(--muted);">${escapeHtml(emergencyContact.name)} Â· ${escapeHtml(emergencyContact.phone)}${emergencyContact.relationship ? ` Â· ${escapeHtml(emergencyContact.relationship)}` : ""}</p>`
           : `<p style="margin:0.5rem 0 0;color:var(--muted);">No emergency contact on file.</p>`}
       </article>
       <article class="mini-card">
@@ -5167,7 +5489,7 @@ function renderCheckInMemberSheet(member: MemberRecord) {
     : `<span>${customerInitials(member)}</span>`;
   const planOptions = state.plans
     .filter((plan) => plan.status !== "archived")
-    .map((plan) => ({ value: plan.id, label: `${plan.name} · ${formatCurrency(plan.priceCents)}` }));
+    .map((plan) => ({ value: plan.id, label: `${plan.name} Â· ${formatCurrency(plan.priceCents)}` }));
   return `
     <div class="checkin-sheet-grid">
       <div class="checkin-sheet-hero">
@@ -5314,6 +5636,33 @@ function renderCheckInReviewModal(review: NonNullable<AppState["checkInReview"]>
               <button type="button" class="ghost-button" data-checkin-review-deny>Keep denied</button>
               <button type="button" class="module-nav-button active" data-checkin-review-allow>Allow entry</button>
             `}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderCameraCaptureModal(capture: NonNullable<AppState["cameraCapture"]>) {
+  return `
+    <div class="checkin-modal-backdrop">
+      <div class="checkin-modal camera-capture-modal allowed">
+        <div class="camera-capture-shell">
+          <div class="checkin-modal-copy">
+            <p class="eyebrow">Device camera</p>
+            <h3>${escapeHtml(capture.label)}</h3>
+            <p>${capture.error ?? "Frame the photo, then capture it from the device camera."}</p>
+          </div>
+          <div class="camera-capture-stage">
+            ${capture.error
+              ? `<div class="camera-capture-error">${escapeHtml(capture.error)}</div>`
+              : `<video class="camera-capture-video" data-camera-capture-video autoplay playsinline muted></video>`}
+          </div>
+          <div class="checkin-modal-actions">
+            <button type="button" class="ghost-button" data-camera-capture-close>Cancel</button>
+            ${capture.error
+              ? ""
+              : `<button type="button" class="module-nav-button active" data-camera-capture-take>Take picture</button>`}
+          </div>
         </div>
       </div>
     </div>
@@ -5594,6 +5943,17 @@ function bindEvents() {
         return;
       }
       navigateSettingsSection(section);
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-consumer-segment]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      const segment = button.dataset.consumerSegment as ConsumerSegmentFilter | undefined;
+      if (!segment) {
+        return;
+      }
+      navigateConsumerSegment(segment);
     });
   });
 
@@ -6083,6 +6443,74 @@ function bindEvents() {
     });
   });
 
+  app.querySelectorAll<HTMLButtonElement>("[data-camera-capture-open]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const formId = button.dataset.cameraCaptureFormId;
+      const inputName = button.dataset.cameraCaptureOpen;
+      const label = button.dataset.cameraCaptureLabel ?? "Take picture";
+      if (!formId || !inputName) {
+        return;
+      }
+      state.cameraCapture = { formId, inputName, label };
+      render();
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-photo-picker-open]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const inputId = button.dataset.photoPickerOpen;
+      if (!inputId) {
+        return;
+      }
+      app.querySelector<HTMLInputElement>(`#${CSS.escape(inputId)}`)?.click();
+    });
+  });
+
+  app.querySelectorAll<HTMLInputElement>("[data-photo-picker-input]").forEach((input) => {
+    input.addEventListener("change", () => {
+      const formId = input.dataset.photoPickerFormId;
+      const inputName = input.dataset.photoPickerInput;
+      const file = input.files?.[0];
+      if (!formId || !inputName || !file) {
+        return;
+      }
+      setPendingCameraPhoto(formId, inputName, file);
+      setBanner("success", "Photo selected.");
+      render();
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-camera-capture-close]").forEach((button) => {
+    button.addEventListener("click", () => {
+      closeCameraCapture();
+      render();
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-camera-capture-take]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const capture = state.cameraCapture;
+      if (!capture) {
+        return;
+      }
+      const video = app.querySelector<HTMLVideoElement>("[data-camera-capture-video]");
+      if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
+        setBanner("error", "Camera is not ready yet. Try again in a moment.");
+        return;
+      }
+      try {
+        const file = await capturePhotoFromVideo(video, capture.inputName);
+        setPendingCameraPhoto(capture.formId, capture.inputName, file);
+        closeCameraCapture();
+        setBanner("success", "Photo captured.");
+        render();
+      } catch (error) {
+        setBanner("error", describeError(error));
+        render();
+      }
+    });
+  });
+
   bindForm("check-in-enroll-form", async (form) => {
     if (!state.gym) {
       return;
@@ -6116,7 +6544,7 @@ function bindEvents() {
     }
     await client.createCustomRole(state.gym.id, {
       name: data.newRoleName,
-      permissions
+      permissions: permissions as Permission[]
     });
     setBanner("success", "Custom role created.");
     await refreshDashboard({ silent: true });
@@ -6139,7 +6567,7 @@ function bindEvents() {
     const role = (await client.createCustomRole(state.gym.id, {
       name: data.staffRoleName,
       ...(data.parentRoleId ? { parentRoleId: data.parentRoleId } : {}),
-      permissions
+      permissions: permissions as Permission[]
     })) as RoleRecord;
     state.selectedRoleId = role.id ?? state.selectedRoleId;
     setBanner("success", "Role saved. You can assign it from the staff directory.");
@@ -6160,7 +6588,7 @@ function bindEvents() {
     }
     await client.updateCustomRole(state.gym.id, state.selectedRoleId, {
       name: data.roleName,
-      permissions
+      permissions: permissions as Permission[]
     });
     setBanner("success", "Role updated.");
     await refreshDashboard({ silent: true });
@@ -6429,13 +6857,13 @@ function bindEvents() {
     if (!state.gym) return;
     const memberId = data.memberId;
     if (!memberId) return;
+    const uploadedProfileImageUrl = await uploadProfileImageFromForm(state.gym.id, form, memberId);
     await client.updateMember(state.gym.id, memberId, {
       firstName: data.firstName,
       lastName: data.lastName,
       email: data.email || undefined,
       phone: data.phone || undefined,
-      barcode: data.barcode || undefined,
-      profileImageUrl: data.profileImageUrl || "",
+      profileImageUrl: uploadedProfileImageUrl ?? memberProfileImageUrl(memberId),
       status: data.status as MemberStatus,
       tagNames: splitTags(data.tagNames),
       emergencyContact:
@@ -6456,22 +6884,6 @@ function bindEvents() {
     navigateDashboardView("customer_profile", { preserveContext: true });
   });
 
-  bindForm("member-barcode-form", async (form) => {
-    if (!state.gym) {
-      return;
-    }
-    const data = formData(form);
-    const memberId = data.memberId;
-    if (!memberId) {
-      return;
-    }
-    await client.updateMember(state.gym.id, memberId, {
-      barcode: data.barcode || undefined
-    });
-    await refreshDashboard({ silent: true });
-    navigateDashboardView("customer_profile", { preserveContext: true });
-  });
-
   bindForm("member-add-membership-form", async (form) => {
     if (!state.gym) {
       return;
@@ -6482,10 +6894,13 @@ function bindEvents() {
     if (!memberId || !planId) {
       throw new Error("Choose a customer and plan before adding membership.");
     }
+    const member = state.members.find((candidate) => candidate.id === memberId);
+    if (member && recurringMembershipPlanById(planId)) {
+      assertRecurringMembershipRequirements(member, "before assigning a recurring membership.");
+    }
     await client.assignMemberMembership(state.gym.id, memberId, {
       planId,
-      status: (data.status as MembershipStatus) || MembershipStatus.Active,
-      startsAt: new Date().toISOString()
+      status: (data.status as MembershipStatus) || MembershipStatus.Active
     });
     await refreshDashboard({ silent: true });
     navigateDashboardView("customer_profile", { preserveContext: true });
@@ -6736,23 +7151,143 @@ function bindEvents() {
     navigateDashboardView("access_control", { preserveContext: true });
   });
 
+  bindForm("pos-purchase-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const data = formData(form);
+    const firstName = data.firstName.trim();
+    const lastName = data.lastName.trim();
+    const email = data.email.trim() || undefined;
+    const phone = data.phone.trim() || undefined;
+    const planId = data.planId || undefined;
+    if (!firstName || !lastName) {
+      throw new Error("Buyer first and last name are required for POS sales.");
+    }
+    if (!email && !phone) {
+      throw new Error("Enter at least an email or phone number so the buyer can be added as a customer.");
+    }
+    if (data.paymentMethod === StripePaymentMethod.CardReader) {
+      throw new Error("Stripe Terminal card-reader support is not wired in this browser app yet. Use manual entry for now.");
+    }
+    if (planId && recurringMembershipPlanById(planId)) {
+      assertRecurringMembershipRequirements({ email, phone }, "before assigning a recurring membership from POS.");
+    }
+    const purchaseInput = {
+      firstName,
+      lastName,
+      ...(email ? { email } : {}),
+      ...(phone ? { phone } : {}),
+      amountCents: dollarsToCents(data.amount || "0"),
+      paymentMethod: (data.paymentMethod as StripePaymentMethod) || StripePaymentMethod.ManualEntry,
+      ...(data.note.trim() ? { note: data.note.trim() } : {}),
+      ...(data.receiptEmail.trim() ? { receiptEmail: data.receiptEmail.trim() } : {}),
+      ...(planId ? { planId } : {})
+    };
+    const purchase = state.posStripeConfig?.enabled && state.posStripeConfig.publishableKey
+      ? await submitStripePosPurchase(state.gym.id, purchaseInput)
+      : await client.createPosPurchase(state.gym.id, purchaseInput);
+    const resolvedPurchase = purchase as { consumer: MemberRecord; membership?: { id: string } };
+    state.selectedMemberId = resolvedPurchase.consumer.id;
+    state.editingMemberId = resolvedPurchase.consumer.id;
+    await refreshCreatedConsumerState(state.gym.id, resolvedPurchase.consumer.id);
+    navigateDashboardView("customer_profile", { preserveContext: true });
+    setBanner(
+      "success",
+      resolvedPurchase.membership
+        ? "Payment collected. Buyer added to the consumer directory and plan assigned."
+        : "Payment collected. Buyer added to the consumer directory as a customer."
+    );
+    void refreshDashboard({ silent: true });
+  });
+
+  bindForm("pos-stripe-setup-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    if (!currentPermissions().includes(Permission.GymUpdate)) {
+      throw new Error("Gym update permission is required to save a Stripe connected account id.");
+    }
+    const data = formData(form);
+    const stripeAccountId = data.stripeAccountId.trim();
+    if (!stripeAccountId) {
+      throw new Error("Enter the Stripe connected account id for this gym.");
+    }
+    await client.updateGym(state.gym.id, { stripeAccountId });
+    setBanner("success", "Stripe connected account id saved for this gym.");
+    await refreshDashboard({ silent: true });
+    navigateDashboardView("pos", { preserveContext: true });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-pos-stripe-copy]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const stripeAccountId = state.gym?.stripeAccountId;
+      if (!stripeAccountId) {
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(stripeAccountId);
+        setBanner("success", "Stripe connected account id copied.");
+      } catch {
+        setBanner("error", "Could not copy the Stripe connected account id from this browser.");
+      }
+      render();
+    });
+  });
+
   bindForm("create-member-form", async (form) => {
     if (!state.gym) {
       return;
     }
     const data = formData(form);
-    await client.createMember(state.gym.id, {
+    const createKind = data.createKind || "member";
+    const email = data.email || undefined;
+    const phone = data.phone || undefined;
+    const uploadedProfileImageUrl = await uploadProfileImageFromForm(state.gym.id, form);
+    const profileImageUrl = uploadedProfileImageUrl ?? (data.profileImageUrl || undefined);
+    const planId = data.planId || undefined;
+    if (createKind === "member") {
+      assertRecurringMembershipRequirements({ email, phone }, "before creating a member.");
+      if (!planId || !recurringMembershipPlanById(planId)) {
+        throw new Error("Choose a recurring monthly or yearly plan to create a member.");
+      }
+    }
+    const created = (await client.createConsumer(state.gym.id, {
       firstName: data.firstName,
       lastName: data.lastName,
-      email: data.email || undefined,
-      phone: data.phone || undefined,
-      status: (data.status as MemberStatus) || MemberStatus.Active,
-      barcode: data.barcode || undefined,
-      profileImageUrl: data.profileImageUrl || undefined,
+      email,
+      phone,
+      status: createKind === "lead" ? MemberStatus.Lead : MemberStatus.Active,
+      profileImageUrl,
       tagNames: []
-    });
-    setBanner("success", "Customer created.");
-    await refreshDashboard({ silent: true });
+    })) as MemberRecord;
+    let membershipError: unknown;
+    if (createKind === "member" && planId) {
+      try {
+        await client.assignConsumerMembership(state.gym.id, created.id, {
+          planId,
+          status: (data.membershipStatus as MembershipStatus) || MembershipStatus.Active
+        });
+      } catch (error) {
+        membershipError = error;
+      }
+    }
+    state.selectedMemberId = created.id;
+    state.editingMemberId = created.id;
+    await refreshCreatedConsumerState(state.gym.id, created.id);
+    navigateDashboardView("customer_profile", { preserveContext: true });
+    if (membershipError) {
+      throw new Error(`Consumer created, but the recurring membership could not be assigned. ${describeError(membershipError)}`);
+    }
+    setBanner(
+      "success",
+      createKind === "lead"
+        ? "Lead created."
+        : createKind === "member"
+          ? "Member created."
+          : "Consumer created."
+    );
+    void refreshDashboard({ silent: true });
   });
 
   bindForm("public-slug-form", async (form) => {
@@ -6932,6 +7467,68 @@ function renderInput(name: string, label: string, type = "text", value = "") {
   `;
 }
 
+function _renderFileInput(name: string, label: string, accept = "image/*") {
+  return `
+    <label class="field">
+      <span>${label}</span>
+      <input name="${name}" type="file" accept="${escapeAttribute(accept)}" />
+    </label>
+  `;
+}
+
+function renderCameraCaptureInput(
+  formId: string,
+  name: string,
+  label: string,
+  existingImageUrl?: string
+) {
+  const pendingPhoto = getPendingCameraPhoto(formId, name);
+  const previewUrl = pendingPhoto?.previewUrl ?? existingImageUrl;
+  const status = pendingPhoto
+    ? "New photo captured and ready to save"
+    : existingImageUrl
+      ? "Existing photo on file"
+      : "No photo captured yet";
+  return `
+    <label class="field">
+      <span>${label}</span>
+      <div class="camera-capture-control">
+        <div class="camera-capture-actions">
+          <button
+            type="button"
+            class="module-nav-button"
+            data-camera-capture-open="${name}"
+            data-camera-capture-form-id="${formId}"
+            data-camera-capture-label="${escapeAttribute(label)}"
+          >
+            ${pendingPhoto || existingImageUrl ? "Retake picture" : "Take picture"}
+          </button>
+          <button
+            type="button"
+            class="ghost-button"
+            data-photo-picker-open="${formId}-${name}"
+          >
+            Choose from files
+          </button>
+        </div>
+        <span class="camera-capture-status">${status}</span>
+      </div>
+      <input
+        id="${formId}-${name}"
+        class="camera-capture-input"
+        name="${name}"
+        type="file"
+        accept="image/*"
+        data-photo-picker-input="${name}"
+        data-photo-picker-form-id="${formId}"
+      />
+      ${previewUrl
+        ? `<div class="camera-capture-preview"><img src="${escapeAttribute(previewUrl)}" alt="${escapeAttribute(label)} preview" /></div>`
+        : ""}
+    </label>
+  `;
+}
+
 function renderSelect(
   name: string,
   label: string,
@@ -6951,6 +7548,237 @@ function renderSelect(
       </select>
     </label>
   `;
+}
+
+async function uploadProfileImageFromForm(gymId: string, form: HTMLFormElement, consumerId?: string) {
+  const pendingPhoto = getPendingCameraPhoto(form.id, "profileImageFile")?.file;
+  const formFile = new FormData(form).get("profileImageFile");
+  const file = pendingPhoto ?? (formFile instanceof File && formFile.size > 0 ? formFile : undefined);
+  if (!file) {
+    return undefined;
+  }
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Profile photos must be image files.");
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error("Profile photos must be 5 MB or smaller.");
+  }
+  const upload = (await client.uploadConsumerProfileImage(gymId, {
+    consumerId,
+    fileName: file.name || "profile-image",
+    contentType: file.type || "image/jpeg",
+    base64Data: arrayBufferToBase64(await file.arrayBuffer())
+  })) as { url: string };
+  clearPendingCameraPhoto(form.id, "profileImageFile");
+  return upload.url;
+}
+
+async function syncCameraCaptureModal() {
+  if (!state.cameraCapture) {
+    stopCameraStream();
+    return;
+  }
+  if (cameraStartPromise) {
+    return;
+  }
+  const sessionKey = cameraCaptureKey(state.cameraCapture.formId, state.cameraCapture.inputName);
+  const video = app.querySelector<HTMLVideoElement>("[data-camera-capture-video]");
+  if (!video) {
+    return;
+  }
+  if (activeCameraStream && activeCameraSessionKey === sessionKey) {
+    if (video.srcObject !== activeCameraStream) {
+      video.srcObject = activeCameraStream;
+      await video.play().catch(() => undefined);
+    }
+    return;
+  }
+  cameraStartPromise = (async () => {
+    try {
+      stopCameraStream();
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("This device or browser does not expose a usable camera API.");
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" }
+        },
+        audio: false
+      });
+      activeCameraStream = stream;
+      activeCameraSessionKey = sessionKey;
+      const activeVideo = app.querySelector<HTMLVideoElement>("[data-camera-capture-video]");
+      if (!activeVideo || !state.cameraCapture || cameraCaptureKey(state.cameraCapture.formId, state.cameraCapture.inputName) !== sessionKey) {
+        stopCameraStream();
+        return;
+      }
+      activeVideo.srcObject = stream;
+      await activeVideo.play().catch(() => undefined);
+    } catch (error) {
+      if (state.cameraCapture && cameraCaptureKey(state.cameraCapture.formId, state.cameraCapture.inputName) === sessionKey) {
+        state.cameraCapture = {
+          ...state.cameraCapture,
+          error: describeError(error)
+        };
+        render();
+      }
+    } finally {
+      cameraStartPromise = undefined;
+    }
+  })();
+  await cameraStartPromise;
+}
+
+async function syncPosStripeCardField() {
+  const mount = app.querySelector<HTMLDivElement>("[data-pos-stripe-card]");
+  if (!mount || !state.posStripeConfig?.publishableKey) {
+    if (stripeCardElement) {
+      stripeCardElement.unmount();
+    }
+    return;
+  }
+  if (mount.childElementCount > 0) {
+    return;
+  }
+  if (!stripePromise || stripePromiseKey !== state.posStripeConfig.publishableKey) {
+    stripePromiseKey = state.posStripeConfig.publishableKey;
+    stripePromise = loadStripe(state.posStripeConfig.publishableKey);
+    stripeElements = undefined;
+    stripeCardElement = undefined;
+  }
+  const stripe = await stripePromise;
+  if (!stripe) {
+    setBanner("error", "Stripe.js could not be initialized in this browser.");
+    render();
+    return;
+  }
+  if (!stripeElements) {
+    stripeElements = stripe.elements();
+  }
+  if (!stripeCardElement) {
+    stripeCardElement = stripeElements.create("card", { hidePostalCode: true });
+  }
+  stripeCardElement.mount(mount);
+}
+
+async function submitStripePosPurchase(
+  gymId: string,
+  input: {
+    firstName: string;
+    lastName: string;
+    email?: string;
+    phone?: string;
+    amountCents: number;
+    paymentMethod: StripePaymentMethod;
+    note?: string;
+    receiptEmail?: string;
+    planId?: string;
+  }
+) {
+  if (!stripePromise || !stripeCardElement) {
+    throw new Error("Stripe card entry is not ready yet. Try again in a moment.");
+  }
+  const stripe = await stripePromise;
+  if (!stripe) {
+    throw new Error("Stripe.js failed to initialize.");
+  }
+  const paymentIntent = (await client.createPosPaymentIntent(gymId, input)) as {
+    paymentIntentId: string;
+    clientSecret: string;
+  };
+  const { error, paymentIntent: confirmedIntent } = await stripe.confirmCardPayment(
+    paymentIntent.clientSecret,
+    {
+      payment_method: {
+        card: stripeCardElement,
+        billing_details: {
+          name: `${input.firstName} ${input.lastName}`.trim(),
+          ...(input.email ? { email: input.email } : {}),
+          ...(input.phone ? { phone: input.phone } : {})
+        }
+      }
+    }
+  );
+  if (error) {
+    throw new Error(error.message ?? "Stripe payment confirmation failed.");
+  }
+  const paymentIntentId = confirmedIntent?.id ?? paymentIntent.paymentIntentId;
+  return client.finalizePosPaymentIntent(gymId, paymentIntentId);
+}
+
+function closeCameraCapture() {
+  state.cameraCapture = undefined;
+  stopCameraStream();
+}
+
+function stopCameraStream() {
+  if (activeCameraStream) {
+    activeCameraStream.getTracks().forEach((track) => track.stop());
+  }
+  activeCameraStream = undefined;
+  activeCameraSessionKey = undefined;
+}
+
+async function capturePhotoFromVideo(video: HTMLVideoElement, inputName: string) {
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("The browser could not capture a photo from the camera.");
+  }
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, "image/jpeg", 0.92);
+  });
+  if (!blob) {
+    throw new Error("The browser could not encode the camera image.");
+  }
+  return new File([blob], `${inputName}-${Date.now()}.jpg`, { type: "image/jpeg" });
+}
+
+function setPendingCameraPhoto(formId: string, inputName: string, file: File) {
+  const key = cameraCaptureKey(formId, inputName);
+  const existing = pendingCameraPhotos.get(key);
+  if (existing) {
+    URL.revokeObjectURL(existing.previewUrl);
+  }
+  pendingCameraPhotos.set(key, {
+    file,
+    previewUrl: URL.createObjectURL(file)
+  });
+}
+
+function getPendingCameraPhoto(formId: string, inputName: string) {
+  return pendingCameraPhotos.get(cameraCaptureKey(formId, inputName));
+}
+
+function clearPendingCameraPhoto(formId: string, inputName: string) {
+  const key = cameraCaptureKey(formId, inputName);
+  const existing = pendingCameraPhotos.get(key);
+  if (!existing) {
+    return;
+  }
+  URL.revokeObjectURL(existing.previewUrl);
+  pendingCameraPhotos.delete(key);
+}
+
+function cameraCaptureKey(formId: string, inputName: string) {
+  return `${formId}:${inputName}`;
+}
+
+function memberProfileImageUrl(memberId: string) {
+  return state.members.find((member) => member.id === memberId)?.profileImageUrl ?? "";
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer) {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
 }
 
 function renderPublicPlans(publicPlanPage: ReturnType<typeof buildPublicPlansPage> | undefined) {
@@ -7089,7 +7917,12 @@ function setBanner(tone: BannerTone, text: string) {
   state.banner = { tone, text };
 }
 
-function readRoute(): { view: ViewName; dashboardView: AppState["dashboardView"]; settingsSection?: SettingsSectionKey } {
+function readRoute(): {
+  view: ViewName;
+  dashboardView: AppState["dashboardView"];
+  settingsSection?: SettingsSectionKey;
+  consumerSegment?: ConsumerSegmentFilter;
+} {
   const segments = getHashSegments();
   if (segments[0] === "public") {
     return { view: "public", dashboardView: "home" };
@@ -7113,6 +7946,9 @@ function syncRouteFromHash() {
     if (route.dashboardView === "settings") {
       state.settingsSection = route.settingsSection ?? "setup";
     }
+    if (route.consumerSegment) {
+      state.consumerSegment = route.consumerSegment;
+    }
   }
 }
 
@@ -7129,16 +7965,27 @@ function parseDashboardRoute(segments: string[]) {
       return { dashboardView: "home" as const };
     case "check-in":
       return { dashboardView: subsection === "history" ? "check_in_history" as const : "check_in" as const };
-    case "customers":
+    case "consumers":
       if (subsection === "profile") {
-        return { dashboardView: "customer_profile" as const };
+        return { dashboardView: "customer_profile" as const, consumerSegment: "all" as const };
       }
       if (subsection === "edit") {
-        return { dashboardView: "customer_edit" as const };
+        return { dashboardView: "customer_edit" as const, consumerSegment: "all" as const };
       }
-      return { dashboardView: "customers" as const };
+      return {
+        dashboardView: "consumers" as const,
+        consumerSegment: parseConsumerSegmentRoute(subsection)
+      };
+    case "customers":
+      if (subsection === "profile") {
+        return { dashboardView: "customer_profile" as const, consumerSegment: "all" as const };
+      }
+      if (subsection === "edit") {
+        return { dashboardView: "customer_edit" as const, consumerSegment: "all" as const };
+      }
+      return { dashboardView: "consumers" as const, consumerSegment: "customers" as const };
     case "leads":
-      return { dashboardView: "leads" as const };
+      return { dashboardView: "consumers" as const, consumerSegment: "leads" as const };
     case "staff":
       return { dashboardView: "staff" as const };
     case "scheduler":
@@ -7213,11 +8060,29 @@ function parseSettingsSectionRoute(section?: string): SettingsSectionKey | undef
   }
 }
 
+function parseConsumerSegmentRoute(section?: string): ConsumerSegmentFilter {
+  switch (section) {
+    case "members":
+    case "customers":
+    case "leads":
+      return section;
+    default:
+      return "all";
+  }
+}
+
+function consumerSegmentToRoute(segment: ConsumerSegmentFilter) {
+  return segment === "all" ? "" : `/${segment}`;
+}
+
 function dashboardTopLevelView(view: AppState["dashboardView"]) {
   switch (view) {
+    case "consumers":
     case "customer_profile":
     case "customer_edit":
-      return "customers";
+    case "customers":
+    case "leads":
+      return "consumers";
     case "check_in_history":
       return "check_in";
     default:
@@ -7233,14 +8098,16 @@ function dashboardViewToHash(view: AppState["dashboardView"]) {
       return "#/dashboard/check-in";
     case "check_in_history":
       return "#/dashboard/check-in/history";
+    case "consumers":
+      return `#/dashboard/consumers${consumerSegmentToRoute(state.consumerSegment)}`;
     case "customers":
-      return "#/dashboard/customers";
+      return "#/dashboard/consumers/customers";
     case "customer_profile":
-      return "#/dashboard/customers/profile";
+      return "#/dashboard/consumers/profile";
     case "customer_edit":
-      return "#/dashboard/customers/edit";
+      return "#/dashboard/consumers/edit";
     case "leads":
-      return "#/dashboard/leads";
+      return "#/dashboard/consumers/leads";
     case "staff":
       return "#/dashboard/staff";
     case "scheduler":
@@ -7325,6 +8192,17 @@ function navigateDashboardView(view: AppState["dashboardView"], options?: { pres
   render();
 }
 
+function navigateConsumerSegment(segment: ConsumerSegmentFilter) {
+  state.consumerSegment = segment;
+  state.dashboardView = "consumers";
+  const targetHash = dashboardViewToHash("consumers");
+  if (window.location.hash !== targetHash) {
+    window.location.hash = targetHash;
+    return;
+  }
+  render();
+}
+
 function navigateSettingsSection(section: SettingsSectionKey) {
   state.settingsSection = section;
   const targetHash = `#/dashboard/settings/${settingsSectionToRoute(section)}`;
@@ -7373,6 +8251,10 @@ function loadSession() {
   } catch {
     return null;
   }
+}
+
+function resolveConsumerRecords(consumers: MemberRecord[]) {
+  return consumers;
 }
 
 function loadPublicSlug() {

@@ -2,13 +2,15 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 export function loadEnvironmentFiles(cwd = process.cwd()) {
     const nodeEnv = runtimeEnvFrom(process.env.NODE_ENV);
+    const loadedKeys = new Set();
     // Walk up directories to find the monorepo root .env
     const rootEnv = findRootEnv(cwd);
     if (rootEnv) {
-        loadDotEnvFile(rootEnv);
+        loadDotEnvFile(rootEnv, loadedKeys);
+        loadDotEnvFile(resolve(dirname(rootEnv), ".env.local"), loadedKeys);
     }
     for (const path of envFilePaths(cwd, nodeEnv)) {
-        loadDotEnvFile(path);
+        loadDotEnvFile(path, loadedKeys);
     }
     return nodeEnv;
 }
@@ -39,7 +41,7 @@ function envFilePaths(cwd, nodeEnv) {
     }
     return [...base, resolve(cwd, ".env.production")];
 }
-function loadDotEnvFile(path) {
+function loadDotEnvFile(path, loadedKeys) {
     if (!existsSync(path)) {
         return;
     }
@@ -55,9 +57,10 @@ function loadDotEnvFile(path) {
         }
         const key = trimmed.slice(0, separator).trim();
         const value = trimmed.slice(separator + 1).trim().replace(/^['"]|['"]$/g, "");
-        if (!(key in process.env)) {
+        if (!(key in process.env) || loadedKeys.has(key)) {
             process.env[key] = value;
         }
+        loadedKeys.add(key);
     }
 }
 function runtimeEnvFrom(value) {

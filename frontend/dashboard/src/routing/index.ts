@@ -7,6 +7,7 @@ export interface DashboardRoute {
   title: string;
   protected: boolean;
   requiredPermissions?: PermissionValue[];
+  navigation?: boolean;
 }
 
 export interface DashboardPermissionContext {
@@ -34,10 +35,17 @@ export const dashboardRoutes: DashboardRoute[] = [
     requiredPermissions: [Permission.LocationRead]
   },
   {
+    path: "/consumers",
+    title: "Consumers",
+    protected: true,
+    requiredPermissions: [Permission.MemberRead]
+  },
+  {
     path: "/members",
     title: "Members",
     protected: true,
-    requiredPermissions: [Permission.MemberRead]
+    requiredPermissions: [Permission.MemberRead],
+    navigation: false
   },
   {
     path: "/classes",
@@ -114,6 +122,7 @@ export function buildGuardedNavigation(
 ): GuardedNavigationItem[] {
   return dashboardRoutes
     .filter((route) => route.protected)
+    .filter((route) => route.navigation !== false)
     .filter((route) => canAccessDashboardRoute(route, context))
     .map((route) => ({
       label: route.title,

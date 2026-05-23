@@ -1,4 +1,4 @@
-import { MemberStatus } from "@gym-platform/constants";
+import { isLeadConsumer } from "../members/segments.js";
 import { buildMemberStatusBadge, type MemberStatusBadge } from "../members/statusBadges.js";
 import {
   findMemberDirectorySearchFields,
@@ -72,7 +72,7 @@ function buildLeadSearchResult(
 
 function resultsForQuery(members: MemberView[], query: string) {
   const normalizedQuery = normalizeSearchText(query);
-  const leads = members.filter((member) => member.status === MemberStatus.Lead);
+  const leads = members.filter(isLeadConsumer);
 
   return (
     normalizedQuery

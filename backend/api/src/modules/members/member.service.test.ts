@@ -1,7 +1,14 @@
-import { MemberStatus } from "@gym-platform/constants";
+import {
+  BillingInterval,
+  ConsumerRecordStatus,
+  ConsumerSegment,
+  LeadStage,
+  MemberStatus,
+  MembershipStatus
+} from "@gym-platform/constants";
 import { describe, expect, it } from "vitest";
 import { createServices, type Services } from "../../app.js";
-import { fixedClock, testConfig } from "../../testUtils.js";
+import { createGym, fixedClock, testConfig } from "../../testUtils.js";
 
 describe("MemberService", () => {
   it("creates, updates, and archives members inside a gym scope", async () => {
@@ -32,6 +39,8 @@ describe("MemberService", () => {
     const archived = await services.memberService.archive(gymId, created.id);
 
     expect(created.gymId).toBe(gymId);
+    expect(created.recordStatus).toBe(ConsumerRecordStatus.Active);
+    expect(created.leadStage).toBe(LeadStage.None);
     expect(created.profileImageUrl).toBe("https://example.com/jamie.jpg");
     expect(created.emergencyContact?.relationship).toBe("Spouse");
     expect(updated.status).toBe(MemberStatus.Frozen);
@@ -39,6 +48,44 @@ describe("MemberService", () => {
     expect(updated.tagNames).toContain("pt-interest");
     expect(archived.status).toBe(MemberStatus.Archived);
     expect(await services.memberService.list(gymId)).toHaveLength(0);
+  });
+
+  it("normalizes legacy lead status and derives overlapping consumer segments", async () => {
+    const services = createServices(testConfig, fixedClock);
+    const gymId = await createGym(services);
+    const lead = await services.memberService.create(gymId, {
+      firstName: "Casey",
+      lastName: "Prospect",
+      email: "casey@example.com",
+      status: MemberStatus.Lead,
+      tagNames: ["intro-offer"]
+    });
+    const dropIn = await services.membershipPlanService.create(gymId, {
+      name: "Drop In",
+      billingInterval: BillingInterval.OneTime,
+      priceCents: 2500,
+      signupFeeCents: 0,
+      trialDays: 0,
+      autoRenew: false,
+      isPublic: true
+    });
+
+    await services.memberMembershipService.assignPlan(gymId, lead.id, {
+      planId: dropIn.id,
+      status: MembershipStatus.Active
+    });
+    const [consumer] = await services.memberService.list(gymId);
+
+    expect(lead.status).toBe(MemberStatus.Active);
+    expect(lead.leadStage).toBe(LeadStage.Open);
+    expect(dropIn.classAccessLimit).toBe(1);
+    expect(consumer?.segments.sort()).toEqual([
+      ConsumerSegment.Customer,
+      ConsumerSegment.Lead
+    ]);
+    expect(consumer?.isLead).toBe(true);
+    expect(consumer?.isCustomer).toBe(true);
+    expect(consumer?.isMember).toBe(false);
   });
 
   it("rejects duplicate active member email addresses and barcodes", async () => {
@@ -75,19 +122,3 @@ describe("MemberService", () => {
     ).rejects.toThrow(/already exists/i);
   });
 });
-
-async function createGym(services: Services) {
-  const owner = await services.authService.register({
-    email: "owner@example.com",
-    password: "Password123",
-    firstName: "Demo",
-    lastName: "Owner",
-    gymName: "Demo Strength Club",
-    timezone: "America/New_York",
-    locale: "en-US"
-  });
-  if (!owner.gym) {
-    throw new Error("Expected gym to be created.");
-  }
-  return owner.gym.id;
-}

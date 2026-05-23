@@ -34,7 +34,7 @@ const navigationGroups = [
   {
     key: "people",
     label: "People",
-    paths: ["/members", "/check-ins"]
+    paths: ["/consumers", "/check-ins"]
   },
   {
     key: "classes",
