@@ -271,6 +271,28 @@ export const consumerProfileImageUploadSchema = z.object({
     contentType: trimmed.regex(/^image\/[a-z0-9.+-]+$/i),
     base64Data: trimmed.min(16).max(8_000_000)
 });
+export const crmActivityTypeSchema = z.enum([
+    "note",
+    "call",
+    "email",
+    "text",
+    "reply",
+    "tour_booked",
+    "tour_completed",
+    "trial_started",
+    "trial_attended",
+    "follow_up",
+    "follow_up_outcome",
+    "cancellation_reason"
+]);
+export const crmActivityCreateSchema = z.object({
+    type: crmActivityTypeSchema.default("note"),
+    title: trimmed.min(2).max(160),
+    description: trimmed.max(2000).optional(),
+    outcome: trimmed.max(500).optional(),
+    occurredAt: z.string().datetime().optional(),
+    followUpAt: z.string().datetime().optional()
+});
 export const posPurchaseSchema = z
     .object({
     consumerId: id.optional(),

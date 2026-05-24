@@ -336,6 +336,16 @@ describe("system API flow", () => {
     );
     const gymId = registered.gym?.id ?? "";
 
+    const publicGyms = await ok<{ gyms: Array<{ id: string; name: string; slug: string; ownerUserId?: string }> }>(
+      "/public/gyms"
+    );
+    expect(publicGyms.gyms).toContainEqual({
+      id: gymId,
+      name: "Demo Strength Club",
+      slug: "demo-strength-club"
+    });
+    expect(publicGyms.gyms[0]?.ownerUserId).toBeUndefined();
+
     const me = await ok<{ activeGym?: { id: string }; memberships: unknown[] }>("/auth/me", {
       headers: authHeaders(registered.accessToken)
     });
@@ -842,11 +852,11 @@ describe("system API flow", () => {
       }
     );
     expect(myClockEntries.entries[0]?.id).toBe(selfClockedIn.id);
-    const allTimeEntriesAsTrainer = await api.request<{ error?: { code?: string } }>(
+    const visibleTimeEntriesAsTrainer = await ok<StaffTimeEntryListResponse>(
       `/gyms/${gymId}/staff/time-entries`,
       { headers: authHeaders(staff.accessToken) }
     );
-    expect(allTimeEntriesAsTrainer.response.status).toBe(403);
+    expect(visibleTimeEntriesAsTrainer.entries.map((entry) => entry.id)).toEqual([selfClockedIn.id]);
     const selfClockedOut = await ok<StaffTimeEntryResponse>(
       `/gyms/${gymId}/staff/time-entries/me/clock-out`,
       json({}, staff.accessToken)

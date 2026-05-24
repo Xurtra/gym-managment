@@ -1221,6 +1221,29 @@ export declare const consumerProfileImageUploadSchema: z.ZodObject<{
     base64Data: string;
     consumerId?: string | undefined;
 }>;
+export declare const crmActivityTypeSchema: z.ZodEnum<["note", "call", "email", "text", "reply", "tour_booked", "tour_completed", "trial_started", "trial_attended", "follow_up", "follow_up_outcome", "cancellation_reason"]>;
+export declare const crmActivityCreateSchema: z.ZodObject<{
+    type: z.ZodDefault<z.ZodEnum<["note", "call", "email", "text", "reply", "tour_booked", "tour_completed", "trial_started", "trial_attended", "follow_up", "follow_up_outcome", "cancellation_reason"]>>;
+    title: z.ZodString;
+    description: z.ZodOptional<z.ZodString>;
+    outcome: z.ZodOptional<z.ZodString>;
+    occurredAt: z.ZodOptional<z.ZodString>;
+    followUpAt: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    type: "email" | "note" | "call" | "text" | "reply" | "tour_booked" | "tour_completed" | "trial_started" | "trial_attended" | "follow_up" | "follow_up_outcome" | "cancellation_reason";
+    title: string;
+    description?: string | undefined;
+    outcome?: string | undefined;
+    occurredAt?: string | undefined;
+    followUpAt?: string | undefined;
+}, {
+    title: string;
+    type?: "email" | "note" | "call" | "text" | "reply" | "tour_booked" | "tour_completed" | "trial_started" | "trial_attended" | "follow_up" | "follow_up_outcome" | "cancellation_reason" | undefined;
+    description?: string | undefined;
+    outcome?: string | undefined;
+    occurredAt?: string | undefined;
+    followUpAt?: string | undefined;
+}>;
 export declare const posPurchaseSchema: z.ZodEffects<z.ZodObject<{
     consumerId: z.ZodOptional<z.ZodString>;
     firstName: z.ZodOptional<z.ZodString>;
@@ -2233,27 +2256,27 @@ export declare const accessDeviceEventSchema: z.ZodEffects<z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     apiKey: string;
     barcode?: string | undefined;
+    occurredAt?: string | undefined;
     memberId?: string | undefined;
     qrPayload?: string | undefined;
-    occurredAt?: string | undefined;
 }, {
     apiKey: string;
     barcode?: string | undefined;
+    occurredAt?: string | undefined;
     memberId?: string | undefined;
     qrPayload?: string | undefined;
-    occurredAt?: string | undefined;
 }>, {
     apiKey: string;
     barcode?: string | undefined;
+    occurredAt?: string | undefined;
     memberId?: string | undefined;
     qrPayload?: string | undefined;
-    occurredAt?: string | undefined;
 }, {
     apiKey: string;
     barcode?: string | undefined;
+    occurredAt?: string | undefined;
     memberId?: string | undefined;
     qrPayload?: string | undefined;
-    occurredAt?: string | undefined;
 }>;
 export declare const accessDeviceHeartbeatSchema: z.ZodObject<{
     apiKey: z.ZodString;
@@ -2326,6 +2349,7 @@ export type StaffSelfClockOutInput = z.infer<typeof staffSelfClockOutSchema>;
 export type ConsumerCreateInput = z.input<typeof consumerCreateSchema>;
 export type ConsumerUpdateInput = z.input<typeof consumerUpdateSchema>;
 export type ConsumerProfileImageUploadInput = z.infer<typeof consumerProfileImageUploadSchema>;
+export type CrmActivityCreateInput = z.input<typeof crmActivityCreateSchema>;
 export type PosPurchaseInput = z.infer<typeof posPurchaseSchema>;
 export type PosStripeFinalizeInput = z.infer<typeof posStripeFinalizeSchema>;
 export type StripeConnectOnboardingLinkInput = z.infer<typeof stripeConnectOnboardingLinkSchema>;

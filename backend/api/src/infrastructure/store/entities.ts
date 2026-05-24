@@ -293,6 +293,35 @@ export interface Consumer extends Member {
   isMember: boolean;
 }
 
+export type CrmActivityType =
+  | "note"
+  | "call"
+  | "email"
+  | "text"
+  | "reply"
+  | "tour_booked"
+  | "tour_completed"
+  | "trial_started"
+  | "trial_attended"
+  | "follow_up"
+  | "follow_up_outcome"
+  | "cancellation_reason";
+
+export interface CrmActivity {
+  id: string;
+  gymId: string;
+  consumerId: string;
+  type: CrmActivityType;
+  title: string;
+  description?: string;
+  outcome?: string;
+  occurredAt: Date;
+  followUpAt?: Date;
+  createdByUserId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface MembershipPlan {
   id: string;
   gymId: string;
@@ -571,6 +600,7 @@ export interface StoreSnapshot {
   schedulerRequests: SchedulerRequest[];
   locations: Location[];
   members: Member[];
+  crmActivities: CrmActivity[];
   membershipPlans: MembershipPlan[];
   memberMemberships: MemberMembership[];
   classTypes: ClassType[];

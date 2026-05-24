@@ -340,6 +340,30 @@ export const consumerProfileImageUploadSchema = z.object({
   base64Data: trimmed.min(16).max(8_000_000)
 });
 
+export const crmActivityTypeSchema = z.enum([
+  "note",
+  "call",
+  "email",
+  "text",
+  "reply",
+  "tour_booked",
+  "tour_completed",
+  "trial_started",
+  "trial_attended",
+  "follow_up",
+  "follow_up_outcome",
+  "cancellation_reason"
+]);
+
+export const crmActivityCreateSchema = z.object({
+  type: crmActivityTypeSchema.default("note"),
+  title: trimmed.min(2).max(160),
+  description: trimmed.max(2000).optional(),
+  outcome: trimmed.max(500).optional(),
+  occurredAt: z.string().datetime().optional(),
+  followUpAt: z.string().datetime().optional()
+});
+
 export const posPurchaseSchema = z
   .object({
     consumerId: id.optional(),
@@ -647,6 +671,7 @@ export type SchedulerRequestResolveInput = z.infer<typeof schedulerRequestResolv
 export type ConsumerCreateInput = z.input<typeof consumerCreateSchema>;
 export type ConsumerUpdateInput = z.input<typeof consumerUpdateSchema>;
 export type ConsumerProfileImageUploadInput = z.infer<typeof consumerProfileImageUploadSchema>;
+export type CrmActivityCreateInput = z.input<typeof crmActivityCreateSchema>;
 export type PosPurchaseInput = z.infer<typeof posPurchaseSchema>;
 export type PosStripeFinalizeInput = z.infer<typeof posStripeFinalizeSchema>;
 export type StripeConnectOnboardingLinkInput = z.infer<typeof stripeConnectOnboardingLinkSchema>;

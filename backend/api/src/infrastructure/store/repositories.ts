@@ -8,6 +8,7 @@ import type {
   CheckIn,
   ClassSession,
   ClassType,
+  CrmActivity,
   FacilityReservation,
   Location,
   Member,
@@ -133,6 +134,11 @@ export interface MemberRepository {
   updateMember(member: Member): RepositoryResult<Member>;
 }
 
+export interface CrmActivityRepository {
+  createActivity(activity: CrmActivity): RepositoryResult<CrmActivity>;
+  listActivitiesForConsumer(gymId: string, consumerId: string): RepositoryResult<CrmActivity[]>;
+}
+
 export interface MembershipPlanRepository {
   createMembershipPlan(plan: MembershipPlan): RepositoryResult<MembershipPlan>;
   getMembershipPlan(planId: string): RepositoryResult<MembershipPlan | undefined>;
@@ -241,6 +247,7 @@ export interface Repositories {
   scheduler: SchedulerRepository;
   locations: LocationRepository;
   members: MemberRepository;
+  crmActivities: CrmActivityRepository;
   membershipPlans: MembershipPlanRepository;
   memberMemberships: MemberMembershipRepository;
   classes: ClassRepository;

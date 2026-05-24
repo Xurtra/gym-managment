@@ -90,6 +90,17 @@ export class TenancyService {
     return (await this.repositories.gyms.listGyms()).filter((gym) => gym.status === GymStatus.Active);
   }
 
+  async listPublicGymDirectory() {
+    return (await this.repositories.gyms.listGyms())
+      .filter((gym) => gym.status === GymStatus.Active)
+      .map((gym) => ({
+        id: gym.id,
+        name: gym.name,
+        slug: gym.slug,
+        ...(gym.logoUrl ? { logoUrl: gym.logoUrl } : {})
+      }));
+  }
+
   async archiveGym(gymId: string) {
     const gym = await this.getGym(gymId);
     return this.repositories.gyms.updateGym({

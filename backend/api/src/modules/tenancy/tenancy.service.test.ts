@@ -85,4 +85,36 @@ describe("TenancyService", () => {
     expect(updated.operatingHours.mon?.[0]?.opensAt).toBe("06:00");
     expect(updated.onboardingCompletedSteps).toContain("location-details");
   });
+
+  it("lists only active safe gym fields for the staff sign-in directory", async () => {
+    const services = createServices(testConfig, fixedClock);
+    const owner = await services.authService.register({
+      email: "owner@example.com",
+      password: "Password123",
+      firstName: "Demo",
+      lastName: "Owner",
+      gymName: "Visible Gym",
+      timezone: "America/New_York",
+      locale: "en-US"
+    });
+    const archivedGym = await services.tenancyService.createGym(owner.user.id, {
+      name: "Archived Gym",
+      timezone: "America/New_York",
+      locale: "en-US",
+      featureFlags: []
+    });
+
+    await services.tenancyService.archiveGym(archivedGym.id);
+    const gyms = await services.tenancyService.listPublicGymDirectory();
+
+    expect(gyms).toEqual([
+      {
+        id: owner.gym?.id,
+        name: "Visible Gym",
+        slug: "visible-gym"
+      }
+    ]);
+    expect(gyms[0]).not.toHaveProperty("ownerUserId");
+    expect(gyms[0]).not.toHaveProperty("stripeAccountId");
+  });
 });

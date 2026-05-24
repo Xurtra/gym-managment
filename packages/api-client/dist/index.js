@@ -214,6 +214,12 @@ export class GymApiClient {
     listConsumerMemberships(gymId, consumerId) {
         return this.request("GET", `/gyms/${gymId}/consumers/${consumerId}/memberships`);
     }
+    listConsumerActivities(gymId, consumerId) {
+        return this.request("GET", `/gyms/${gymId}/consumers/${consumerId}/activities`);
+    }
+    createConsumerActivity(gymId, consumerId, input) {
+        return this.request("POST", `/gyms/${gymId}/consumers/${consumerId}/activities`, input);
+    }
     assignConsumerMembership(gymId, consumerId, input) {
         return this.request("POST", `/gyms/${gymId}/consumers/${consumerId}/memberships`, input);
     }
@@ -388,6 +394,9 @@ export class GymApiClient {
     }
     publicGym(gymSlug) {
         return this.request("GET", `/public/gyms/${gymSlug}`);
+    }
+    listPublicGyms() {
+        return this.request("GET", "/public/gyms");
     }
     publicPlans(gymSlug) {
         return this.request("GET", `/public/gyms/${gymSlug}/plans`);

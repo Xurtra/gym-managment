@@ -10,6 +10,7 @@ import {
   consumerCreateSchema,
   consumerProfileImageUploadSchema,
   consumerUpdateSchema,
+  crmActivityCreateSchema,
   forgotPasswordSchema,
   gymCreateSchema,
   gymUpdateSchema,
@@ -80,6 +81,7 @@ import { AuthService } from "./modules/auth/auth.service.js";
 import { BookingService } from "./modules/bookings/booking.service.js";
 import { CheckInService } from "./modules/checkIns/checkIn.service.js";
 import { ClassScheduleService } from "./modules/classes/classSchedule.service.js";
+import { CrmActivityService } from "./modules/crm/crmActivity.service.js";
 import { MemberMembershipService } from "./modules/memberMemberships/memberMembership.service.js";
 import { LocationService } from "./modules/locations/location.service.js";
 import { MemberService } from "./modules/members/member.service.js";
@@ -135,6 +137,7 @@ export interface Services {
   tenancyService: TenancyService;
   locationService: LocationService;
   memberService: MemberService;
+  crmActivityService: CrmActivityService;
   memberMembershipService: MemberMembershipService;
   membershipPlanService: MembershipPlanService;
   posService: PosService;
@@ -165,6 +168,7 @@ export function createServices(
   const staffTimeClockService = new StaffTimeClockService(repositories, clock);
   const schedulerService = new SchedulerService(repositories, clock);
   const memberService = new MemberService(repositories, clock);
+  const crmActivityService = new CrmActivityService(repositories, clock);
   const memberMembershipService = new MemberMembershipService(repositories, clock);
   const membershipPlanService = new MembershipPlanService(repositories, clock);
   const posService = new PosService(repositories, clock);
@@ -185,6 +189,7 @@ export function createServices(
     tenancyService,
     locationService,
     memberService,
+    crmActivityService,
     memberMembershipService,
     membershipPlanService,
     posService,
@@ -203,6 +208,7 @@ export function createServices(
   bootstrapServices.tenancyService = services.tenancyService;
   bootstrapServices.locationService = services.locationService;
   bootstrapServices.memberService = services.memberService;
+  bootstrapServices.crmActivityService = services.crmActivityService;
   bootstrapServices.memberMembershipService = services.memberMembershipService;
   bootstrapServices.membershipPlanService = services.membershipPlanService;
   bootstrapServices.posService = services.posService;
@@ -1236,6 +1242,33 @@ function createRoutes() {
     };
   });
 
+  add("GET", "/gyms/:gymId/consumers/:consumerId/activities", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.MemberRead);
+    return {
+      activities: await context.services.crmActivityService.list(
+        gymId,
+        requiredParam(context, "consumerId")
+      )
+    };
+  });
+
+  add("POST", "/gyms/:gymId/consumers/:consumerId/activities", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.MemberWrite);
+    const input = parseWith(crmActivityCreateSchema, context.body);
+    return context.services.crmActivityService.create(
+      gymId,
+      requiredParam(context, "consumerId"),
+      auth.sub,
+      input
+    );
+  });
+
   add("POST", "/gyms/:gymId/consumers/:consumerId/memberships", async (context) => {
     const auth = requireAuth(context);
     const gymId = requiredParam(context, "gymId");
@@ -1585,6 +1618,10 @@ function createRoutes() {
   add("POST", "/access/device-heartbeats", async (context) => {
     const input = parseWith(accessDeviceHeartbeatSchema, context.body);
     return context.services.accessControlService.heartbeat(input);
+  });
+
+  add("GET", "/public/gyms", async (context) => {
+    return { gyms: await context.services.tenancyService.listPublicGymDirectory() };
   });
 
   add("GET", "/public/gyms/:gymSlug/schedule", async (context) => {

@@ -9,6 +9,7 @@ import type {
   CheckIn,
   ClassSession,
   ClassType,
+  CrmActivity,
   FacilityReservation,
   Location,
   Member,
@@ -43,6 +44,7 @@ import type {
   MemberRepository,
   MemberMembershipRepository,
   MembershipPlanRepository,
+  CrmActivityRepository,
   NotificationRepository,
   ReservationResourceRepository,
   Repositories,
@@ -72,6 +74,7 @@ export class InMemoryStore implements Repositories {
   private readonly schedulerRequestRecords = new Map<string, SchedulerRequest>();
   private readonly locationRecords = new Map<string, Location>();
   private readonly memberRecords = new Map<string, Member>();
+  private readonly crmActivityRecords = new Map<string, CrmActivity>();
   private readonly membershipPlanRecords = new Map<string, MembershipPlan>();
   private readonly memberMembershipRecords = new Map<string, MemberMembership>();
   private readonly classTypeRecords = new Map<string, ClassType>();
@@ -185,6 +188,12 @@ export class InMemoryStore implements Repositories {
     getMember: (memberId) => this.getMember(memberId),
     listMembersForGym: (gymId) => this.listMembersForGym(gymId),
     updateMember: (member) => this.updateMember(member)
+  };
+
+  readonly crmActivities: CrmActivityRepository = {
+    createActivity: (activity) => this.createCrmActivity(activity),
+    listActivitiesForConsumer: (gymId, consumerId) =>
+      this.listCrmActivitiesForConsumer(gymId, consumerId)
   };
 
   readonly membershipPlans: MembershipPlanRepository = {
@@ -607,6 +616,21 @@ export class InMemoryStore implements Repositories {
     return member;
   }
 
+  async createCrmActivity(activity: CrmActivity) {
+    this.crmActivityRecords.set(activity.id, activity);
+    return activity;
+  }
+
+  async listCrmActivitiesForConsumer(gymId: string, consumerId: string) {
+    return [...this.crmActivityRecords.values()]
+      .filter((activity) => activity.gymId === gymId && activity.consumerId === consumerId)
+      .sort(
+        (left, right) =>
+          right.occurredAt.getTime() - left.occurredAt.getTime() ||
+          right.createdAt.getTime() - left.createdAt.getTime()
+      );
+  }
+
   async createMembershipPlan(plan: MembershipPlan) {
     this.membershipPlanRecords.set(plan.id, plan);
     return plan;
@@ -910,6 +934,7 @@ export class InMemoryStore implements Repositories {
       schedulerRequests: [...this.schedulerRequestRecords.values()],
       locations: [...this.locationRecords.values()],
       members: [...this.memberRecords.values()],
+      crmActivities: [...this.crmActivityRecords.values()],
       membershipPlans: [...this.membershipPlanRecords.values()],
       memberMemberships: [...this.memberMembershipRecords.values()],
       classTypes: [...this.classTypeRecords.values()],

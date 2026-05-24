@@ -10,6 +10,7 @@ import type {
   CheckIn,
   ClassSession,
   ClassType,
+  CrmActivity,
   FacilityReservation,
   Location,
   Member,
@@ -264,6 +265,21 @@ interface MemberRow extends QueryResultRow {
   notes: string | null;
   tag_names: unknown;
   archived_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface CrmActivityRow extends QueryResultRow {
+  id: string;
+  gym_id: string;
+  consumer_id: string;
+  activity_type: CrmActivity["type"];
+  title: string;
+  description: string | null;
+  outcome: string | null;
+  occurred_at: Date;
+  follow_up_at: Date | null;
+  created_by_user_id: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -622,6 +638,12 @@ export class PostgresRepositories implements Repositories {
     getMember: (memberId: string) => this.getMember(memberId),
     listMembersForGym: (gymId: string) => this.listMembersForGym(gymId),
     updateMember: (member: Member) => this.updateMember(member)
+  };
+
+  readonly crmActivities = {
+    createActivity: (activity: CrmActivity) => this.createCrmActivity(activity),
+    listActivitiesForConsumer: (gymId: string, consumerId: string) =>
+      this.listCrmActivitiesForConsumer(gymId, consumerId)
   };
 
   readonly membershipPlans = {
@@ -1714,6 +1736,41 @@ export class PostgresRepositories implements Repositories {
       ]
     );
     return mapMember(one(result));
+  }
+
+  async createCrmActivity(activity: CrmActivity) {
+    const result = await this.executor.query<CrmActivityRow>(
+      `INSERT INTO crm_activities (
+        id, gym_id, consumer_id, activity_type, title, description, outcome,
+        occurred_at, follow_up_at, created_by_user_id, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING *`,
+      [
+        activity.id,
+        activity.gymId,
+        activity.consumerId,
+        activity.type,
+        activity.title,
+        activity.description ?? null,
+        activity.outcome ?? null,
+        activity.occurredAt,
+        activity.followUpAt ?? null,
+        activity.createdByUserId ?? null,
+        activity.createdAt,
+        activity.updatedAt
+      ]
+    );
+    return mapCrmActivity(one(result));
+  }
+
+  async listCrmActivitiesForConsumer(gymId: string, consumerId: string) {
+    const result = await this.executor.query<CrmActivityRow>(
+      `SELECT * FROM crm_activities
+       WHERE gym_id = $1 AND consumer_id = $2
+       ORDER BY occurred_at DESC, created_at DESC`,
+      [gymId, consumerId]
+    );
+    return result.rows.map(mapCrmActivity);
   }
 
   async createMembershipPlan(plan: MembershipPlan) {
@@ -2998,6 +3055,32 @@ function mapMember(row: MemberRow): Member {
     member.archivedAt = row.archived_at;
   }
   return member;
+}
+
+function mapCrmActivity(row: CrmActivityRow): CrmActivity {
+  const activity: CrmActivity = {
+    id: row.id,
+    gymId: row.gym_id,
+    consumerId: row.consumer_id,
+    type: row.activity_type,
+    title: row.title,
+    occurredAt: row.occurred_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+  if (row.description) {
+    activity.description = row.description;
+  }
+  if (row.outcome) {
+    activity.outcome = row.outcome;
+  }
+  if (row.follow_up_at) {
+    activity.followUpAt = row.follow_up_at;
+  }
+  if (row.created_by_user_id) {
+    activity.createdByUserId = row.created_by_user_id;
+  }
+  return activity;
 }
 
 function mapMembershipPlan(row: MembershipPlanRow): MembershipPlan {

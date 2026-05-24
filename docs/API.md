@@ -39,6 +39,7 @@ Gym settings routes enforce tenant access and `gym:read` or `gym:update`.
 
 ## Public Website & Signup
 
+- `GET /public/gyms` - returns active gym names, slugs, and optional logos for the staff sign-in selector.
 - `GET /public/gyms/:gymSlug` - returns public gym profile, brand, business, locale, timezone, and feature-flag data for an active gym.
 - `GET /public/gyms/:gymSlug/plans` - returns active, public, non-archived membership plans for an active gym.
 - `POST /public/gyms/:gymSlug/signup` - creates an online-signup member and assigns the selected public plan when online signup is enabled.
@@ -91,6 +92,8 @@ Staff invite listing requires `staff:read`; creating invites requires `staff:inv
 - `DELETE /gyms/:gymId/consumers/:consumerId` - archives a consumer.
 - `GET /gyms/:gymId/consumers/:consumerId/memberships` - lists entitlement assignments for a consumer.
 - `POST /gyms/:gymId/consumers/:consumerId/memberships` - assigns an existing membership plan as a recurring subscription or one-time/package customer entitlement.
+- `GET /gyms/:gymId/consumers/:consumerId/activities` - lists CRM timeline activity for a consumer, newest first.
+- `POST /gyms/:gymId/consumers/:consumerId/activities` - logs a call, email, text, reply, tour, trial, follow-up outcome, cancellation reason, or general note with optional follow-up timing.
 
 Consumer routes enforce tenant access and `member:read` or `member:write`. Consumer responses include `leadStage`, `segments`, `isLead`, `isCustomer`, and `isMember`. `lead` comes from an open lead stage, `member` comes from active or trialing monthly/yearly assignments, and `customer` comes from active or trialing one-time/package assignments. Lead state alone never grants booking, check-in, or access eligibility.
 

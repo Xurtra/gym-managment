@@ -347,6 +347,8 @@ interface StripeConnectSessionRecord {
   };
 }
 
+type SignInGymRecord = Pick<GymRecord, "id" | "name" | "slug" | "logoUrl">;
+
 interface LocationRecord {
   id: string;
   name: string;
@@ -519,6 +521,35 @@ interface MemberMembershipRecord {
   status: MembershipStatus;
   startsAt: string;
   endsAt?: string;
+}
+
+type CrmActivityType =
+  | "note"
+  | "call"
+  | "email"
+  | "text"
+  | "reply"
+  | "tour_booked"
+  | "tour_completed"
+  | "trial_started"
+  | "trial_attended"
+  | "follow_up"
+  | "follow_up_outcome"
+  | "cancellation_reason";
+
+interface CrmActivityRecord {
+  id: string;
+  gymId: string;
+  consumerId: string;
+  type: CrmActivityType;
+  title: string;
+  description?: string;
+  outcome?: string;
+  occurredAt: string;
+  followUpAt?: string;
+  createdByUserId?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface MemberDeskAlertRecord {
@@ -819,6 +850,8 @@ interface AppState {
   platformGyms: GymRecord[];
   platformGymDirectoryLoaded: boolean;
   platformAccessDenied: boolean;
+  signInGyms: SignInGymRecord[];
+  signInGymDirectoryLoaded: boolean;
   members: MemberRecord[];
   staff: StaffRecord[];
   plans: PlanRecord[];
@@ -912,7 +945,7 @@ interface AppState {
     details: string[];
   };
   checkInHistory: CheckInRecord[];
-  memberCache: Record<string, { memberships: MemberMembershipRecord[]; checkIns: CheckInRecord[] }>;
+  memberCache: Record<string, { memberships: MemberMembershipRecord[]; checkIns: CheckInRecord[]; crmActivities: CrmActivityRecord[] }>;
   memberDesk: MemberDeskStore;
   posStripeConfig?: { enabled: boolean; publishableKey?: string };
   posTerminalConnectionState: PosTerminalConnectionState;
@@ -947,6 +980,8 @@ const state: AppState = {
   platformGyms: [],
   platformGymDirectoryLoaded: false,
   platformAccessDenied: false,
+  signInGyms: [],
+  signInGymDirectoryLoaded: false,
   members: [],
   staff: [],
   plans: [],
@@ -1069,6 +1104,7 @@ async function initialize() {
   ensureDashboardRouteHash();
   await checkApiHealth();
   clearStaleMemorySession();
+  await refreshSignInGymDirectory();
   await refreshPlatformGymDirectory();
   normalizeInitialPublicSlug(Boolean(gymSlugMatch));
   if (state.session) {
@@ -1115,6 +1151,17 @@ async function refreshPlatformGymDirectory() {
   }
 }
 
+async function refreshSignInGymDirectory() {
+  try {
+    const gymsData = (await client.listPublicGyms()) as { gyms: SignInGymRecord[] };
+    state.signInGyms = gymsData.gyms || [];
+    state.signInGymDirectoryLoaded = true;
+  } catch {
+    state.signInGyms = [];
+    state.signInGymDirectoryLoaded = false;
+  }
+}
+
 function clearStaleMemorySession() {
   if (
     state.persistenceDriver === "memory" &&
@@ -1129,11 +1176,11 @@ function clearStaleMemorySession() {
 }
 
 function normalizeInitialPublicSlug(wasExplicitSlug: boolean) {
-  if (!state.platformGymDirectoryLoaded) {
+  if (!state.signInGymDirectoryLoaded) {
     return;
   }
   const cleanSlug = state.publicSlug.trim().toLowerCase();
-  const slugExists = cleanSlug && state.platformGyms.some((gym) => gym.slug === cleanSlug);
+  const slugExists = cleanSlug && state.signInGyms.some((gym) => gym.slug === cleanSlug);
   if (slugExists) {
     state.publicSlug = cleanSlug;
     localStorage.setItem(PUBLIC_SLUG_STORAGE_KEY, cleanSlug);
@@ -1143,18 +1190,22 @@ function normalizeInitialPublicSlug(wasExplicitSlug: boolean) {
     clearPublicSlug();
     setBanner(
       "info",
-      `Gym "${cleanSlug}" was not found in the local API. Choose an available gym or create a new one.`
+      `Gym "${cleanSlug}" was not found in the local API. Choose an available gym.`
     );
     return;
   }
-  if (!wasExplicitSlug && state.platformGyms[0]) {
-    state.publicSlug = state.platformGyms[0].slug;
+  if (!wasExplicitSlug && state.signInGyms[0]) {
+    state.publicSlug = state.signInGyms[0].slug;
     localStorage.setItem(PUBLIC_SLUG_STORAGE_KEY, state.publicSlug);
   }
 }
 
 function currentGymSlugFromUrl() {
   return new URLSearchParams(window.location.search).get("gymSlug")?.trim().toLowerCase() ?? "";
+}
+
+function isPlatformAdminRoute() {
+  return new URLSearchParams(window.location.search).get("admin") === "1";
 }
 
 async function refreshDashboard(options: { silent?: boolean; renderAfter?: boolean } | boolean = {}) {
@@ -1430,9 +1481,10 @@ async function refreshDashboard(options: { silent?: boolean; renderAfter?: boole
 
 async function loadMemberCacheEntry(gymId: string, memberId: string) {
   try {
-    const [membershipResponse, checkInsResponse] = await Promise.all([
+    const [membershipResponse, checkInsResponse, activityResponse] = await Promise.all([
       client.listConsumerMemberships(gymId, memberId) as Promise<{ memberships?: MemberMembershipRecord[] } | MemberMembershipRecord[]>,
-      client.listMemberCheckIns(gymId, memberId) as Promise<{ checkIns?: CheckInRecord[] } | CheckInRecord[]>
+      client.listMemberCheckIns(gymId, memberId) as Promise<{ checkIns?: CheckInRecord[] } | CheckInRecord[]>,
+      client.listConsumerActivities(gymId, memberId) as Promise<{ activities?: CrmActivityRecord[] } | CrmActivityRecord[]>
     ]);
     return {
       memberships: Array.isArray(membershipResponse)
@@ -1440,11 +1492,24 @@ async function loadMemberCacheEntry(gymId: string, memberId: string) {
         : membershipResponse.memberships ?? [],
       checkIns: Array.isArray(checkInsResponse)
         ? checkInsResponse
-        : checkInsResponse.checkIns ?? []
+        : checkInsResponse.checkIns ?? [],
+      crmActivities: Array.isArray(activityResponse)
+        ? activityResponse
+        : activityResponse.activities ?? []
     };
   } catch {
-    return { memberships: [], checkIns: [] };
+    return { memberships: [], checkIns: [], crmActivities: [] };
   }
+}
+
+async function ensureMemberCacheEntry(gymId: string, memberId: string) {
+  if (state.memberCache[memberId]) {
+    return;
+  }
+  state.memberCache = {
+    ...state.memberCache,
+    [memberId]: await loadMemberCacheEntry(gymId, memberId)
+  };
 }
 
 async function refreshCreatedConsumerState(gymId: string, consumerId: string) {
@@ -1477,13 +1542,13 @@ async function refreshPublic(slug: string, shouldRender = true) {
     return;
   }
   if (
-    state.platformGymDirectoryLoaded &&
-    !state.platformGyms.some((gym) => gym.slug === cleanSlug)
+    state.signInGymDirectoryLoaded &&
+    !state.signInGyms.some((gym) => gym.slug === cleanSlug)
   ) {
     clearPublicSlug();
     setBanner(
       "info",
-      `Gym "${cleanSlug}" was not found in the local API. Choose an available gym or create a new one.`
+      `Gym "${cleanSlug}" was not found in the local API. Choose an available gym.`
     );
     if (shouldRender) {
       render();
@@ -1682,7 +1747,7 @@ function renderDashboard() {
   const gymSlugMatch = new URLSearchParams(window.location.search).get("gymSlug");
 
   if (!gymSlugMatch) {
-    return renderPlatformDashboard();
+    return isPlatformAdminRoute() ? renderPlatformDashboard() : renderGymSelectionDashboard();
   }
 
   if (!state.session || !state.me) {
@@ -1698,6 +1763,7 @@ function renderDashboard() {
           <p class="eyebrow">Gym Authentication</p>
           <h2>Log in to ${gymNameTitle}</h2>
         </div>
+        <a href="?#/dashboard" class="ghost-button route-link">Choose another gym</a>
       </div>
       <div class="two-up">
         <form id="login-form" class="form-card">
@@ -2475,6 +2541,17 @@ function renderCustomerProfileView() {
               <span>${summary.memberships.length}</span>
             </div>
             ${renderBillingHistory(member)}
+          </div>
+
+          <div class="checkin-sheet-section">
+            <div class="card-head">
+              <div>
+                <h3>CRM activity timeline</h3>
+                <p class="muted">Calls, messages, tours, trials, cancellation notes, and follow-up outcomes.</p>
+              </div>
+              <span>${state.memberCache[member.id]?.crmActivities.length ?? 0}</span>
+            </div>
+            ${renderCrmTimeline(member)}
           </div>
 
           <div class="checkin-sheet-section">
@@ -6188,6 +6265,92 @@ function renderBillingHistory(member: MemberRecord) {
   `;
 }
 
+const crmActivityTypeOptions: Array<{ value: CrmActivityType; label: string }> = [
+  { value: "note", label: "General note" },
+  { value: "call", label: "Phone call" },
+  { value: "email", label: "Email sent" },
+  { value: "text", label: "Text message" },
+  { value: "reply", label: "Customer reply" },
+  { value: "tour_booked", label: "Tour booked" },
+  { value: "tour_completed", label: "Tour completed" },
+  { value: "trial_started", label: "Trial started" },
+  { value: "trial_attended", label: "Trial attended" },
+  { value: "follow_up", label: "Follow-up needed" },
+  { value: "follow_up_outcome", label: "Follow-up outcome" },
+  { value: "cancellation_reason", label: "Cancellation reason" }
+];
+
+function renderCrmTimeline(member: MemberRecord) {
+  const activities = [...(state.memberCache[member.id]?.crmActivities ?? [])].sort(
+    (left, right) => Date.parse(right.occurredAt) - Date.parse(left.occurredAt)
+  );
+  const canWriteConsumers = hasPermission(Permission.MemberWrite);
+  return `
+    <div class="section-stack crm-timeline-shell">
+      ${canWriteConsumers
+        ? `<form id="crm-activity-form" class="form-card compact-form crm-activity-form">
+            <input type="hidden" name="consumerId" value="${member.id}" />
+            ${renderSelect("type", "Activity type", crmActivityTypeOptions, "call")}
+            ${renderInput("title", "What happened?", "text", "")}
+            <label class="field">
+              <span>Details</span>
+              <textarea name="description" rows="3" placeholder="Example: Left voicemail about a free tour and intro class."></textarea>
+            </label>
+            ${renderInput("outcome", "Outcome", "text", "")}
+            ${renderInput("occurredAt", "When it happened", "datetime-local", "")}
+            ${renderInput("followUpAt", "Follow up on", "datetime-local", "")}
+            <button type="submit">Log activity</button>
+          </form>`
+        : ""}
+      ${activities.length === 0
+        ? `<div class="settings-placeholder"><strong>No CRM activity yet</strong><p>Log the first call, message, tour, trial, or follow-up outcome here.</p></div>`
+        : `<div class="crm-timeline-list">
+            ${activities.map(renderCrmActivityCard).join("")}
+          </div>`}
+    </div>
+  `;
+}
+
+function renderCrmActivityCard(activity: CrmActivityRecord) {
+  return `
+    <article class="crm-activity-card">
+      <div class="crm-activity-marker">${escapeHtml(crmActivityInitial(activity.type))}</div>
+      <div class="crm-activity-body">
+        <div class="invoice-card-head">
+          <strong>${escapeHtml(activity.title)}</strong>
+          <span>${escapeHtml(formatCrmActivityDate(activity.occurredAt))}</span>
+        </div>
+        <p>${escapeHtml(formatCrmActivityType(activity.type))}</p>
+        ${activity.description ? `<small>${escapeHtml(activity.description)}</small>` : ""}
+        ${activity.outcome ? `<span class="club-note-label">Outcome: ${escapeHtml(activity.outcome)}</span>` : ""}
+        ${activity.followUpAt ? `<span class="club-note-label">Follow up ${escapeHtml(formatCrmActivityDate(activity.followUpAt))}</span>` : ""}
+      </div>
+    </article>
+  `;
+}
+
+function formatCrmActivityType(type: CrmActivityType) {
+  return crmActivityTypeOptions.find((option) => option.value === type)?.label ?? formatRoleLabel(type);
+}
+
+function crmActivityInitial(type: CrmActivityType) {
+  const label = formatCrmActivityType(type);
+  return label
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+function formatCrmActivityDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString([], { dateStyle: "short", timeStyle: "short" });
+}
+
 function renderMemberAlerts(member: MemberRecord) {
   const alerts = getMemberAlerts(member.id);
   return `
@@ -6578,6 +6741,53 @@ function filterPlatformGyms(query: string) {
   return state.platformGyms.filter((gym) => `${gym.name} ${gym.slug}`.toLowerCase().includes(normalizedQuery));
 }
 
+function renderGymSelectionDashboard() {
+  return `
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Staff login</p>
+        <h2>Select your gym</h2>
+        <p class="club-copy">Choose your workplace to sign in with the account assigned to that gym.</p>
+      </div>
+      <a href="?admin=1#/dashboard" class="ghost-button route-link">Admin login</a>
+    </div>
+    <section class="data-card gym-selector-panel">
+      <div class="card-head">
+        <h3>Gyms</h3>
+        <span>${state.signInGymDirectoryLoaded ? `${state.signInGyms.length} available` : "Loading"}</span>
+      </div>
+      ${
+        !state.signInGymDirectoryLoaded
+          ? `<div class="empty-state"><h3>Loading gyms</h3><p>Finding active gym logins.</p></div>`
+          : state.signInGyms.length === 0
+            ? `<div class="empty-state"><h3>No gyms available</h3><p>An administrator needs to create an active gym before staff can sign in.</p></div>`
+            : `
+              <div class="gym-signin-grid">
+                ${state.signInGyms
+                  .map(
+                    (gym) => `
+                      <a href="?gymSlug=${escapeAttribute(gym.slug)}#/dashboard" class="form-card gym-signin-card">
+                        ${
+                          gym.logoUrl
+                            ? `<img src="${escapeAttribute(gym.logoUrl)}" alt="${escapeAttribute(gym.name)} logo" />`
+                            : `<span class="gym-signin-logo">${escapeHtml(gym.name.slice(0, 2).toUpperCase())}</span>`
+                        }
+                        <span class="gym-signin-details">
+                          <strong>${escapeHtml(gym.name)}</strong>
+                          <small>${escapeHtml(gym.slug)}</small>
+                        </span>
+                        <span class="gym-signin-action">Log in</span>
+                      </a>
+                    `
+                  )
+                  .join("")}
+              </div>
+            `
+      }
+    </section>
+  `;
+}
+
 function renderPlatformDashboard() {
   if (!state.session) {
     return `
@@ -6587,6 +6797,7 @@ function renderPlatformDashboard() {
           <h2>Choose a gym or sign in as admin</h2>
           <p class="club-copy">Open a gym login for staff, or use the admin login to add, remove, or inspect gyms.</p>
         </div>
+        <a href="?#/dashboard" class="ghost-button route-link">Staff login</a>
       </div>
       <div class="two-up">
         <form id="platform-gym-picker-form" class="form-card">
@@ -6610,7 +6821,10 @@ function renderPlatformDashboard() {
           <p class="eyebrow">Platform Dashboard</p>
           <h2>Workspace Admin</h2>
         </div>
-        <button id="logout-button" class="ghost-button" type="button">Log out</button>
+        <div class="head-actions">
+          <a href="?#/dashboard" class="ghost-button route-link">Staff login</a>
+          <button id="logout-button" class="ghost-button" type="button">Log out</button>
+        </div>
       </div>
       <section class="data-card">
         <div class="empty-state">
@@ -6627,7 +6841,10 @@ function renderPlatformDashboard() {
           <p class="eyebrow">Platform Dashboard</p>
           <h2>Workspace Admin</h2>
         </div>
-        <button id="logout-button" class="ghost-button" type="button">Log out</button>
+        <div class="head-actions">
+          <a href="?#/dashboard" class="ghost-button route-link">Staff login</a>
+          <button id="logout-button" class="ghost-button" type="button">Log out</button>
+        </div>
       </div>
       <div class="empty-state"><h3>Loading gyms</h3><p>Checking platform admin access.</p></div>
     `;
@@ -6643,7 +6860,10 @@ function renderPlatformDashboard() {
         <p class="eyebrow">Platform Dashboard</p>
         <h2>Workspace Admin</h2>
       </div>
-      <button id="logout-button" class="ghost-button" type="button">Log out</button>
+      <div class="head-actions">
+        <a href="?#/dashboard" class="ghost-button route-link">Staff login</a>
+        <button id="logout-button" class="ghost-button" type="button">Log out</button>
+      </div>
     </div>
 
     <div class="list-grid">
@@ -6864,14 +7084,20 @@ function bindEvents() {
     });
   });
   app.querySelectorAll<HTMLButtonElement>("[data-action='view-member']").forEach((el) => {
-    el.addEventListener("click", () => {
+    el.addEventListener("click", async () => {
       state.selectedMemberId = el.dataset.memberId;
+      if (state.gym && state.selectedMemberId) {
+        await ensureMemberCacheEntry(state.gym.id, state.selectedMemberId);
+      }
       navigateDashboardView(el.dataset.viewTarget === "check_in" ? "check_in" : "customer_profile", { preserveContext: true });
     });
   });
   app.querySelectorAll<HTMLButtonElement>("[data-check-in-member-id]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
       state.selectedMemberId = button.dataset.checkInMemberId;
+      if (state.gym && state.selectedMemberId) {
+        await ensureMemberCacheEntry(state.gym.id, state.selectedMemberId);
+      }
       openCheckInRail();
     });
   });
@@ -7825,6 +8051,31 @@ function bindEvents() {
     addMemberAlert(memberId, title, message);
     navigateDashboardView("customer_profile", { preserveContext: true });
     render();
+  });
+
+  bindForm("crm-activity-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const data = formData(form);
+    const consumerId = data.consumerId;
+    if (!consumerId) {
+      return;
+    }
+    await client.createConsumerActivity(state.gym.id, consumerId, {
+      type: (data.type as CrmActivityType) || "note",
+      title: data.title,
+      ...(data.description.trim() ? { description: data.description.trim() } : {}),
+      ...(data.outcome.trim() ? { outcome: data.outcome.trim() } : {}),
+      ...(data.occurredAt ? { occurredAt: new Date(data.occurredAt).toISOString() } : {}),
+      ...(data.followUpAt ? { followUpAt: new Date(data.followUpAt).toISOString() } : {})
+    });
+    state.memberCache = {
+      ...state.memberCache,
+      [consumerId]: await loadMemberCacheEntry(state.gym.id, consumerId)
+    };
+    setBanner("success", "CRM activity logged.");
+    navigateDashboardView("customer_profile", { preserveContext: true });
   });
 
   app.querySelectorAll<HTMLButtonElement>("[data-signature-toggle]").forEach((button) => {

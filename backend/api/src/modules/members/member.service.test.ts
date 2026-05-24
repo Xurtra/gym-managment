@@ -121,4 +121,32 @@ describe("MemberService", () => {
       })
     ).rejects.toThrow(/already exists/i);
   });
+
+  it("stores a CRM activity timeline for a consumer", async () => {
+    const services = createServices(testConfig, fixedClock);
+    const gymId = await createGym(services);
+    const consumer = await services.memberService.create(gymId, {
+      firstName: "Maya",
+      lastName: "Tour",
+      email: "maya@example.com",
+      status: MemberStatus.Lead,
+      tagNames: []
+    });
+
+    const activity = await services.crmActivityService.create(gymId, consumer.id, "actor-1", {
+      type: "tour_booked",
+      title: "Booked intro tour",
+      description: "Wants to see evening strength classes.",
+      outcome: "Tour booked for Friday.",
+      occurredAt: "2026-05-18T14:00:00.000Z",
+      followUpAt: "2026-05-20T15:00:00.000Z"
+    });
+    const activities = await services.crmActivityService.list(gymId, consumer.id);
+
+    expect(activity.type).toBe("tour_booked");
+    expect(activity.createdByUserId).toBe("actor-1");
+    expect(activity.followUpAt).toBe("2026-05-20T15:00:00.000Z");
+    expect(activities).toHaveLength(1);
+    expect(activities[0]?.title).toBe("Booked intro tour");
+  });
 });

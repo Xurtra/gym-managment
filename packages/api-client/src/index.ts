@@ -9,6 +9,7 @@ import type {
   ClassSessionCreateInput,
   ClassTypeCreateInput,
   ConsumerCreateInput,
+  CrmActivityCreateInput,
   ConsumerProfileImageUploadInput,
   ConsumerUpdateInput,
   CustomRoleCreateInput,
@@ -367,6 +368,14 @@ export class GymApiClient {
     return this.request("GET", `/gyms/${gymId}/consumers/${consumerId}/memberships`);
   }
 
+  listConsumerActivities(gymId: string, consumerId: string) {
+    return this.request("GET", `/gyms/${gymId}/consumers/${consumerId}/activities`);
+  }
+
+  createConsumerActivity(gymId: string, consumerId: string, input: CrmActivityCreateInput) {
+    return this.request("POST", `/gyms/${gymId}/consumers/${consumerId}/activities`, input);
+  }
+
   assignConsumerMembership(gymId: string, consumerId: string, input: MemberMembershipAssignInput) {
     return this.request("POST", `/gyms/${gymId}/consumers/${consumerId}/memberships`, input);
   }
@@ -613,6 +622,10 @@ export class GymApiClient {
 
   publicGym(gymSlug: string) {
     return this.request("GET", `/public/gyms/${gymSlug}`);
+  }
+
+  listPublicGyms() {
+    return this.request("GET", "/public/gyms");
   }
 
   publicPlans(gymSlug: string) {

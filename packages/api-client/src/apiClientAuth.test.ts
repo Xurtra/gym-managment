@@ -145,6 +145,7 @@ describe("GymApiClient auth refresh", () => {
       "2026-05-19T00:00:00.000Z",
       "location-1"
     );
+    await client.listPublicGyms();
 
     expect(calls).toEqual([
       "/gyms/gym-1/locations",
@@ -169,7 +170,8 @@ describe("GymApiClient auth refresh", () => {
       "/gyms/gym-1/staff/invites",
       "/gyms/gym-1/staff/invites",
       "/staff/invites/accept",
-      "/public/gyms/demo-strength-club/schedule?from=2026-05-18T00%3A00%3A00.000Z&to=2026-05-19T00%3A00%3A00.000Z&locationId=location-1"
+      "/public/gyms/demo-strength-club/schedule?from=2026-05-18T00%3A00%3A00.000Z&to=2026-05-19T00%3A00%3A00.000Z&locationId=location-1",
+      "/public/gyms"
     ]);
   });
 
@@ -699,6 +701,12 @@ describe("GymApiClient auth refresh", () => {
     });
     await client.updateConsumer("gym-1", "consumer-1", { leadStage: "converted" });
     await client.listConsumerMemberships("gym-1", "consumer-1");
+    await client.listConsumerActivities("gym-1", "consumer-1");
+    await client.createConsumerActivity("gym-1", "consumer-1", {
+      type: "call",
+      title: "Called about trial class",
+      outcome: "Tour booked"
+    });
     await client.assignConsumerMembership("gym-1", "consumer-1", {
       planId: "00000000-0000-4000-8000-000000000011",
       status: "active"
@@ -745,6 +753,21 @@ describe("GymApiClient auth refresh", () => {
         path: "/gyms/gym-1/consumers/consumer-1/memberships",
         method: "GET",
         authorization: "Bearer token-1"
+      },
+      {
+        path: "/gyms/gym-1/consumers/consumer-1/activities",
+        method: "GET",
+        authorization: "Bearer token-1"
+      },
+      {
+        path: "/gyms/gym-1/consumers/consumer-1/activities",
+        method: "POST",
+        authorization: "Bearer token-1",
+        body: {
+          type: "call",
+          title: "Called about trial class",
+          outcome: "Tour booked"
+        }
       },
       {
         path: "/gyms/gym-1/consumers/consumer-1/memberships",
