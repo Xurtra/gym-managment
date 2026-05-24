@@ -570,6 +570,7 @@ export class SchedulerService {
         name: "Staff",
         permissions: [],
         isSystem: false,
+        createsReservableResource: false,
         createdAt: startsAt,
         updatedAt: startsAt
       },

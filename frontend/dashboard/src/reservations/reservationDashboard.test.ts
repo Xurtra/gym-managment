@@ -183,8 +183,6 @@ describe("reservation dashboard models", () => {
     });
     const readOnly = buildFacilityReservationDetailScreen({
       reservation: reservation(),
-      resource: undefined,
-      member: undefined,
       permissions: [Permission.BookingRead]
     });
     const cancel = createFacilityReservationCancelSubmission({ reason: "   " });

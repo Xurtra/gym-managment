@@ -347,8 +347,6 @@ interface StripeConnectSessionRecord {
   };
 }
 
-type SignInGymRecord = Pick<GymRecord, "id" | "name" | "slug" | "logoUrl">;
-
 interface LocationRecord {
   id: string;
   name: string;
@@ -850,8 +848,6 @@ interface AppState {
   platformGyms: GymRecord[];
   platformGymDirectoryLoaded: boolean;
   platformAccessDenied: boolean;
-  signInGyms: SignInGymRecord[];
-  signInGymDirectoryLoaded: boolean;
   members: MemberRecord[];
   staff: StaffRecord[];
   plans: PlanRecord[];
@@ -887,6 +883,7 @@ interface AppState {
   schedulerDraft?: ScheduleDraftRecord;
   staffAccessSearch: string;
   staffAccessRoleFilter: string;
+  staffAuthTreeExpandedRoleIds: string[];
   staffScheduleCalendarOpen: boolean;
   staffScheduleCalendarMonth: string;
   staffScheduleRequestModalOpen: boolean;
@@ -980,8 +977,6 @@ const state: AppState = {
   platformGyms: [],
   platformGymDirectoryLoaded: false,
   platformAccessDenied: false,
-  signInGyms: [],
-  signInGymDirectoryLoaded: false,
   members: [],
   staff: [],
   plans: [],
@@ -1017,6 +1012,7 @@ const state: AppState = {
   schedulerDraft: undefined,
   staffAccessSearch: "",
   staffAccessRoleFilter: "",
+  staffAuthTreeExpandedRoleIds: [],
   staffScheduleCalendarOpen: false,
   staffScheduleCalendarMonth: toMonthKey(new Date()),
   staffScheduleRequestModalOpen: false,
@@ -1104,9 +1100,7 @@ async function initialize() {
   ensureDashboardRouteHash();
   await checkApiHealth();
   clearStaleMemorySession();
-  await refreshSignInGymDirectory();
   await refreshPlatformGymDirectory();
-  normalizeInitialPublicSlug(Boolean(gymSlugMatch));
   if (state.session) {
     await refreshDashboard();
     if (!gymSlugMatch) {
@@ -1151,17 +1145,6 @@ async function refreshPlatformGymDirectory() {
   }
 }
 
-async function refreshSignInGymDirectory() {
-  try {
-    const gymsData = (await client.listPublicGyms()) as { gyms: SignInGymRecord[] };
-    state.signInGyms = gymsData.gyms || [];
-    state.signInGymDirectoryLoaded = true;
-  } catch {
-    state.signInGyms = [];
-    state.signInGymDirectoryLoaded = false;
-  }
-}
-
 function clearStaleMemorySession() {
   if (
     state.persistenceDriver === "memory" &&
@@ -1172,31 +1155,6 @@ function clearStaleMemorySession() {
     tokenStore.clearTokens();
     clearDashboardState();
     setBanner("info", "The local API restarted, so your saved dev session was cleared. Please log in again.");
-  }
-}
-
-function normalizeInitialPublicSlug(wasExplicitSlug: boolean) {
-  if (!state.signInGymDirectoryLoaded) {
-    return;
-  }
-  const cleanSlug = state.publicSlug.trim().toLowerCase();
-  const slugExists = cleanSlug && state.signInGyms.some((gym) => gym.slug === cleanSlug);
-  if (slugExists) {
-    state.publicSlug = cleanSlug;
-    localStorage.setItem(PUBLIC_SLUG_STORAGE_KEY, cleanSlug);
-    return;
-  }
-  if (cleanSlug) {
-    clearPublicSlug();
-    setBanner(
-      "info",
-      `Gym "${cleanSlug}" was not found in the local API. Choose an available gym.`
-    );
-    return;
-  }
-  if (!wasExplicitSlug && state.signInGyms[0]) {
-    state.publicSlug = state.signInGyms[0].slug;
-    localStorage.setItem(PUBLIC_SLUG_STORAGE_KEY, state.publicSlug);
   }
 }
 
@@ -1354,6 +1312,10 @@ async function refreshDashboard(options: { silent?: boolean; renderAfter?: boole
       if (!state.selectedRoleId || !state.roles.some((role) => role.id === state.selectedRoleId)) {
         state.selectedRoleId = state.roles[0]?.id ?? "";
       }
+      const availableRoleIds = new Set(state.roles.map((role) => role.id));
+      state.staffAuthTreeExpandedRoleIds = state.staffAuthTreeExpandedRoleIds.filter((roleId) =>
+        availableRoleIds.has(roleId)
+      );
       state.staff = staffResponse.staff ?? [];
       state.staffShifts = staffShiftResponse.shifts ?? [];
       state.staffTimeEntries = staffTimeEntryResponse.entries ?? [];
@@ -1541,21 +1503,6 @@ async function refreshPublic(slug: string, shouldRender = true) {
     }
     return;
   }
-  if (
-    state.signInGymDirectoryLoaded &&
-    !state.signInGyms.some((gym) => gym.slug === cleanSlug)
-  ) {
-    clearPublicSlug();
-    setBanner(
-      "info",
-      `Gym "${cleanSlug}" was not found in the local API. Choose an available gym.`
-    );
-    if (shouldRender) {
-      render();
-    }
-    return;
-  }
-
   state.publicLoading = true;
   state.publicSlug = cleanSlug;
   localStorage.setItem(PUBLIC_SLUG_STORAGE_KEY, cleanSlug);
@@ -1746,11 +1693,14 @@ function renderDashboard() {
 
   const gymSlugMatch = new URLSearchParams(window.location.search).get("gymSlug");
 
-  if (!gymSlugMatch) {
-    return isPlatformAdminRoute() ? renderPlatformDashboard() : renderGymSelectionDashboard();
+  if (!gymSlugMatch && isPlatformAdminRoute()) {
+    return renderPlatformDashboard();
   }
 
   if (!state.session || !state.me) {
+    if (!gymSlugMatch) {
+      return renderStaffLoginDashboard(bannerMarkup);
+    }
     const gymNameTitle = state.publicGym ? state.publicGym.name : gymSlugMatch;
     const logoHtml = state.publicGym?.logoUrl
       ? `<img src="${escapeAttribute(state.publicGym.logoUrl)}" alt="${escapeAttribute(state.publicGym.name)} logo" style="max-height: 48px; margin-bottom: 0.5rem; display: block;" />`
@@ -1763,7 +1713,7 @@ function renderDashboard() {
           <p class="eyebrow">Gym Authentication</p>
           <h2>Log in to ${gymNameTitle}</h2>
         </div>
-        <a href="?#/dashboard" class="ghost-button route-link">Choose another gym</a>
+        <a href="?admin=1#/dashboard" class="ghost-button route-link">Admin login</a>
       </div>
       <div class="two-up">
         <form id="login-form" class="form-card">
@@ -4421,18 +4371,39 @@ function renderStaffAuthTree() {
       .sort((left, right) => formatRoleLabel(left.name).localeCompare(formatRoleLabel(right.name)));
     const assignedCount = staffAssignedToRoleCount(role.id);
     const canDelete = canDeleteRole(role);
+    const isExpanded = state.staffAuthTreeExpandedRoleIds.includes(role.id);
+    const hasChildren = children.length > 0;
+    const childLabel = hasChildren
+      ? ` - ${children.length} ${children.length === 1 ? "branch" : "branches"}`
+      : "";
     return `
       <li>
-        <div class="auth-tree-node">
-          <div>
-            <strong>${escapeHtml(formatRoleLabel(role.name))}</strong>
-            <span>${role.permissions.length} privileges Â· ${assignedCount} assigned</span>
-          </div>
+        <div class="auth-tree-node${hasChildren ? " is-expandable" : ""}${isExpanded ? " is-expanded" : ""}">
+          ${hasChildren
+            ? `<button
+                type="button"
+                class="auth-tree-toggle"
+                data-auth-tree-toggle="${escapeAttribute(role.id)}"
+                aria-expanded="${isExpanded ? "true" : "false"}"
+              >
+                <span class="auth-tree-icon" aria-hidden="true">${isExpanded ? "-" : "+"}</span>
+                <span class="auth-tree-copy">
+                  <strong>${escapeHtml(formatRoleLabel(role.name))}</strong>
+                  <span>${role.permissions.length} privileges - ${assignedCount} assigned${escapeHtml(childLabel)}</span>
+                </span>
+              </button>`
+            : `<div class="auth-tree-static">
+                <span class="auth-tree-icon" aria-hidden="true"></span>
+                <span class="auth-tree-copy">
+                  <strong>${escapeHtml(formatRoleLabel(role.name))}</strong>
+                  <span>${role.permissions.length} privileges - ${assignedCount} assigned</span>
+                </span>
+              </div>`}
           ${canDelete
             ? `<button type="button" class="ghost-button danger" data-staff-role-delete="${escapeAttribute(role.id)}">Delete</button>`
             : `<span class="staff-protection-chip">${escapeHtml(roleDeleteProtectionLabel(role))}</span>`}
         </div>
-        ${children.length ? `<ul>${children.map(renderNode).join("")}</ul>` : ""}
+        ${hasChildren && isExpanded ? `<ul>${children.map(renderNode).join("")}</ul>` : ""}
       </li>
     `;
   };
@@ -6741,50 +6712,25 @@ function filterPlatformGyms(query: string) {
   return state.platformGyms.filter((gym) => `${gym.name} ${gym.slug}`.toLowerCase().includes(normalizedQuery));
 }
 
-function renderGymSelectionDashboard() {
+function renderStaffLoginDashboard(bannerMarkup: string) {
   return `
+    ${bannerMarkup}
     <div class="section-head">
       <div>
         <p class="eyebrow">Staff login</p>
-        <h2>Select your gym</h2>
-        <p class="club-copy">Choose your workplace to sign in with the account assigned to that gym.</p>
+        <h2>Log in to your workspace</h2>
+        <p class="club-copy">Your assigned gym opens automatically after you sign in.</p>
       </div>
       <a href="?admin=1#/dashboard" class="ghost-button route-link">Admin login</a>
     </div>
-    <section class="data-card gym-selector-panel">
-      <div class="card-head">
-        <h3>Gyms</h3>
-        <span>${state.signInGymDirectoryLoaded ? `${state.signInGyms.length} available` : "Loading"}</span>
-      </div>
-      ${
-        !state.signInGymDirectoryLoaded
-          ? `<div class="empty-state"><h3>Loading gyms</h3><p>Finding active gym logins.</p></div>`
-          : state.signInGyms.length === 0
-            ? `<div class="empty-state"><h3>No gyms available</h3><p>An administrator needs to create an active gym before staff can sign in.</p></div>`
-            : `
-              <div class="gym-signin-grid">
-                ${state.signInGyms
-                  .map(
-                    (gym) => `
-                      <a href="?gymSlug=${escapeAttribute(gym.slug)}#/dashboard" class="form-card gym-signin-card">
-                        ${
-                          gym.logoUrl
-                            ? `<img src="${escapeAttribute(gym.logoUrl)}" alt="${escapeAttribute(gym.name)} logo" />`
-                            : `<span class="gym-signin-logo">${escapeHtml(gym.name.slice(0, 2).toUpperCase())}</span>`
-                        }
-                        <span class="gym-signin-details">
-                          <strong>${escapeHtml(gym.name)}</strong>
-                          <small>${escapeHtml(gym.slug)}</small>
-                        </span>
-                        <span class="gym-signin-action">Log in</span>
-                      </a>
-                    `
-                  )
-                  .join("")}
-              </div>
-            `
-      }
-    </section>
+    <div class="two-up">
+      <form id="login-form" class="form-card">
+        <h3>Log in</h3>
+        ${renderInput("email", "Email", "email")}
+        ${renderInput("password", "Password", "password")}
+        <button type="submit">Log in</button>
+      </form>
+    </div>
   `;
 }
 
@@ -6794,17 +6740,12 @@ function renderPlatformDashboard() {
       <div class="section-head">
         <div>
           <p class="eyebrow">Platform Dashboard</p>
-          <h2>Choose a gym or sign in as admin</h2>
-          <p class="club-copy">Open a gym login for staff, or use the admin login to add, remove, or inspect gyms.</p>
+          <h2>Admin login</h2>
+          <p class="club-copy">Sign in with a platform admin account to add, remove, or inspect gyms.</p>
         </div>
         <a href="?#/dashboard" class="ghost-button route-link">Staff login</a>
       </div>
       <div class="two-up">
-        <form id="platform-gym-picker-form" class="form-card">
-          <h3>Gym staff login</h3>
-          ${renderInput("gymSlug", "Gym slug")}
-          <button id="platform-gym-picker-submit" type="submit">Open Gym Login</button>
-        </form>
         <form id="login-form" class="form-card">
           <h3>Admin login</h3>
           ${renderInput("email", "Email", "email")}
@@ -7190,6 +7131,22 @@ function bindEvents() {
   const staffRolePreset = app.querySelector<HTMLSelectElement>("[data-staff-role-preset]");
   staffRolePreset?.addEventListener("change", () => {
     applyStaffRolePreset(staffRolePreset);
+  });
+  app.querySelectorAll<HTMLButtonElement>("[data-auth-tree-toggle]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const roleId = button.dataset.authTreeToggle;
+      if (!roleId) {
+        return;
+      }
+      const expandedRoleIds = new Set(state.staffAuthTreeExpandedRoleIds);
+      if (expandedRoleIds.has(roleId)) {
+        expandedRoleIds.delete(roleId);
+      } else {
+        expandedRoleIds.add(roleId);
+      }
+      state.staffAuthTreeExpandedRoleIds = Array.from(expandedRoleIds);
+      render();
+    });
   });
   app.querySelectorAll<HTMLButtonElement>("[data-staff-role-delete]").forEach((button) => {
     button.addEventListener("click", async () => {
@@ -8182,11 +8139,9 @@ function bindEvents() {
 
   bindForm("login-form", async (form) => {
     const data = formData(form);
-    const gymSlug = currentGymSlugFromUrl();
     const response = (await client.login({
       email: data.email,
-      password: data.password,
-      ...(gymSlug ? { gymSlug } : {})
+      password: data.password
     })) as AuthResponse;
     if (response.twoFactorRequired) {
       throw new Error("This account requires two-factor login, which is not wired into the browser app yet.");
@@ -8200,7 +8155,7 @@ function bindEvents() {
     });
     setBanner("success", "Logged in successfully.");
     await refreshDashboard({ silent: true });
-    if (!gymSlug) {
+    if (isPlatformAdminRoute()) {
       await refreshPlatformGymDirectory();
       render();
     }
@@ -9641,6 +9596,7 @@ function clearDashboardState() {
   state.schedulerDraft = undefined;
   state.staffAccessSearch = "";
   state.staffAccessRoleFilter = "";
+  state.staffAuthTreeExpandedRoleIds = [];
   state.staffScheduleCalendarOpen = false;
   state.staffScheduleCalendarMonth = toMonthKey(new Date());
   state.staffScheduleRequestModalOpen = false;

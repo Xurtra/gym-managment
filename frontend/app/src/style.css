@@ -3377,22 +3377,68 @@ html[data-theme="dark"] .empty-state {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border-radius: 12px;
   border: 1px solid var(--line);
   background: rgba(148, 163, 184, 0.08);
 }
 
-.auth-tree-node > div {
-  display: grid;
-  gap: 3px;
+.auth-tree-node.is-expandable {
+  background: rgba(51, 65, 85, 0.06);
 }
 
-.auth-tree-node strong {
+.auth-tree-toggle,
+.auth-tree-static {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.auth-tree-toggle {
+  cursor: pointer;
+}
+
+.auth-tree-toggle:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+.auth-tree-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  border-radius: 8px;
+  background: rgba(51, 65, 85, 0.1);
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.auth-tree-static .auth-tree-icon {
+  background: transparent;
+}
+
+.auth-tree-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.auth-tree-copy strong {
   color: var(--ink);
 }
 
-.auth-tree-node span {
+.auth-tree-copy span {
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 800;
@@ -3584,6 +3630,11 @@ html[data-theme="dark"] .auth-tree-node {
   border-color: #223248;
 }
 
+html[data-theme="dark"] .auth-tree-node.is-expandable,
+html[data-theme="dark"] .auth-tree-icon {
+  background: #1f2b40;
+}
+
 html[data-theme="dark"] .auth-tree-list ul {
   border-color: #223248;
 }
@@ -3761,6 +3812,52 @@ html[data-theme="dark"] .club-staff-page th {
 
 html[data-theme="dark"] .club-staff-page td {
   color: #dbe4ef;
+}
+
+html[data-theme="dark"] .club-customers .club-focus-card,
+html[data-theme="dark"] .club-customers .club-customer-card {
+  background: #111c31;
+  border-color: #223248;
+  color: #e5eef8;
+  box-shadow: none;
+}
+
+html[data-theme="dark"] .club-customers .club-focus-card {
+  background: linear-gradient(180deg, #111c31 0%, #0f172a 100%);
+}
+
+html[data-theme="dark"] .club-customers .club-customer-card:hover,
+html[data-theme="dark"] .club-customers .club-customer-card:focus-visible {
+  background: rgba(203, 213, 225, 0.1);
+  border-color: #40526a;
+}
+
+html[data-theme="dark"] .club-customers .club-focus-photo,
+html[data-theme="dark"] .club-customers .club-customer-avatar {
+  background: #243245;
+  color: #dbe4ef;
+}
+
+html[data-theme="dark"] .club-customers .club-focus-copy h3,
+html[data-theme="dark"] .club-customers .club-customer-card strong {
+  color: #f8fbff;
+}
+
+html[data-theme="dark"] .club-customers .club-focus-copy p,
+html[data-theme="dark"] .club-customers .club-customer-card span {
+  color: #9fb0c7;
+}
+
+html[data-theme="dark"] .club-customers .club-mini-nav .ghost-button {
+  background: #1f2b40;
+  border-color: #2f4058;
+  color: #e5eef8;
+}
+
+html[data-theme="dark"] .club-customers .club-mini-nav .ghost-button:hover,
+html[data-theme="dark"] .club-customers .club-mini-nav .ghost-button:focus-visible {
+  background: #29374f;
+  border-color: #52647c;
 }
 
 .consumer-page {
