@@ -24,6 +24,7 @@ import type {
 } from "../../infrastructure/store/entities.js";
 import type { Repositories } from "../../infrastructure/store/repositories.js";
 import type { Clock } from "../../shared/time.js";
+import { ensureStaffCanHaveLinkedResource } from "./staffResourceLinking.js";
 
 export class ReservationResourceService {
   constructor(
@@ -40,8 +41,26 @@ export class ReservationResourceService {
   }
 
   async createResource(gymId: string, input: ResourceCreateInput) {
-    await this.getActiveLocation(gymId, input.locationId);
+    const role = input.linkedStaffUserId
+      ? await ensureStaffCanHaveLinkedResource(this.repositories, gymId, input.linkedStaffUserId)
+      : undefined;
+    if (input.linkedStaffUserId) {
+      const existing = (await this.repositories.reservationResources.listResourcesForGym(gymId)).find(
+        (resource) =>
+          resource.linkedStaffUserId === input.linkedStaffUserId &&
+          resource.status !== ReservableResourceStatus.Archived
+      );
+      if (existing) {
+        throw conflict("This staff member already has an active reservable resource.", "staff_resource_exists");
+      }
+    }
+    if (input.locationId) {
+      await this.getActiveLocation(gymId, input.locationId);
+    }
     if (input.parentResourceId) {
+      if (!input.locationId) {
+        throw badRequest("Resource units require a location.", "resource_location_required");
+      }
       const parent = await this.getActiveResource(gymId, input.parentResourceId);
       if (parent.locationId !== input.locationId) {
         throw badRequest("Resource unit must belong to the same location as its group.", "resource_location_mismatch");
@@ -51,7 +70,7 @@ export class ReservationResourceService {
     const resource: ReservableResource = {
       id: randomUUID(),
       gymId,
-      locationId: input.locationId,
+      ...(input.locationId ? { locationId: input.locationId } : {}),
       ...(input.parentResourceId ? { parentResourceId: input.parentResourceId } : {}),
       name: input.name,
       resourceType: input.resourceType,
@@ -77,6 +96,13 @@ export class ReservationResourceService {
         cutoffMinutes: input.cancellationPolicy?.cutoffMinutes ?? 0,
         feeCents: input.cancellationPolicy?.feeCents ?? 0
       },
+      ...(input.linkedStaffUserId
+        ? {
+            linkedStaffUserId: input.linkedStaffUserId,
+            createdFromRoleId: role!.id,
+            autoManaged: false
+          }
+        : {}),
       createdAt: now,
       updatedAt: now
     };
@@ -169,7 +195,7 @@ export class ReservationResourceService {
         throw notFound("Class session was not found.");
       }
       const resource = await this.getActiveResourceWith(repositories, gymId, input.resourceId);
-      if (resource.locationId !== session.locationId) {
+      if (resource.locationId && resource.locationId !== session.locationId) {
         throw badRequest("Resource must belong to the class session location.", "resource_location_mismatch");
       }
       const startsAt = input.startsAt ? new Date(input.startsAt) : session.startsAt;
@@ -198,6 +224,14 @@ export class ReservationResourceService {
     });
   }
 
+  async listClassSessionAllocations(gymId: string, classSessionId: string) {
+    const session = await this.repositories.classes.getClassSession(classSessionId);
+    if (!session || session.gymId !== gymId) {
+      throw notFound("Class session was not found.");
+    }
+    return this.repositories.reservationResources.listAllocationsForClassSession(classSessionId);
+  }
+
   async createFacilityReservation(
     gymId: string,
     staffUserId: string,
@@ -208,16 +242,25 @@ export class ReservationResourceService {
       if (!resource.isBookable) {
         throw conflict("Resource is not bookable.", "resource_not_bookable");
       }
+      if (resource.linkedStaffUserId) {
+        await ensureStaffCanHaveLinkedResource(repositories, gymId, resource.linkedStaffUserId);
+      }
       const member = await repositories.members.getMember(input.memberId);
       if (!member || member.gymId !== gymId || member.recordStatus === "archived" || member.status === "archived") {
         throw notFound("Customer was not found.");
       }
-      const location = await this.getActiveLocationWith(repositories, gymId, resource.locationId);
+      if (resource.locationId && input.locationId && resource.locationId !== input.locationId) {
+        throw badRequest("Reservation location must match the resource location.", "resource_location_mismatch");
+      }
+      const locationId = input.locationId ?? resource.locationId;
+      const location = locationId
+        ? await this.getActiveLocationWith(repositories, gymId, locationId)
+        : undefined;
       const startsAt = new Date(input.startsAt);
       const endsAt = new Date(input.endsAt);
       this.ensureValidRange(startsAt, endsAt);
       this.ensureSlotRules(resource, startsAt, endsAt);
-      this.ensureInsideRentableHours(resource, location.operatingHours, startsAt, endsAt);
+      this.ensureInsideRentableHours(resource, location?.operatingHours ?? {}, startsAt, endsAt);
       await this.ensureNoConflicts(repositories, resource, startsAt, endsAt, {
         overrideConflict: input.overrideConflict ?? false,
         ...(input.overrideReason ? { overrideReason: input.overrideReason } : {})
@@ -227,6 +270,7 @@ export class ReservationResourceService {
         id: randomUUID(),
         gymId,
         resourceId: resource.id,
+        ...(locationId ? { locationId } : {}),
         memberId: member.id,
         createdByUserId: staffUserId,
         status:
@@ -320,9 +364,18 @@ export class ReservationResourceService {
       if (reservation.allocationId) {
         const allocation = await repositories.reservationResources.getAllocation(reservation.allocationId);
         if (allocation) {
+          const allocationEndsAt = now < allocation.endsAt ? now : allocation.endsAt;
+          const truncateToImmediateWindow = allocationEndsAt <= allocation.startsAt;
           await repositories.reservationResources.updateAllocation({
             ...allocation,
-            endsAt: now < allocation.endsAt ? now : allocation.endsAt,
+            ...(truncateToImmediateWindow
+              ? {
+                  startsAt: now,
+                  endsAt: new Date(now.getTime() + 1)
+                }
+              : {
+                  endsAt: allocationEndsAt
+                }),
             updatedAt: now
           });
         }

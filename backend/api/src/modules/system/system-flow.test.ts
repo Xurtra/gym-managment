@@ -210,6 +210,54 @@ interface ClassSessionResponse {
   waitlistCapacity: number;
 }
 
+interface ResourceResponse {
+  id: string;
+  locationId?: string;
+  name: string;
+  resourceType: string;
+  status: string;
+  isBookable: boolean;
+  isExclusive: boolean;
+  capacity: number;
+  paymentRequirement: string;
+  confirmationMode: string;
+}
+
+interface ResourceListResponse {
+  resources: ResourceResponse[];
+}
+
+interface ResourceAvailabilityResponse {
+  available: boolean;
+  allocations: Array<{
+    id: string;
+    resourceId: string;
+    source: string;
+    startsAt: string;
+    endsAt: string;
+  }>;
+}
+
+interface FacilityReservationResponse {
+  id: string;
+  resourceId: string;
+  memberId: string;
+  locationId?: string;
+  status: string;
+  startsAt: string;
+  endsAt: string;
+  amountCents: number;
+  paymentRequirement: string;
+  paymentStatus: string;
+  paymentReference?: string;
+  note?: string;
+  cancellationReason?: string;
+}
+
+interface FacilityReservationListResponse {
+  reservations: FacilityReservationResponse[];
+}
+
 interface BookingResponse {
   id: string;
   memberId: string;
@@ -1379,6 +1427,124 @@ describe("system API flow", () => {
       }),
       401
     );
+  });
+
+  it("manages reservable resources and facility reservations through the API", async () => {
+    const registered = await ok<RegisterResponse>(
+      "/auth/register",
+      json({
+        email: "reservations-owner@example.com",
+        password: "Password123",
+        firstName: "Reserve",
+        lastName: "Owner",
+        gymName: "Reserve Club",
+        timezone: "America/New_York",
+        locale: "en-US"
+      })
+    );
+    const gymId = registered.gym!.id;
+
+    const location = await ok<LocationResponse>(
+      `/gyms/${gymId}/locations`,
+      json(
+        {
+          name: "Reservations Club",
+          address: {
+            line1: "20 Court St",
+            city: "Brooklyn",
+            region: "NY",
+            postalCode: "11201",
+            country: "US"
+          },
+          timezone: "America/New_York"
+        },
+        registered.accessToken
+      )
+    );
+    const member = await ok<MemberResponse>(
+      `/gyms/${gymId}/members`,
+      json(
+        {
+          firstName: "Ari",
+          lastName: "Reservation",
+          email: "ari.reservation@example.com",
+          status: "active",
+          tagNames: []
+        },
+        registered.accessToken
+      )
+    );
+    const resource = await ok<ResourceResponse>(
+      `/gyms/${gymId}/resources`,
+      json(
+        {
+          locationId: location.id,
+          name: "Court 1",
+          resourceType: "court",
+          pricing: { amountCents: 3500 },
+          paymentRequirement: "pay_later"
+        },
+        registered.accessToken
+      )
+    );
+    const listedResources = await ok<ResourceListResponse>(
+      `/gyms/${gymId}/resources?locationId=${location.id}`,
+      { headers: authHeaders(registered.accessToken) }
+    );
+    const initialAvailability = await ok<ResourceAvailabilityResponse>(
+      `/gyms/${gymId}/resources/${resource.id}/availability?from=2026-05-18T15:00:00.000Z&to=2026-05-18T16:00:00.000Z`,
+      { headers: authHeaders(registered.accessToken) }
+    );
+    const reservation = await ok<FacilityReservationResponse>(
+      `/gyms/${gymId}/facility-reservations`,
+      json(
+        {
+          resourceId: resource.id,
+          memberId: member.id,
+          startsAt: "2026-05-18T15:00:00.000Z",
+          endsAt: "2026-05-18T16:00:00.000Z",
+          note: "Front desk booked",
+          paymentReference: "pos-sale-42",
+          overrideConflict: false
+        },
+        registered.accessToken
+      )
+    );
+    const listedReservations = await ok<FacilityReservationListResponse>(
+      `/gyms/${gymId}/facility-reservations`,
+      { headers: authHeaders(registered.accessToken) }
+    );
+    const detail = await ok<FacilityReservationResponse>(
+      `/gyms/${gymId}/facility-reservations/${reservation.id}`,
+      { headers: authHeaders(registered.accessToken) }
+    );
+    const blockedAvailability = await ok<ResourceAvailabilityResponse>(
+      `/gyms/${gymId}/resources/${resource.id}/availability?from=2026-05-18T15:15:00.000Z&to=2026-05-18T15:45:00.000Z`,
+      { headers: authHeaders(registered.accessToken) }
+    );
+    const cancelled = await ok<FacilityReservationResponse>(
+      `/gyms/${gymId}/facility-reservations/${reservation.id}`,
+      json({ reason: "Customer changed plans" }, registered.accessToken, "DELETE")
+    );
+
+    expect(resource.locationId).toBe(location.id);
+    expect(resource.isBookable).toBe(true);
+    expect(resource.paymentRequirement).toBe("pay_later");
+    expect(listedResources.resources.map((entry) => entry.id)).toContain(resource.id);
+    expect(initialAvailability.available).toBe(true);
+    expect(initialAvailability.allocations).toHaveLength(0);
+    expect(reservation.resourceId).toBe(resource.id);
+    expect(reservation.memberId).toBe(member.id);
+    expect(reservation.status).toBe("confirmed");
+    expect(reservation.amountCents).toBe(3500);
+    expect(reservation.paymentReference).toBe("pos-sale-42");
+    expect(reservation.note).toBe("Front desk booked");
+    expect(listedReservations.reservations).toHaveLength(1);
+    expect(detail.id).toBe(reservation.id);
+    expect(blockedAvailability.available).toBe(false);
+    expect(blockedAvailability.allocations[0]?.source).toBe("facility_reservation");
+    expect(cancelled.status).toBe("cancelled");
+    expect(cancelled.cancellationReason).toBe("Customer changed plans");
   });
 });
 

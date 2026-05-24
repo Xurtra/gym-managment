@@ -12,6 +12,7 @@ export interface StaffRoleOption {
   label: string;
   permissions?: Permission[];
   isSystem?: boolean;
+  createsReservableResource?: boolean;
   disabled?: boolean;
 }
 
@@ -177,4 +178,5 @@ export interface StaffAuditEntryView {
 export interface CustomRoleSubmission {
   name: string;
   permissions: Permission[];
+  createsReservableResource: boolean;
 }

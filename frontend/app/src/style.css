@@ -505,6 +505,18 @@ button:disabled {
   align-items: end;
 }
 
+.platform-gym-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(220px, 1fr) auto;
+  gap: 12px;
+  padding: 16px 0;
+  align-items: end;
+}
+
+.platform-gym-picker-status {
+  margin: 0;
+}
+
 .hero-card p {
   margin: 10px 0 0;
   color: var(--muted);
@@ -780,18 +792,39 @@ html[data-theme="dark"] .field select {
   min-width: 0;
 }
 
+.club-tabs-shell {
+  position: relative;
+  padding-bottom: 0;
+}
+
 .club-tabs {
   background: #fff;
   border-bottom: 1px solid #dbe7f3;
   display: flex;
-  gap: 2px;
+  gap: 0;
   padding: 0;
-  overflow-x: auto;
-  white-space: nowrap;
-  justify-content: center;
+  overflow: hidden;
   width: 100%;
   align-items: stretch;
   min-height: 56px;
+}
+
+.club-tabs-primary {
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+}
+
+.club-tabs-drawer-handle {
+  position: absolute;
+  right: 14px;
+  top: calc(100% - 2px);
+  z-index: 2;
+  height: calc(100vh - 140px);
 }
 
 .club-tab {
@@ -809,10 +842,36 @@ html[data-theme="dark"] .field select {
   text-decoration: none;
 }
 
+.club-tab-drawer-trigger {
+  width: 28px;
+  min-width: 28px;
+  height: 100%;
+  min-height: calc(100vh - 140px);
+  padding: 18px 0;
+  border-radius: 0;
+  border-bottom: 0;
+  box-shadow: inset 0 0 0 1px #d6e4f1;
+  background: linear-gradient(180deg, #f8fbff 0%, #e2ecf9 100%);
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+  line-height: 1;
+  justify-content: center;
+  align-items: center;
+}
+
 .club-tab.active {
   color: #334155;
   border-bottom-color: #334155;
   background: #f8fafc;
+}
+
+.club-tab-drawer-trigger.active {
+  color: #ffffff;
+  border-bottom-color: transparent;
+  background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
+  box-shadow: none;
 }
 
 .club-tab:visited {
@@ -840,9 +899,32 @@ html[data-theme="dark"] .club-tab {
   color: #c9d6e5;
 }
 
+html[data-theme="dark"] .club-tab-drawer-trigger {
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.24) 0%, rgba(30, 41, 59, 0.92) 100%);
+  box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.28);
+}
+
 html[data-theme="dark"] .club-tab.active {
   color: #ffffff;
   background: rgba(148, 163, 184, 0.14);
+}
+
+html[data-theme="dark"] .club-tab-drawer-trigger.active {
+  background: linear-gradient(180deg, #eff6ff 0%, #cbd5e1 100%);
+  color: #0f172a;
+}
+
+html[data-theme="dark"] .location-resource-chip {
+  border-color: #243245;
+  background: #111c31;
+}
+
+html[data-theme="dark"] .location-resource-chip strong {
+  color: #e2e8f0;
+}
+
+html[data-theme="dark"] .location-resource-chip small {
+  color: #94a3b8;
 }
 
 html[data-theme="dark"] .club-location-row {
@@ -865,13 +947,17 @@ html[data-theme="dark"] .theme-pill {
 
 .club-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 460px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   padding: 18px;
   height: calc(100vh - 140px);
   min-height: 0;
   align-items: stretch;
   overflow: hidden;
+}
+
+.club-workspace-with-rail {
+  grid-template-columns: minmax(0, 1fr) 460px;
 }
 
 .module-nav {
@@ -1061,6 +1147,34 @@ html[data-theme="dark"] .empty-state {
   background: #f1f5f9;
   color: #334155;
   margin-bottom: 10px;
+}
+
+.location-resource-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.location-resource-chip {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #d9e6f1;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.location-resource-chip strong {
+  color: #1e293b;
+  font-size: 0.84rem;
+}
+
+.location-resource-chip small {
+  color: #64748b;
+  font-size: 0.72rem;
 }
 
 .club-mini-nav {
@@ -1503,12 +1617,166 @@ html[data-theme="dark"] .empty-state {
   flex-wrap: wrap;
 }
 
+.club-pos-page {
+  grid-template-rows: auto 1fr;
+}
+
+.club-pos-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.85fr);
+  gap: 14px;
+  min-height: 0;
+  align-items: start;
+}
+
+.club-pos-layout.setup {
+  grid-template-columns: minmax(0, 1.8fr) minmax(280px, 0.7fr);
+}
+
+.club-pos-main,
+.club-pos-side {
+  min-width: 0;
+  min-height: 0;
+}
+
+.pos-focus-card {
+  min-height: 0;
+}
+
+.pos-plan-panel {
+  gap: 12px;
+}
+
+.pos-plan-grid {
+  grid-template-columns: 1fr;
+}
+
+.pos-stripe-option-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pos-stripe-option-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+}
+
+.pos-stripe-option-head {
+  display: grid;
+  gap: 4px;
+}
+
+.pos-stripe-option-head h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
 .stripe-card-field {
   background: var(--panel-strong);
   border: 1px solid var(--line);
   border-radius: 8px;
   min-height: 46px;
   padding: 14px;
+}
+.stripe-payment-field {
+  min-height: 220px;
+}
+
+.pos-stripe-native-shell {
+  display: grid;
+  gap: 12px;
+}
+
+.stripe-connect-embedded-card {
+  gap: 14px;
+}
+
+.stripe-connect-embedded-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+}
+
+.stripe-connect-embedded-shell {
+  display: grid;
+  gap: 12px;
+}
+
+.stripe-connect-basics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.stripe-connect-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
+}
+
+.stripe-connect-panel-wide {
+  min-width: 0;
+}
+
+.stripe-connect-panel-head {
+  display: grid;
+  gap: 4px;
+}
+
+.stripe-connect-panel-head h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.stripe-connect-banner,
+.stripe-connect-onboarding,
+.stripe-connect-account-management,
+.stripe-connect-balances,
+.stripe-connect-payouts,
+.stripe-connect-payments {
+  min-height: 24px;
+}
+
+.stripe-connect-banner > stripe-connect-notification-banner,
+.stripe-connect-onboarding > stripe-connect-account-onboarding,
+.stripe-connect-account-management > stripe-connect-account-management,
+.stripe-connect-balances > stripe-connect-balances,
+.stripe-connect-payouts > stripe-connect-payouts,
+.stripe-connect-payments > stripe-connect-payments {
+  display: block;
+  width: 100%;
+}
+
+.stripe-connect-onboarding > stripe-connect-account-onboarding {
+  min-height: 320px;
+}
+
+.stripe-connect-account-management > stripe-connect-account-management,
+.stripe-connect-balances > stripe-connect-balances,
+.stripe-connect-payouts > stripe-connect-payouts {
+  min-height: 220px;
+}
+
+.stripe-connect-payments > stripe-connect-payments {
+  min-height: 320px;
+}
+
+@media (max-width: 960px) {
+  .club-pos-layout,
+  .club-pos-layout.setup,
+  .pos-stripe-option-grid,
+  .stripe-connect-basics-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .linked-member-chips,
@@ -1997,6 +2265,133 @@ html[data-theme="dark"] .empty-state {
   grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
   gap: 14px;
   min-height: 0;
+}
+
+.location-action-stack {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.location-action-menu {
+  align-content: start;
+  overflow: hidden;
+  padding: 0;
+  border-radius: 8px;
+}
+
+.location-action-summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 12px 18px;
+  cursor: pointer;
+  list-style: none;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 800;
+}
+
+.location-action-summary::-webkit-details-marker {
+  display: none;
+}
+
+.location-action-summary:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  outline-offset: 2px;
+}
+
+.location-action-menu[open] .location-action-summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.location-action-form {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.reservations-hub-split {
+  align-items: start;
+}
+
+.reservations-agenda-table .selected-row {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.table-link-button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+}
+
+.table-link-button:hover,
+.table-link-button:focus-visible {
+  text-decoration: underline;
+}
+
+.reservation-cancel-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.class-resource-panel {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.class-resource-head,
+.class-resource-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.class-resource-head h4 {
+  margin: 0;
+}
+
+.class-resource-head span,
+.class-resource-item span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.class-resource-list {
+  display: grid;
+  gap: 8px;
+}
+
+.class-resource-item {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-strong);
+}
+
+.class-resource-item strong,
+.class-resource-item p {
+  overflow-wrap: anywhere;
+}
+
+.class-resource-form {
+  display: grid;
+  gap: 10px;
 }
 
 .settings-page {
@@ -3375,6 +3770,10 @@ html[data-theme="dark"] .consumer-card-grid .club-customer-card:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  .platform-gym-picker {
+    grid-template-columns: 1fr;
+  }
+
   .club-topbar {
     height: auto;
     padding: 14px 12px;
@@ -3383,6 +3782,33 @@ html[data-theme="dark"] .consumer-card-grid .club-customer-card:focus-visible {
 
   .club-tabs {
     padding: 0 8px;
+    overflow-x: auto;
+  }
+
+  .club-tabs-primary {
+    flex: 0 0 auto;
+  }
+
+  .club-tabs-shell {
+    padding-bottom: 0;
+  }
+
+  .club-tabs-drawer-handle {
+    position: static;
+    height: auto;
+    padding: 8px 8px 0;
+  }
+
+  .club-tab-drawer-trigger {
+    width: auto;
+    min-width: 112px;
+    min-height: 40px;
+    height: auto;
+    padding: 0 14px;
+    border-radius: 999px;
+    writing-mode: horizontal-tb;
+    text-orientation: initial;
+    letter-spacing: 0;
   }
 
   .club-workspace {

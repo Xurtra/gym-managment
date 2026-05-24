@@ -1,5 +1,6 @@
 import { LeadStage, MemberStatus, MembershipStatus } from "@gym-platform/constants";
 import type { PosPurchaseInput } from "@gym-platform/validation";
+import { badRequest, notFound } from "../../http/errors.js";
 import { MemberMembershipService } from "../memberMemberships/memberMembership.service.js";
 import { MemberService } from "../members/member.service.js";
 import { POS_CUSTOMER_TAG } from "./pos.constants.js";
@@ -14,8 +15,42 @@ export class PosService {
 
   async collectPurchase(gymId: string, input: PosPurchaseInput) {
     return this.repositories.transaction(async (repositories) => {
+      const gym = await repositories.gyms.getGym(gymId);
+      if (!gym) {
+        throw notFound("Gym was not found.");
+      }
       const memberService = new MemberService(repositories, this.clock);
       const membershipService = new MemberMembershipService(repositories, this.clock);
+      const hasBuyerContact = Boolean(input.email || input.phone);
+      const anonymousWalkInRequested = !input.consumerId && !hasBuyerContact;
+      const anonymousWalkInFlag = "anonymous_walk_in_pos" as (typeof gym.featureFlags)[number];
+      const anonymousWalkInEnabled = gym.featureFlags.includes(anonymousWalkInFlag);
+
+      if (anonymousWalkInRequested && input.planId) {
+        throw badRequest(
+          "A customer email or phone number is required when assigning a membership plan from POS.",
+          "pos_contact_required_for_plan"
+        );
+      }
+
+      if (anonymousWalkInRequested && !anonymousWalkInEnabled) {
+        throw badRequest(
+          "Anonymous walk-in POS sales are disabled for this gym. Add an email or phone number, or enable anonymous walk-in sales in gym settings.",
+          "pos_anonymous_walk_in_disabled"
+        );
+      }
+
+      if (anonymousWalkInRequested) {
+        return {
+          anonymousSale: true,
+          buyerName: `${input.firstName ?? ""} ${input.lastName ?? ""}`.trim() || "Walk-in customer",
+          amountCents: input.amountCents,
+          paymentMethod: input.paymentMethod,
+          ...(input.note ? { note: input.note } : {}),
+          ...(input.receiptEmail ? { receiptEmail: input.receiptEmail } : {})
+        };
+      }
+
       const existingMemberId =
         input.consumerId ?? (await findExistingMemberId(repositories, gymId, input.email, input.phone));
 

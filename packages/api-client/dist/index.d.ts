@@ -1,4 +1,4 @@
-import type { AccessDeviceCreateInput, AccessDeviceEventInput, AccessDeviceHeartbeatInput, AccessRuleCreateInput, ClassBookingCreateInput, ClassSessionResourceAllocationInput, CheckInCreateInput, ClassSessionCreateInput, ClassTypeCreateInput, ConsumerCreateInput, ConsumerProfileImageUploadInput, ConsumerUpdateInput, CustomRoleCreateInput, CustomRoleUpdateInput, FacilityReservationCancelInput, FacilityReservationCreateInput, GymCreateInput, GymUpdateInput, LocationCreateInput, LocationUpdateInput, LoginInput, MemberCreateInput, MemberMembershipAssignInput, MemberUpdateInput, MembershipPlanCreateInput, MembershipPlanUpdateInput, PosPurchaseInput, PublicSignupInput, RegisterInput, ResetPasswordInput, ResourceCreateInput, ResourceUpdateInput, RoleAssignmentInput, StaffAccessRemoveInput, StaffClockInInput, StaffClockOutInput, StaffInviteAcceptInput, StaffInviteCreateInput, StaffShiftCreateInput, StaffSelfClockInInput, StaffSelfClockOutInput, StaffManualBookingInput } from "@gym-platform/validation";
+import type { AccessDeviceCreateInput, AccessDeviceEventInput, AccessDeviceHeartbeatInput, AccessRuleCreateInput, ClassBookingCreateInput, ClassSessionResourceAllocationInput, CheckInCreateInput, ClassSessionCreateInput, ClassTypeCreateInput, ConsumerCreateInput, ConsumerProfileImageUploadInput, ConsumerUpdateInput, CustomRoleCreateInput, CustomRoleUpdateInput, FacilityReservationCancelInput, FacilityReservationCreateInput, GymCreateInput, GymUpdateInput, LocationCreateInput, LocationUpdateInput, LoginInput, MemberCreateInput, MemberMembershipAssignInput, MemberUpdateInput, MembershipPlanCreateInput, MembershipPlanUpdateInput, PosPurchaseInput, StripeConnectOnboardingLinkInput, PublicSignupInput, RegisterInput, ResetPasswordInput, ResourceCreateInput, ResourceUpdateInput, RoleAssignmentInput, StaffAccessRemoveInput, StaffClockInInput, StaffClockOutInput, StaffInviteAcceptInput, StaffInviteCreateInput, StaffShiftCreateInput, StaffSelfClockInInput, StaffSelfClockOutInput, StaffManualBookingInput } from "@gym-platform/validation";
 export interface ApiClientOptions {
     baseUrl: string;
     accessToken?: string;
@@ -81,7 +81,12 @@ export declare class GymApiClient {
     assignConsumerMembership(gymId: string, consumerId: string, input: MemberMembershipAssignInput): Promise<unknown>;
     createPosPurchase(gymId: string, input: PosPurchaseInput): Promise<unknown>;
     getPosStripeConfig(gymId: string): Promise<unknown>;
+    getStripeConnectAccount(gymId: string): Promise<unknown>;
+    createStripeConnectOnboardingLink(gymId: string, input: StripeConnectOnboardingLinkInput): Promise<unknown>;
+    createStripeConnectAccountSession(gymId: string): Promise<unknown>;
+    disconnectStripeConnectAccount(gymId: string): Promise<unknown>;
     createPosPaymentIntent(gymId: string, input: PosPurchaseInput): Promise<unknown>;
+    createPosTerminalConnectionToken(gymId: string): Promise<unknown>;
     finalizePosPaymentIntent(gymId: string, paymentIntentId: string): Promise<unknown>;
     createMember(gymId: string, input: MemberCreateInput): Promise<unknown>;
     updateMember(gymId: string, memberId: string, input: MemberUpdateInput): Promise<unknown>;
@@ -96,6 +101,7 @@ export declare class GymApiClient {
     createClassType(gymId: string, input: ClassTypeCreateInput): Promise<unknown>;
     createClassSession(gymId: string, input: ClassSessionCreateInput): Promise<unknown>;
     allocateClassSessionResource(gymId: string, sessionId: string, input: ClassSessionResourceAllocationInput): Promise<unknown>;
+    listClassSessionResourceAllocations(gymId: string, sessionId: string): Promise<unknown>;
     listResources(gymId: string, locationId?: string): Promise<unknown>;
     createResource(gymId: string, input: ResourceCreateInput): Promise<unknown>;
     updateResource(gymId: string, resourceId: string, input: ResourceUpdateInput): Promise<unknown>;

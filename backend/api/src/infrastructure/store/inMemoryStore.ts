@@ -195,6 +195,8 @@ export class InMemoryStore implements Repositories {
     getAllocation: (allocationId) => this.getAllocation(allocationId),
     listAllocationsForGym: (gymId) => this.listAllocationsForGym(gymId),
     listAllocationsForResource: (resourceId) => this.listAllocationsForResource(resourceId),
+    listAllocationsForClassSession: (classSessionId) =>
+      this.listAllocationsForClassSession(classSessionId),
     updateAllocation: (allocation) => this.updateAllocation(allocation),
     createFacilityReservation: (reservation) => this.createFacilityReservation(reservation),
     getFacilityReservation: (reservationId) => this.getFacilityReservation(reservationId),
@@ -599,6 +601,12 @@ export class InMemoryStore implements Repositories {
   async listAllocationsForResource(resourceId: string) {
     return [...this.resourceAllocationRecords.values()]
       .filter((allocation) => allocation.resourceId === resourceId)
+      .sort(compareAllocations);
+  }
+
+  async listAllocationsForClassSession(classSessionId: string) {
+    return [...this.resourceAllocationRecords.values()]
+      .filter((allocation) => allocation.classSessionId === classSessionId)
       .sort(compareAllocations);
   }
 

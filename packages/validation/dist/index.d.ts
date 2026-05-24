@@ -130,19 +130,20 @@ export declare const gymCreateSchema: z.ZodObject<{
         readonly WebsiteBuilder: "website_builder";
         readonly PointOfSale: "point_of_sale";
         readonly AccessControl: "access_control";
+        readonly AnonymousWalkInPos: "anonymous_walk_in_pos";
     }>, "many">>;
 }, "strip", z.ZodTypeAny, {
     timezone: string;
     locale: string;
     name: string;
-    featureFlags: ("online_signup" | "class_booking" | "personal_training" | "member_portal" | "website_builder" | "point_of_sale" | "access_control")[];
+    featureFlags: ("online_signup" | "class_booking" | "personal_training" | "member_portal" | "website_builder" | "point_of_sale" | "access_control" | "anonymous_walk_in_pos")[];
     slug?: string | undefined;
 }, {
     name: string;
     timezone?: string | undefined;
     locale?: string | undefined;
     slug?: string | undefined;
-    featureFlags?: ("online_signup" | "class_booking" | "personal_training" | "member_portal" | "website_builder" | "point_of_sale" | "access_control")[] | undefined;
+    featureFlags?: ("online_signup" | "class_booking" | "personal_training" | "member_portal" | "website_builder" | "point_of_sale" | "access_control" | "anonymous_walk_in_pos")[] | undefined;
 }>;
 export declare const brandColorsSchema: z.ZodObject<{
     primary: z.ZodString;
@@ -340,13 +341,14 @@ export declare const gymUpdateSchema: z.ZodEffects<z.ZodObject<{
         readonly WebsiteBuilder: "website_builder";
         readonly PointOfSale: "point_of_sale";
         readonly AccessControl: "access_control";
+        readonly AnonymousWalkInPos: "anonymous_walk_in_pos";
     }>, "many">>;
     onboardingCompletedSteps: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
 }, "strip", z.ZodTypeAny, {
     timezone?: string | undefined;
     locale?: string | undefined;
     name?: string | undefined;
-    featureFlags?: ("online_signup" | "class_booking" | "personal_training" | "member_portal" | "website_builder" | "point_of_sale" | "access_control")[] | undefined;
+    featureFlags?: ("online_signup" | "class_booking" | "personal_training" | "member_portal" | "website_builder" | "point_of_sale" | "access_control" | "anonymous_walk_in_pos")[] | undefined;
     logoUrl?: string | undefined;
     stripeAccountId?: string | undefined;
     brandColors?: {
@@ -378,7 +380,7 @@ export declare const gymUpdateSchema: z.ZodEffects<z.ZodObject<{
     timezone?: string | undefined;
     locale?: string | undefined;
     name?: string | undefined;
-    featureFlags?: ("online_signup" | "class_booking" | "personal_training" | "member_portal" | "website_builder" | "point_of_sale" | "access_control")[] | undefined;
+    featureFlags?: ("online_signup" | "class_booking" | "personal_training" | "member_portal" | "website_builder" | "point_of_sale" | "access_control" | "anonymous_walk_in_pos")[] | undefined;
     logoUrl?: string | undefined;
     stripeAccountId?: string | undefined;
     brandColors?: {
@@ -410,7 +412,7 @@ export declare const gymUpdateSchema: z.ZodEffects<z.ZodObject<{
     timezone?: string | undefined;
     locale?: string | undefined;
     name?: string | undefined;
-    featureFlags?: ("online_signup" | "class_booking" | "personal_training" | "member_portal" | "website_builder" | "point_of_sale" | "access_control")[] | undefined;
+    featureFlags?: ("online_signup" | "class_booking" | "personal_training" | "member_portal" | "website_builder" | "point_of_sale" | "access_control" | "anonymous_walk_in_pos")[] | undefined;
     logoUrl?: string | undefined;
     stripeAccountId?: string | undefined;
     brandColors?: {
@@ -442,7 +444,7 @@ export declare const gymUpdateSchema: z.ZodEffects<z.ZodObject<{
     timezone?: string | undefined;
     locale?: string | undefined;
     name?: string | undefined;
-    featureFlags?: ("online_signup" | "class_booking" | "personal_training" | "member_portal" | "website_builder" | "point_of_sale" | "access_control")[] | undefined;
+    featureFlags?: ("online_signup" | "class_booking" | "personal_training" | "member_portal" | "website_builder" | "point_of_sale" | "access_control" | "anonymous_walk_in_pos")[] | undefined;
     logoUrl?: string | undefined;
     stripeAccountId?: string | undefined;
     brandColors?: {
@@ -680,14 +682,17 @@ export declare const customRoleCreateSchema: z.ZodObject<{
         readonly ReportRead: "report:read";
         readonly PlatformAdmin: "platform:admin";
     }>, "many">;
+    createsReservableResource: z.ZodDefault<z.ZodBoolean>;
 }, "strip", z.ZodTypeAny, {
     name: string;
     permissions: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "platform:admin")[];
+    createsReservableResource: boolean;
     parentRoleId?: string | undefined;
 }, {
     name: string;
     permissions: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "platform:admin")[];
     parentRoleId?: string | undefined;
+    createsReservableResource?: boolean | undefined;
 }>;
 export declare const customRoleUpdateSchema: z.ZodEffects<z.ZodObject<{
     name: z.ZodOptional<z.ZodString>;
@@ -718,22 +723,27 @@ export declare const customRoleUpdateSchema: z.ZodEffects<z.ZodObject<{
         readonly ReportRead: "report:read";
         readonly PlatformAdmin: "platform:admin";
     }>, "many">>;
+    createsReservableResource: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
 }, "strip", z.ZodTypeAny, {
     name?: string | undefined;
     parentRoleId?: string | undefined;
     permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "platform:admin")[] | undefined;
+    createsReservableResource?: boolean | undefined;
 }, {
     name?: string | undefined;
     parentRoleId?: string | undefined;
     permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "platform:admin")[] | undefined;
+    createsReservableResource?: boolean | undefined;
 }>, {
     name?: string | undefined;
     parentRoleId?: string | undefined;
     permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "platform:admin")[] | undefined;
+    createsReservableResource?: boolean | undefined;
 }, {
     name?: string | undefined;
     parentRoleId?: string | undefined;
     permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "platform:admin")[] | undefined;
+    createsReservableResource?: boolean | undefined;
 }>;
 export declare const staffAccessRemoveSchema: z.ZodObject<{
     reason: z.ZodOptional<z.ZodString>;
@@ -1274,6 +1284,16 @@ export declare const posStripeFinalizeSchema: z.ZodObject<{
 }, {
     paymentIntentId: string;
 }>;
+export declare const stripeConnectOnboardingLinkSchema: z.ZodObject<{
+    returnUrl: z.ZodString;
+    refreshUrl: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    returnUrl: string;
+    refreshUrl?: string | undefined;
+}, {
+    returnUrl: string;
+    refreshUrl?: string | undefined;
+}>;
 export declare const membershipPlanCreateSchema: z.ZodEffects<z.ZodObject<{
     name: z.ZodString;
     description: z.ZodOptional<z.ZodString>;
@@ -1552,11 +1572,12 @@ export declare const waitlistJoinSchema: z.ZodObject<{
 }, {
     memberId: string;
 }>;
-export declare const resourceCreateSchema: z.ZodObject<{
-    locationId: z.ZodString;
+export declare const resourceCreateSchema: z.ZodEffects<z.ZodObject<{
+    locationId: z.ZodOptional<z.ZodString>;
     parentResourceId: z.ZodOptional<z.ZodString>;
     name: z.ZodString;
     resourceType: z.ZodString;
+    linkedStaffUserId: z.ZodOptional<z.ZodString>;
     isBookable: z.ZodDefault<z.ZodBoolean>;
     isExclusive: z.ZodDefault<z.ZodBoolean>;
     capacity: z.ZodDefault<z.ZodNumber>;
@@ -1630,7 +1651,6 @@ export declare const resourceCreateSchema: z.ZodObject<{
     }>>;
 }, "strip", z.ZodTypeAny, {
     name: string;
-    locationId: string;
     capacity: number;
     resourceType: string;
     isBookable: boolean;
@@ -1652,17 +1672,80 @@ export declare const resourceCreateSchema: z.ZodObject<{
         cutoffMinutes: number;
         feeCents: number;
     };
+    locationId?: string | undefined;
     parentResourceId?: string | undefined;
+    linkedStaffUserId?: string | undefined;
     rentableHours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
         opensAt: string;
         closesAt: string;
     }[]>> | undefined;
 }, {
     name: string;
-    locationId: string;
     resourceType: string;
+    locationId?: string | undefined;
     capacity?: number | undefined;
     parentResourceId?: string | undefined;
+    linkedStaffUserId?: string | undefined;
+    isBookable?: boolean | undefined;
+    isExclusive?: boolean | undefined;
+    amenities?: string[] | undefined;
+    rentableHours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+        opensAt: string;
+        closesAt: string;
+    }[]>> | undefined;
+    slotRules?: {
+        minDurationMinutes?: number | undefined;
+        maxDurationMinutes?: number | undefined;
+        incrementMinutes?: number | undefined;
+        bufferBeforeMinutes?: number | undefined;
+        bufferAfterMinutes?: number | undefined;
+    } | undefined;
+    pricing?: {
+        amountCents?: number | undefined;
+    } | undefined;
+    paymentRequirement?: "free" | "pay_upfront" | "pay_later" | undefined;
+    confirmationMode?: "automatic" | "staff_approval" | undefined;
+    cancellationPolicy?: {
+        cutoffMinutes?: number | undefined;
+        feeCents?: number | undefined;
+    } | undefined;
+}>, {
+    name: string;
+    capacity: number;
+    resourceType: string;
+    isBookable: boolean;
+    isExclusive: boolean;
+    amenities: string[];
+    slotRules: {
+        minDurationMinutes: number;
+        maxDurationMinutes: number;
+        incrementMinutes: number;
+        bufferBeforeMinutes: number;
+        bufferAfterMinutes: number;
+    };
+    pricing: {
+        amountCents: number;
+    };
+    paymentRequirement: "free" | "pay_upfront" | "pay_later";
+    confirmationMode: "automatic" | "staff_approval";
+    cancellationPolicy: {
+        cutoffMinutes: number;
+        feeCents: number;
+    };
+    locationId?: string | undefined;
+    parentResourceId?: string | undefined;
+    linkedStaffUserId?: string | undefined;
+    rentableHours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
+        opensAt: string;
+        closesAt: string;
+    }[]>> | undefined;
+}, {
+    name: string;
+    resourceType: string;
+    locationId?: string | undefined;
+    capacity?: number | undefined;
+    parentResourceId?: string | undefined;
+    linkedStaffUserId?: string | undefined;
     isBookable?: boolean | undefined;
     isExclusive?: boolean | undefined;
     amenities?: string[] | undefined;
@@ -1931,6 +2014,7 @@ export declare const classSessionResourceAllocationSchema: z.ZodEffects<z.ZodEff
 }>;
 export declare const facilityReservationCreateSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
     resourceId: z.ZodString;
+    locationId: z.ZodOptional<z.ZodString>;
     memberId: z.ZodString;
     startsAt: z.ZodString;
     endsAt: z.ZodString;
@@ -1944,6 +2028,7 @@ export declare const facilityReservationCreateSchema: z.ZodEffects<z.ZodEffects<
     memberId: string;
     resourceId: string;
     overrideConflict: boolean;
+    locationId?: string | undefined;
     note?: string | undefined;
     overrideReason?: string | undefined;
     paymentReference?: string | undefined;
@@ -1952,6 +2037,7 @@ export declare const facilityReservationCreateSchema: z.ZodEffects<z.ZodEffects<
     endsAt: string;
     memberId: string;
     resourceId: string;
+    locationId?: string | undefined;
     note?: string | undefined;
     overrideReason?: string | undefined;
     overrideConflict?: boolean | undefined;
@@ -1962,6 +2048,7 @@ export declare const facilityReservationCreateSchema: z.ZodEffects<z.ZodEffects<
     memberId: string;
     resourceId: string;
     overrideConflict: boolean;
+    locationId?: string | undefined;
     note?: string | undefined;
     overrideReason?: string | undefined;
     paymentReference?: string | undefined;
@@ -1970,6 +2057,7 @@ export declare const facilityReservationCreateSchema: z.ZodEffects<z.ZodEffects<
     endsAt: string;
     memberId: string;
     resourceId: string;
+    locationId?: string | undefined;
     note?: string | undefined;
     overrideReason?: string | undefined;
     overrideConflict?: boolean | undefined;
@@ -1980,6 +2068,7 @@ export declare const facilityReservationCreateSchema: z.ZodEffects<z.ZodEffects<
     memberId: string;
     resourceId: string;
     overrideConflict: boolean;
+    locationId?: string | undefined;
     note?: string | undefined;
     overrideReason?: string | undefined;
     paymentReference?: string | undefined;
@@ -1988,6 +2077,7 @@ export declare const facilityReservationCreateSchema: z.ZodEffects<z.ZodEffects<
     endsAt: string;
     memberId: string;
     resourceId: string;
+    locationId?: string | undefined;
     note?: string | undefined;
     overrideReason?: string | undefined;
     overrideConflict?: boolean | undefined;
@@ -2223,8 +2313,8 @@ export type GymUpdateInput = z.infer<typeof gymUpdateSchema>;
 export type LocationCreateInput = z.infer<typeof locationCreateSchema>;
 export type LocationUpdateInput = z.infer<typeof locationUpdateSchema>;
 export type RoleAssignmentInput = z.infer<typeof roleAssignmentSchema>;
-export type CustomRoleCreateInput = z.infer<typeof customRoleCreateSchema>;
-export type CustomRoleUpdateInput = z.infer<typeof customRoleUpdateSchema>;
+export type CustomRoleCreateInput = z.input<typeof customRoleCreateSchema>;
+export type CustomRoleUpdateInput = z.input<typeof customRoleUpdateSchema>;
 export type StaffAccessRemoveInput = z.infer<typeof staffAccessRemoveSchema>;
 export type StaffInviteCreateInput = z.infer<typeof staffInviteCreateSchema>;
 export type StaffInviteAcceptInput = z.infer<typeof staffInviteAcceptSchema>;
@@ -2238,6 +2328,7 @@ export type ConsumerUpdateInput = z.input<typeof consumerUpdateSchema>;
 export type ConsumerProfileImageUploadInput = z.infer<typeof consumerProfileImageUploadSchema>;
 export type PosPurchaseInput = z.infer<typeof posPurchaseSchema>;
 export type PosStripeFinalizeInput = z.infer<typeof posStripeFinalizeSchema>;
+export type StripeConnectOnboardingLinkInput = z.infer<typeof stripeConnectOnboardingLinkSchema>;
 export type MemberCreateInput = z.input<typeof memberCreateSchema>;
 export type MemberUpdateInput = z.input<typeof memberUpdateSchema>;
 export type MembershipPlanCreateInput = z.infer<typeof membershipPlanCreateSchema>;

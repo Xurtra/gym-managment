@@ -279,7 +279,8 @@ export const FeatureFlag = {
   MemberPortal: "member_portal",
   WebsiteBuilder: "website_builder",
   PointOfSale: "point_of_sale",
-  AccessControl: "access_control"
+  AccessControl: "access_control",
+  AnonymousWalkInPos: "anonymous_walk_in_pos"
 } as const;
 
 export type FeatureFlag = (typeof FeatureFlag)[keyof typeof FeatureFlag];

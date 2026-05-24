@@ -3,6 +3,23 @@ import { execFileSync, spawn } from "node:child_process";
 const processes = new Map();
 const ports = [4000, 5173];
 
+function terminateChildProcess(child) {
+  if (child.killed || child.pid == null) {
+    return;
+  }
+
+  if (process.platform === "win32") {
+    try {
+      execFileSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+      return;
+    } catch {
+      // Fall back to the standard signal if taskkill fails.
+    }
+  }
+
+  child.kill();
+}
+
 function getListeningPid(port) {
   try {
     const output = execFileSync(
@@ -57,6 +74,7 @@ function start(name, command, args, options = {}) {
   });
 
   child.on("exit", (code, signal) => {
+    processes.delete(name);
     if (signal) {
       process.stdout.write(`[${name}] exited with signal ${signal}\n`);
     } else {
@@ -79,9 +97,7 @@ function shutdown(code = 0) {
   shuttingDown = true;
 
   for (const child of processes.values()) {
-    if (!child.killed) {
-      child.kill();
-    }
+    terminateChildProcess(child);
   }
 
   globalThis.setTimeout(() => process.exit(code), 500).unref?.();

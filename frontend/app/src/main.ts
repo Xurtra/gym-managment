@@ -1,4 +1,6 @@
 ﻿import { GymApiClient, ApiError, type ApiTokenStore } from "@gym-platform/api-client";
+import { loadConnectAndInitialize, type StripeConnectInstance } from "@stripe/connect-js";
+import { loadStripeTerminal } from "@stripe/terminal-js/pure";
 import { loadStripe, type Stripe, type StripeCardElement, type StripeElements } from "@stripe/stripe-js";
 import {
   AccessDeviceType,
@@ -11,6 +13,7 @@ import {
   MembershipStatus,
   Permission,
   PlanStatus,
+  ReservationPaymentRequirement,
   RoleName,
   UserStatus
 } from "@gym-platform/constants";
@@ -63,6 +66,14 @@ import {
   defaultConsumerCreateKind,
   defaultRecurringPlanId
 } from "./consumerCreate.js";
+import {
+  buildReservationAgendaItems,
+  createClassResourceAllocationSubmission,
+  createResourceReservationCancelSubmission,
+  createResourceReservationSubmission,
+  isoToDatetimeLocal,
+  type ReservationAgendaItem
+} from "./reservationsHub.js";
 import "./style.css";
 
 const API_BASE_URL = "http://127.0.0.1:4000";
@@ -257,6 +268,32 @@ interface GymRecord {
   businessInfo?: { email?: string; phone?: string; website?: string };
 }
 
+interface StripeConnectAccountRecord {
+  accountId?: string;
+  country?: string;
+  defaultCurrency?: string;
+  businessName?: string;
+  chargesEnabled: boolean;
+  payoutsEnabled: boolean;
+  onboardingComplete: boolean;
+  requirementsDue: string[];
+  dashboardUrl?: string;
+}
+
+interface StripeConnectSessionRecord {
+  clientSecret: string;
+  stripeAccountId: string;
+  expiresAt: number;
+  components: {
+    accountOnboarding: boolean;
+    notificationBanner: boolean;
+    accountManagement: boolean;
+    balances: boolean;
+    payouts: boolean;
+    payments: boolean;
+  };
+}
+
 interface LocationRecord {
   id: string;
   name: string;
@@ -275,11 +312,67 @@ interface LocationRecord {
   archivedAt?: string;
 }
 
+interface ResourceRecord {
+  id: string;
+  locationId?: string;
+  parentResourceId?: string;
+  name: string;
+  resourceType: string;
+  status: "active" | "archived";
+  isBookable: boolean;
+  isExclusive: boolean;
+  capacity: number;
+  amenities: string[];
+  pricing: { amountCents: number };
+  paymentRequirement: string;
+  confirmationMode: string;
+  linkedStaffUserId?: string;
+  createdFromRoleId?: string;
+  autoManaged?: boolean;
+}
+
+interface FacilityReservationRecord {
+  id: string;
+  resourceId: string;
+  locationId?: string;
+  memberId: string;
+  status: "pending" | "confirmed" | "cancelled";
+  startsAt: string;
+  endsAt: string;
+  amountCents: number;
+  paymentRequirement: string;
+  paymentStatus: "not_required" | "unpaid" | "paid" | "refunded";
+  cancellationFeeCents: number;
+  refundAmountCents: number;
+  paymentReference?: string;
+  note?: string;
+}
+
+interface ResourceAllocationRecord {
+  id: string;
+  gymId: string;
+  resourceId: string;
+  source: string;
+  classSessionId?: string;
+  facilityReservationId?: string;
+  startsAt: string;
+  endsAt: string;
+  bufferBeforeMinutes: number;
+  bufferAfterMinutes: number;
+  staffOverride: boolean;
+  overrideReason?: string;
+}
+
+interface ResourceAllocationListResponse {
+  allocations?: ResourceAllocationRecord[];
+}
+
 interface RoleRecord {
   id: string;
   name: string;
   permissions: string[];
   parentRoleId?: string;
+  createsReservableResource?: boolean;
   isSystem?: boolean;
 }
 
@@ -312,6 +405,14 @@ interface MeResponse {
 
 interface LocationListResponse {
   locations: LocationRecord[];
+}
+
+interface ResourceListResponse {
+  resources: ResourceRecord[];
+}
+
+interface FacilityReservationListResponse {
+  reservations: FacilityReservationRecord[];
 }
 
 interface CheckInPayload {
@@ -554,6 +655,25 @@ type SettingsSectionKey =
   | "taxes"
   | "forms";
 
+type PosPurchaseResult =
+  | { consumer: MemberRecord; membership?: { id: string }; anonymousSale?: false }
+  | { anonymousSale: true; buyerName: string; membership?: never; consumer?: never };
+
+type PosPurchaseRequest = {
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone?: string;
+  amountCents: number;
+  paymentMethod: StripePaymentMethod;
+  note?: string;
+  receiptEmail?: string;
+  planId?: string;
+};
+
+type PosTerminalConnectionState = "not_connected" | "connecting" | "connected";
+type PosTerminalPaymentState = "not_ready" | "ready" | "waiting_for_input" | "processing";
+
 interface AppState {
   view: ViewName;
   apiHealthy: boolean | null;
@@ -565,6 +685,7 @@ interface AppState {
   me: MeResponse | null;
   gym: GymRecord | null;
   locations: LocationRecord[];
+  resources: ResourceRecord[];
   selectedLocationId: string;
   platformGyms: GymRecord[];
   platformGymDirectoryLoaded: boolean;
@@ -574,6 +695,9 @@ interface AppState {
   classTypes: ClassTypeRecord[];
   selectedClassSessionId: string;
   classBookings: ClassBookingRecord[];
+  classResourceAllocations: ResourceAllocationRecord[];
+  facilityReservations: FacilityReservationRecord[];
+  selectedReservationAgendaItemId: string;
   accessDevices: AccessDeviceView[];
   accessRules: AccessRuleView[];
   accessEvents: AccessEventView[];
@@ -620,6 +744,7 @@ interface AppState {
     | "settings"
     | "check_in"
     | "check_in_history";
+  checkInRailExpanded: boolean;
   selectedMemberId?: string;
   editingMemberId?: string;
   checkInBarcode: string;
@@ -648,6 +773,13 @@ interface AppState {
   memberCache: Record<string, { memberships: MemberMembershipRecord[]; checkIns: CheckInRecord[] }>;
   memberDesk: MemberDeskStore;
   posStripeConfig?: { enabled: boolean; publishableKey?: string };
+  posTerminalConnectionState: PosTerminalConnectionState;
+  posTerminalPaymentState: PosTerminalPaymentState;
+  posTerminalReaderLabel?: string;
+  posTerminalSimulated: boolean;
+  stripeConnectAccount?: StripeConnectAccountRecord;
+  stripeConnectSession?: StripeConnectSessionRecord;
+  stripeConnectEmbeddedOpen: boolean;
 }
 
 const initialRoute = readRoute();
@@ -668,6 +800,7 @@ const state: AppState = {
   me: null,
   gym: null,
   locations: [],
+  resources: [],
   selectedLocationId: "",
   platformGyms: [],
   platformGymDirectoryLoaded: false,
@@ -677,6 +810,9 @@ const state: AppState = {
   classTypes: [],
   selectedClassSessionId: "",
   classBookings: [],
+  classResourceAllocations: [],
+  facilityReservations: [],
+  selectedReservationAgendaItemId: "",
   accessDevices: [],
   accessRules: [],
   accessEvents: [],
@@ -699,6 +835,7 @@ const state: AppState = {
   staffClockModalOpen: false,
   staffRemovalUserId: undefined,
   dashboardView: initialRoute.dashboardView,
+  checkInRailExpanded: initialRoute.checkInRailExpanded,
   checkInBarcode: "",
   checkInHistory: [],
   cameraCapture: undefined,
@@ -707,6 +844,13 @@ const state: AppState = {
   memberCache: {},
   memberDesk: loadMemberDeskStore(),
   posStripeConfig: undefined,
+  posTerminalConnectionState: "not_connected",
+  posTerminalPaymentState: "not_ready",
+  posTerminalReaderLabel: undefined,
+  posTerminalSimulated: true,
+  stripeConnectAccount: undefined,
+  stripeConnectSession: undefined,
+  stripeConnectEmbeddedOpen: false,
 };
 
 const pendingCameraPhotos = new Map<string, { file: File; previewUrl: string }>();
@@ -717,6 +861,11 @@ let stripePromise: Promise<Stripe | null> | undefined;
 let stripePromiseKey: string | undefined;
 let stripeElements: StripeElements | undefined;
 let stripeCardElement: StripeCardElement | undefined;
+let stripeCardThemeKey: string | undefined;
+let stripeTerminalPromise: Promise<Awaited<ReturnType<typeof loadStripeTerminal>> | null> | undefined;
+let stripeTerminalInstance: ReturnType<NonNullable<Awaited<ReturnType<typeof loadStripeTerminal>>>["create"]> | undefined;
+let stripeConnectInstance: StripeConnectInstance | undefined;
+let stripeConnectInstanceKey: string | undefined;
 
 const tokenStore: ApiTokenStore = {
   getAccessToken: () => state.session?.accessToken,
@@ -855,6 +1004,7 @@ async function refreshDashboard(showLoading = true) {
       const canReadPlans = hasPermission(Permission.PlanRead);
       const canReadLocations = hasPermission(Permission.LocationRead);
       const canReadClasses = hasPermission(Permission.ClassRead);
+      const canReadBookings = hasPermission(Permission.BookingRead);
       const canReadStaff = hasPermission(Permission.StaffRead);
       const canReadOwnShifts = hasPermission(Permission.GymRead);
       const canReadAccess = hasPermission(Permission.AccessRead);
@@ -898,6 +1048,18 @@ async function refreshDashboard(showLoading = true) {
       state.members = consumerRecords;
       state.plans = plans.plans;
       state.locations = locations.locations;
+      const resources = (await loadPermittedDashboardData(
+        canReadLocations,
+        () => client.listResources(state.gym!.id) as Promise<ResourceListResponse>,
+        { resources: [] }
+      )) as ResourceListResponse;
+      state.resources = resources.resources ?? [];
+      const facilityReservations = (await loadPermittedDashboardData(
+        canReadBookings,
+        () => client.listFacilityReservations(state.gym!.id) as Promise<FacilityReservationListResponse>,
+        { reservations: [] }
+      )) as FacilityReservationListResponse;
+      state.facilityReservations = facilityReservations.reservations ?? [];
       state.classTypes = classTypes.classTypes;
       try {
         state.posStripeConfig = (await client.getPosStripeConfig(state.gym.id)) as {
@@ -907,6 +1069,12 @@ async function refreshDashboard(showLoading = true) {
       } catch {
         state.posStripeConfig = undefined;
       }
+      try {
+        state.stripeConnectAccount = (await client.getStripeConnectAccount(state.gym.id)) as StripeConnectAccountRecord;
+      } catch {
+        state.stripeConnectAccount = undefined;
+      }
+      state.stripeConnectSession = undefined;
       if (!state.selectedLocationId || !state.locations.some((location) => location.id === state.selectedLocationId)) {
         state.selectedLocationId = state.locations[0]?.id ?? "";
       }
@@ -993,12 +1161,18 @@ async function refreshDashboard(showLoading = true) {
       state.locations = [];
       state.classTypes = [];
       state.classBookings = [];
+      state.classResourceAllocations = [];
+      state.facilityReservations = [];
+      state.selectedReservationAgendaItemId = "";
       state.accessDevices = [];
       state.accessRules = [];
       state.accessEvents = [];
       state.selectedLocationId = "";
+      state.resources = [];
       state.memberCache = {};
       state.posStripeConfig = undefined;
+      state.stripeConnectAccount = undefined;
+      state.stripeConnectEmbeddedOpen = false;
     }
     if (state.publicSlug) {
       await refreshPublic(state.publicSlug, false);
@@ -1111,6 +1285,8 @@ async function refreshPublic(slug: string, shouldRender = true) {
     state.publicSchedule = [];
     state.selectedClassSessionId = "";
     state.classBookings = [];
+    state.classResourceAllocations = [];
+    state.selectedReservationAgendaItemId = "";
     state.selectedPlanId = "";
     if (error instanceof ApiError && error.status === 404) {
       clearPublicSlug();
@@ -1128,16 +1304,22 @@ async function refreshSelectedClassBookings() {
   const session = selectedClassSession();
   if (!state.session || !state.gym || !session) {
     state.classBookings = [];
+    state.classResourceAllocations = [];
     return;
   }
   try {
-    const response = (await client.listClassBookings(
-      state.gym.id,
-      session.id
-    )) as ClassBookingListResponse | ClassBookingRecord[];
+    const [bookingResponse, allocationResponse] = await Promise.all([
+      client.listClassBookings(state.gym.id, session.id) as Promise<ClassBookingListResponse | ClassBookingRecord[]>,
+      client.listClassSessionResourceAllocations(state.gym.id, session.id) as Promise<ResourceAllocationListResponse | ResourceAllocationRecord[]>
+    ]);
+    const response = bookingResponse;
     state.classBookings = Array.isArray(response) ? response : response.bookings ?? [];
+    state.classResourceAllocations = Array.isArray(allocationResponse)
+      ? allocationResponse
+      : allocationResponse.allocations ?? [];
   } catch {
     state.classBookings = [];
+    state.classResourceAllocations = [];
   }
 }
 
@@ -1190,7 +1372,8 @@ function render() {
   bindEvents();
   startStaffClockTimers();
   void syncCameraCaptureModal();
-  void syncPosStripeCardField();
+  void syncPosStripePaymentField();
+  void syncStripeConnectEmbed();
 }
 
 type PreservedFormValue =
@@ -1251,8 +1434,9 @@ function restoreRenderableFormState(preservedForms: Map<string, Map<string, Pres
 }
 
 function renderDashboard() {
+  const bannerMarkup = state.banner ? renderBannerMarkup(state.banner.tone, state.banner.text) : "";
   if (state.dashboardLoading) {
-    return `<div class="empty-state"><h2>Loading dashboard</h2><p>Refreshing workspace data.</p></div>`;
+    return `${bannerMarkup}<div class="empty-state"><h2>Loading dashboard</h2><p>Refreshing workspace data.</p></div>`;
   }
 
   const gymSlugMatch = new URLSearchParams(window.location.search).get("gymSlug");
@@ -1268,6 +1452,7 @@ function renderDashboard() {
       : '';
 
     return `
+      ${bannerMarkup}
       <div class="section-head">
         <div>${logoHtml}
           <p class="eyebrow">Gym Authentication</p>
@@ -1287,6 +1472,7 @@ function renderDashboard() {
 
   if (!state.gym) {
     return `
+      ${bannerMarkup}
       <div class="section-head"><div>
         <p class="eyebrow">Gym setup</p>
         <h2>Create your first gym</h2>
@@ -1299,7 +1485,8 @@ function renderDashboard() {
   }
 
   let content = '';
-  switch (state.dashboardView) {
+  const contentView = dashboardContentView(state.dashboardView);
+  switch (contentView) {
     case 'consumers':
       content = renderConsumersView();
       break;
@@ -1354,9 +1541,6 @@ function renderDashboard() {
     case 'settings':
       content = renderSettingsView();
       break;
-    case 'check_in':
-      content = renderCheckInView();
-      break;
     case 'check_in_history':
       content = renderCheckInHistoryView();
       break;
@@ -1395,32 +1579,44 @@ function renderDashboard() {
         </div>
       </header>
 
-      <nav class="club-tabs">
-        ${dashboardTab("home", "Club Home")}
-        ${dashboardTab("check_in", "Check In")}
-        ${dashboardTab("consumers", "Consumers")}
-        ${dashboardTab("staff", "Staff")}
-        ${dashboardTab("pos", "Point Of Sale")}
-        ${dashboardTab("plans", "Plans")}
-        ${dashboardTab("locations", "Locations")}
-        ${dashboardTab("classes", "Classes")}
-        ${dashboardTab("bookings", "Bookings")}
-        ${dashboardTab("personal_training", "Training")}
-        ${dashboardTab("access_control", "Access")}
-        ${dashboardTab("contracts", "Forms")}
-        ${dashboardTab("member_portal", "Portal")}
-        ${dashboardTab("marketing", "Marketing")}
-        ${dashboardTab("reports", "Reporting")}
-        ${dashboardTab("settings", "Settings")}
-      </nav>
+      <div class="club-tabs-shell">
+        <nav class="club-tabs">
+          <div class="club-tabs-primary">
+            ${dashboardTab("home", "Club Home")}
+            ${dashboardTab("consumers", "Consumers")}
+            ${dashboardTab("staff", "Staff")}
+            ${dashboardTab("pos", "Point Of Sale")}
+            ${dashboardTab("plans", "Plans")}
+            ${dashboardTab("locations", "Locations")}
+            ${dashboardTab("classes", "Classes")}
+            ${dashboardTab("bookings", "Reservations")}
+            ${dashboardTab("personal_training", "Training")}
+            ${dashboardTab("access_control", "Access")}
+            ${dashboardTab("contracts", "Forms")}
+            ${dashboardTab("member_portal", "Portal")}
+            ${dashboardTab("marketing", "Marketing")}
+            ${dashboardTab("reports", "Reporting")}
+            ${dashboardTab("settings", "Settings")}
+          </div>
+        </nav>
+        <div class="club-tabs-drawer-handle">
+          ${dashboardTab("check_in", "Check In", {
+            toggleRail: true,
+            className: "club-tab-drawer-trigger"
+          })}
+        </div>
+      </div>
 
-      <div class="club-workspace">
+      <div class="club-workspace${state.checkInRailExpanded ? " club-workspace-with-rail" : ""}">
         <main class="club-main">
+          ${bannerMarkup}
           ${content}
         </main>
-        <aside class="club-rail">
-          ${renderCheckInRail()}
-        </aside>
+        ${state.checkInRailExpanded
+          ? `<aside class="club-rail">
+              ${renderCheckInRail()}
+            </aside>`
+          : ""}
       </div>
     </div>
     ${state.staffClockModalOpen ? renderStaffClockModal() : ""}
@@ -1429,9 +1625,26 @@ function renderDashboard() {
   `;
 }
 
-function dashboardTab(key: AppState["dashboardView"], label: string) {
-  const active = dashboardTopLevelView(state.dashboardView) === key ? " active" : "";
-  return `<a href="${dashboardViewToHash(key)}" class="club-tab${active}" data-dashboard-view="${key}"${active ? ' aria-current="page"' : ""}>${label}</a>`;
+function dashboardTab(
+  key: AppState["dashboardView"],
+  label: string,
+  options?: { toggleRail?: boolean; className?: string }
+) {
+  const active =
+    options?.toggleRail
+      ? state.checkInRailExpanded
+      : dashboardTopLevelView(state.dashboardView) === key;
+  const attributes = [
+    `class="club-tab${options?.className ? ` ${options.className}` : ""}${active ? " active" : ""}"`,
+    `data-dashboard-view="${key}"`
+  ];
+  if (options?.toggleRail) {
+    attributes.push('data-check-in-rail-toggle="true"');
+  }
+  if (active) {
+    attributes.push('aria-current="page"');
+  }
+  return `<a href="${dashboardViewToHash(key)}" ${attributes.join(" ")}>${label}</a>`;
 }
 
 function userInitials() {
@@ -2234,31 +2447,245 @@ function renderPosView() {
   const canManagePayments = currentPermissions().includes(Permission.PaymentWrite);
   const canManageGym = currentPermissions().includes(Permission.GymUpdate);
   const posBlockedReason = !canManagePayments ? "Payment write permission is required." : undefined;
-  const stripeReady = Boolean(state.posStripeConfig?.enabled && state.posStripeConfig.publishableKey);
-  const gymStripeAccountId = state.gym?.stripeAccountId;
+  const stripeAccount = state.stripeConnectAccount;
+  const gymStripeAccountId = stripeAccount?.accountId ?? state.gym?.stripeAccountId;
+  const stripeReady = Boolean(
+    state.posStripeConfig?.enabled &&
+      state.posStripeConfig.publishableKey &&
+      stripeAccount?.accountId &&
+      stripeAccount.onboardingComplete &&
+      stripeAccount.chargesEnabled
+  );
+  const requirementCount = stripeAccount?.requirementsDue.length ?? 0;
+  const stripeEmbedVisible = Boolean(
+    canManageGym &&
+      state.posStripeConfig?.publishableKey &&
+      (state.stripeConnectEmbeddedOpen || (stripeAccount?.accountId && !stripeReady))
+  );
+  const stripeSessionComponents = state.stripeConnectSession?.components;
+  const showStripeBanner = Boolean(stripeSessionComponents?.notificationBanner);
+  const showStripeOnboarding = stripeSessionComponents?.accountOnboarding ?? stripeEmbedVisible;
+  const showStripeAccountManagement = Boolean(stripeSessionComponents?.accountManagement);
+  const showStripeBalances = Boolean(stripeSessionComponents?.balances);
+  const showStripePayouts = Boolean(stripeSessionComponents?.payouts);
+  const showStripePayments = Boolean(stripeSessionComponents?.payments);
+  const showStripeBasicsGrid = showStripeAccountManagement || showStripeBalances || showStripePayouts;
+  const showStripeBasics = showStripeBasicsGrid || showStripePayments;
   const posHelperMessage = posBlockedReason
     ? posBlockedReason
     : stripeReady
       ? "Card details are processed through Stripe. If the buyer email or phone matches an existing consumer, the successful payment updates that person instead of creating a duplicate."
+      : stripeAccount?.accountId && !stripeAccount.onboardingComplete
+        ? `Finish Stripe onboarding for ${stripeAccount.accountId} before collecting card payments.`
+        : stripeAccount?.accountId && !stripeAccount.chargesEnabled
+          ? `Stripe account ${stripeAccount.accountId} is connected, but card payments are not enabled yet.`
       : gymStripeAccountId
         ? "Stripe keys are present, but POS card collection is still unavailable for this gym. Check the connected account id and backend Stripe configuration."
-        : "This gym does not have a Stripe connected account yet. Save the gym's Stripe account id below, then POS card collection will become available.";
+        : "This gym does not have a Stripe connected account yet. Start Stripe onboarding below, or paste an existing acct_... id for sandbox import.";
   const planOptions = [
     { value: "", label: "No plan assignment" },
     ...planSelectOptions().map((plan) => ({ value: plan.value, label: plan.label }))
   ];
   const stripeStatusLabel = stripeReady
     ? "Connected"
+    : stripeAccount?.accountId && !stripeAccount.onboardingComplete
+      ? "Onboarding required"
     : gymStripeAccountId
       ? "Needs verification"
       : "Not connected";
   const stripeStatusReason = stripeReady
     ? `Connected account ${gymStripeAccountId ?? "configured"}`
+    : stripeAccount?.accountId && !stripeAccount.onboardingComplete
+      ? `${requirementCount} Stripe onboarding requirement${requirementCount === 1 ? "" : "s"} remaining for ${stripeAccount.accountId}.`
+    : stripeAccount?.accountId && !state.posStripeConfig?.publishableKey
+      ? `Connected account ${stripeAccount.accountId} is saved, but Stripe keys are not configured on this API instance.`
+    : stripeAccount?.accountId && !stripeAccount.chargesEnabled
+      ? `Connected account ${stripeAccount.accountId} is still waiting for payment capability approval.`
     : gymStripeAccountId
       ? `Saved account ${gymStripeAccountId}. Stripe POS is still disabled until API config and account access both succeed.`
-      : "Save the gym's Stripe connected account id to enable live card collection for this location.";
+      : "Create or connect a Stripe account for this gym to enable card collection for this location.";
+  const posBannerMarkup = state.banner ? renderBannerMarkup(state.banner.tone, state.banner.text, "pos-inline-banner") : "";
+  const activePlans = state.plans.filter((plan) => plan.status === PlanStatus.Active).slice(0, 6);
+  const buyerCard = `
+    <article class="mini-card">
+      <span>Buyer</span>
+      <strong>${selected ? escapeHtml(`${selected.firstName} ${selected.lastName}`.trim()) : "New customer"}</strong>
+      <p class="muted">${selected ? "Selected consumer details are prefilled below. Edit them to record a sale for someone else." : "Record a sale and automatically add the buyer to the consumer directory as a customer."}</p>
+    </article>
+  `;
+  const stripeCard = `
+    <article class="mini-card">
+      <span>Stripe</span>
+      <strong>${stripeStatusLabel}</strong>
+      <p class="muted">${escapeHtml(stripeStatusReason)}</p>
+      ${stripeAccount?.businessName ? `<p class="muted">Business: ${escapeHtml(stripeAccount.businessName)}</p>` : ""}
+      ${stripeAccount?.dashboardUrl ? `<p class="muted"><a href="${escapeHtml(stripeAccount.dashboardUrl)}" target="_blank" rel="noreferrer">Open Stripe dashboard</a></p>` : ""}
+    </article>
+  `;
+  const plansPanel = `
+    <article class="form-card pos-plan-panel">
+      <div class="card-head">
+        <div>
+          <p class="eyebrow">Quick picks</p>
+          <h3>Active plans</h3>
+        </div>
+        <span>${activePlans.length}</span>
+      </div>
+      <div class="club-product-grid compact pos-plan-grid">
+        ${activePlans
+          .map((plan) => `
+            <article class="club-product">
+              <div class="club-product-art"></div>
+              <strong>${escapeHtml(plan.name)}</strong>
+              <span>${formatCurrency(plan.priceCents)}</span>
+            </article>
+          `)
+          .join("") || `<div class="empty-state"><p>No plans loaded.</p></div>`}
+      </div>
+    </article>
+  `;
+  const stripeSetupContent = `
+    ${stripeCard}
+    <form id="pos-stripe-setup-form" class="form-card compact-form pos-stripe-setup-card pos-focus-card">
+      <h3>Set up Stripe for this gym</h3>
+      <p class="muted">Choose one Stripe connection path for this gym. The onboarding buttons create or continue a Stripe-connected account. The manual import field is only for linking an account id you already created elsewhere.</p>
+      <div class="pos-stripe-option-grid">
+        <section class="pos-stripe-option-card">
+          <div class="pos-stripe-option-head">
+            <h4>Option 1: Create or continue Stripe onboarding</h4>
+            <p class="muted">Use this if the gym should start fresh or continue setup for the Stripe account already linked to this gym.</p>
+          </div>
+          <div class="pos-stripe-setup-actions">
+            <button type="button" class="ghost-button" data-pos-stripe-embed-toggle ${canManageGym && state.posStripeConfig?.publishableKey ? "" : "disabled"}>${stripeEmbedVisible ? "Hide in-app setup" : "Set up in app"}</button>
+            <button type="button" data-pos-stripe-connect ${canManageGym ? "" : "disabled"}>${stripeAccount?.accountId ? "Continue Stripe setup" : "Create and connect Stripe account"}</button>
+            ${stripeAccount?.accountId ? `<button type="button" class="ghost-button" data-pos-stripe-disconnect ${canManageGym ? "" : "disabled"}>Disconnect current Stripe account</button>` : ""}
+          </div>
+          <div class="club-note stripe-connect-note">
+            <p>${canManageGym
+              ? "This path ignores the textbox below. It uses the gym's saved Stripe account if one exists, or creates a new test connected account automatically when none is saved."
+              : "You need gym update permission to start Stripe onboarding for this gym."}</p>
+          </div>
+        </section>
+        <section class="pos-stripe-option-card">
+          <div class="pos-stripe-option-head">
+            <h4>Option 2: Import an existing Stripe account id</h4>
+            <p class="muted">Use this only if you already created a connected test account in Stripe and want this gym to use that exact <code>acct_...</code> id.</p>
+          </div>
+          ${renderInput("stripeAccountId", "Stripe connected account id to import", "text", gymStripeAccountId ?? "")}
+          <div class="pos-stripe-setup-actions">
+            <button type="submit" ${canManageGym ? "" : "disabled"}>Save imported Stripe account id</button>
+            ${gymStripeAccountId ? '<button type="button" class="ghost-button" data-pos-stripe-copy>Copy saved id</button>' : ""}
+          </div>
+          <div class="club-note stripe-connect-note">
+            <p>${canManageGym
+              ? "The import field does not start onboarding by itself. Saving this form only links the entered account id to this gym."
+              : "You need gym update permission to save a Stripe connected account id for this gym."}</p>
+          </div>
+        </section>
+      </div>
+    </form>
+    ${stripeEmbedVisible ? `
+      <article class="form-card compact-form stripe-connect-embedded-card pos-focus-card">
+        <div class="stripe-connect-embedded-head">
+          <div>
+            <h3>Stripe setup inside Gym Platform</h3>
+            <p class="muted">Complete onboarding requirements and review required actions without leaving this page.</p>
+          </div>
+        </div>
+        <div class="stripe-connect-embedded-shell">
+          ${showStripeBanner ? '<div class="stripe-connect-banner" data-stripe-connect-banner></div>' : ''}
+          ${showStripeOnboarding ? '<div class="stripe-connect-onboarding" data-stripe-connect-onboarding></div>' : ''}
+          ${showStripeBasicsGrid ? `
+            <div class="stripe-connect-basics-grid">
+              ${showStripeAccountManagement ? `
+                <section class="stripe-connect-panel">
+                  <div class="stripe-connect-panel-head">
+                    <h4>Account details</h4>
+                    <p class="muted">Business profile, support details, and payout account management.</p>
+                  </div>
+                  <div class="stripe-connect-account-management" data-stripe-connect-account-management></div>
+                </section>
+              ` : ""}
+              ${(showStripeBalances || showStripePayouts) ? `
+                <section class="stripe-connect-panel">
+                  <div class="stripe-connect-panel-head">
+                    <h4>Balances and payouts</h4>
+                    <p class="muted">Current Stripe balance and payout status for this connected account.</p>
+                  </div>
+                  ${showStripeBalances ? '<div class="stripe-connect-balances" data-stripe-connect-balances></div>' : ''}
+                  ${showStripePayouts ? '<div class="stripe-connect-payouts" data-stripe-connect-payouts></div>' : ''}
+                </section>
+              ` : ""}
+            </div>
+          ` : ""}
+          ${showStripePayments ? `
+            <section class="stripe-connect-panel stripe-connect-panel-wide">
+              <div class="stripe-connect-panel-head">
+                <h4>Payments</h4>
+                <p class="muted">Recent Stripe payments and refund or dispute tools inside the dashboard.</p>
+              </div>
+              <div class="stripe-connect-payments" data-stripe-connect-payments></div>
+            </section>
+          ` : ""}
+          ${(!showStripeBasics && state.stripeConnectSession) ? `
+            <div class="club-note stripe-connect-note">
+              <p>Stripe is only exposing onboarding for this connected sandbox account right now. No extra Stripe dashboard setup is required on your side. These additional embedded panels should appear automatically once Stripe enables them for the account session.</p>
+            </div>
+          ` : ""}
+        </div>
+      </article>
+    ` : ""}
+  `;
+  const paymentContent = `
+    ${buyerCard}
+    <form id="pos-purchase-form" class="form-card compact-form pos-focus-card">
+      <h3>Collect payment</h3>
+      ${renderInput("firstName", "First name", "text", selected?.firstName ?? "")}
+      ${renderInput("lastName", "Last name", "text", selected?.lastName ?? "")}
+      ${renderInput("email", "Email", "email", selected?.email ?? "")}
+      ${renderInput("phone", "Phone", "tel", selected?.phone ?? "")}
+      ${renderSelect("planId", "Assign plan", planOptions, "")}
+      ${renderInput("amount", "Amount (USD)", "number", "")}
+      ${renderSelect("paymentMethod", "Payment method", [
+        { value: StripePaymentMethod.ManualEntry, label: "Keyed card entry" },
+        { value: StripePaymentMethod.CardReader, label: "Terminal reader" }
+      ], StripePaymentMethod.ManualEntry)}
+      <div class="club-note" data-pos-keyed-note>
+        <p>Use keyed entry for hand-entered cards. Switch to Terminal reader below to use Stripe's simulated reader flow during development.</p>
+      </div>
+      <section class="form-card pos-terminal-panel" data-pos-terminal-panel hidden>
+        <div class="card-head">
+          <div>
+            <p class="eyebrow">Stripe Terminal</p>
+            <h4>Simulated reader</h4>
+          </div>
+          <span class="club-note-label" data-pos-terminal-status>${escapeHtml(formatPosTerminalStatus())}</span>
+        </div>
+        <div class="club-note">
+          <p>${escapeHtml(posTerminalHelperText())}</p>
+        </div>
+        <div class="club-mini-nav">
+          <button type="button" class="ghost-button" data-pos-terminal-connect>Connect simulated reader</button>
+          <button type="button" class="ghost-button" data-pos-terminal-disconnect ${state.posTerminalConnectionState === "connected" ? "" : "disabled"}>Disconnect reader</button>
+        </div>
+      </section>
+      ${stripeReady ? `
+        <label class="field" data-pos-keyed-card-field>
+          <span>Keyed card details</span>
+          <div class="stripe-card-field" data-pos-stripe-card></div>
+        </label>
+      ` : ""}
+      ${renderInput("receiptEmail", "Receipt email", "email", selected?.email ?? "")}
+      ${renderInput("note", "Payment note")}
+      ${posBannerMarkup}
+      <div class="club-note">
+        <p>${posHelperMessage}</p>
+      </div>
+      <button type="submit" ${posBlockedReason ? "disabled" : ""}>Collect payment</button>
+    </form>
+  `;
   return `
-    <section class="club-panel club-page">
+    <section class="club-panel club-page club-pos-page">
       <div class="card-head">
         <div>
           <p class="eyebrow">Point Of Sale</p>
@@ -2266,79 +2693,18 @@ function renderPosView() {
         </div>
         <span>${stripeStatusLabel}</span>
       </div>
-      <div class="club-page-split">
-        <div>
-          <div class="club-product-grid compact">
-            ${state.plans
-              .filter((plan) => plan.status === PlanStatus.Active)
-              .slice(0, 6)
-              .map((plan) => `
-              <article class="club-product">
-                <div class="club-product-art"></div>
-                <strong>${escapeHtml(plan.name)}</strong>
-                <span>${formatCurrency(plan.priceCents)}</span>
-              </article>
-            `)
-              .join("") || `<div class="empty-state"><p>No plans loaded.</p></div>`}
-          </div>
+      <div class="club-pos-layout${stripeReady ? ' ready' : ' setup'}">
+        <div class="club-pos-main section-stack">
+          ${stripeReady ? paymentContent : stripeSetupContent}
         </div>
-        <div class="section-stack">
-          <article class="mini-card">
-            <span>Stripe</span>
-            <strong>${stripeStatusLabel}</strong>
-            <p class="muted">${escapeHtml(stripeStatusReason)}</p>
-          </article>
-          ${!stripeReady ? `
-            <form id="pos-stripe-setup-form" class="form-card compact-form pos-stripe-setup-card">
-              <h3>Set up Stripe for this gym</h3>
-              <p class="muted">Paste the gym's connected account id from your Stripe Connect test setup. This is usually an <code>acct_...</code> value.</p>
-              ${renderInput("stripeAccountId", "Stripe connected account id", "text", gymStripeAccountId ?? "")}
-              <div class="club-note">
-                <p>${canManageGym
-                  ? "After saving, the POS page will refresh and enable Stripe card collection if the platform keys and connected account are valid."
-                  : "You need gym update permission to save the Stripe connected account id for this gym."}</p>
-              </div>
-              <div class="pos-stripe-setup-actions">
-                <button type="submit" ${canManageGym ? "" : "disabled"}>Save Stripe account</button>
-                ${gymStripeAccountId ? '<button type="button" class="ghost-button" data-pos-stripe-copy>Copy current id</button>' : ""}
-              </div>
-            </form>
-          ` : ""}
-          <article class="mini-card">
-            <span>Buyer</span>
-            <strong>${selected ? escapeHtml(`${selected.firstName} ${selected.lastName}`.trim()) : "New customer"}</strong>
-            <p class="muted">${selected ? "Selected consumer details are prefilled below. Edit them to record a sale for someone else." : "Record a sale and automatically add the buyer to the consumer directory as a customer."}</p>
-          </article>
-          <form id="pos-purchase-form" class="form-card compact-form">
-            <h3>Collect payment</h3>
-            ${renderInput("firstName", "First name", "text", selected?.firstName ?? "")}
-            ${renderInput("lastName", "Last name", "text", selected?.lastName ?? "")}
-            ${renderInput("email", "Email", "email", selected?.email ?? "")}
-            ${renderInput("phone", "Phone", "tel", selected?.phone ?? "")}
-            ${renderSelect("planId", "Assign plan", planOptions, "")}
-            ${renderInput("amount", "Amount (USD)", "number", "")}
-            ${renderSelect("paymentMethod", "Payment method", [
-              { value: StripePaymentMethod.ManualEntry, label: "Manual entry" },
-              { value: StripePaymentMethod.CardReader, label: "Card reader" }
-            ], StripePaymentMethod.ManualEntry)}
-            ${stripeReady ? `
-              <label class="field">
-                <span>Card details</span>
-                <div class="stripe-card-field" data-pos-stripe-card></div>
-              </label>
-            ` : ""}
-            ${renderInput("receiptEmail", "Receipt email", "email", selected?.email ?? "")}
-            ${renderInput("note", "Payment note")}
-            <div class="club-note">
-              <p>${posHelperMessage}</p>
-            </div>
-            <button type="submit" ${posBlockedReason ? "disabled" : ""}>Collect payment</button>
-          </form>
+        <aside class="club-pos-side section-stack">
+          ${stripeReady ? stripeCard : buyerCard}
+          ${plansPanel}
           <div class="club-mini-nav">
             <button type="button" class="ghost-button" data-dashboard-view="plans">Manage plans</button>
             <button type="button" class="ghost-button" data-dashboard-view="customer_profile" data-preserve-context="true">Open selected customer</button>
           </div>
-        </div>
+        </aside>
       </div>
     </section>
   `;
@@ -2390,6 +2756,11 @@ function renderPlansView() {
 
 function renderLocationsView() {
   const page = buildLocationListPage(state.locations, state.selectedLocationId);
+  const locationOptions = locationSelectOptions();
+  const activeResources = state.resources.filter((resource) => resource.status === "active" && !resource.linkedStaffUserId);
+  const selectedLocationResources = page.selectedLocation
+    ? activeResources.filter((resource) => resource.locationId === page.selectedLocation?.id)
+    : activeResources;
   return `
     <section class="club-panel club-page">
       <div class="card-head">
@@ -2397,7 +2768,7 @@ function renderLocationsView() {
           <p class="eyebrow">Locations</p>
           <h2>Facilities and rooms</h2>
         </div>
-        <span>${page.summary.activeCount} active · ${page.summary.archivedCount} archived</span>
+        <span>${page.summary.activeCount} active · ${page.summary.archivedCount} archived · ${activeResources.length} resources</span>
       </div>
       <div class="club-page-split">
         <div class="data-card">
@@ -2408,23 +2779,56 @@ function renderLocationsView() {
               <p>${escapeHtml(page.selectedLocation.name)} powers check-ins, class schedules, access rules, and reporting filters.</p>
             </div>
           ` : ""}
+          <div class="club-note" style="margin-top: 14px;">
+            <span class="club-note-label">Reservable resources</span>
+            <p>${page.selectedLocation
+              ? `${escapeHtml(page.selectedLocation.name)} has ${selectedLocationResources.length} active reservable resource${selectedLocationResources.length === 1 ? "" : "s"}.`
+              : `${activeResources.length} active reservable resource${activeResources.length === 1 ? "" : "s"} are configured.`}</p>
+            ${selectedLocationResources.length > 0
+              ? `<div class="location-resource-summary">${selectedLocationResources
+                  .map((resource) => renderLocationResourceChip(resource))
+                  .join("")}</div>`
+              : ""}
+          </div>
         </div>
-        <form id="create-location-form" class="form-card">
-          <h3>Add location</h3>
-          ${renderInput("name", "Location name")}
-          ${renderInput("line1", "Address line 1")}
-          ${renderInput("line2", "Address line 2")}
-          ${renderInput("city", "City")}
-          ${renderInput("region", "State / Region")}
-          ${renderInput("postalCode", "Postal code")}
-          ${renderInput("country", "Country", "text", "US")}
-          ${renderInput("timezone", "Timezone", "text", state.gym?.timezone ?? "America/New_York")}
-          ${renderInput("phone", "Phone", "tel")}
-          <button type="submit">Create location</button>
-        </form>
+        <div class="location-action-stack">
+          <details class="form-card location-action-menu">
+            <summary class="location-action-summary">Add Location</summary>
+            <form id="create-location-form" class="location-action-form">
+              ${renderInput("name", "Location name")}
+              ${renderInput("line1", "Address line 1")}
+              ${renderInput("line2", "Address line 2")}
+              ${renderInput("city", "City")}
+              ${renderInput("region", "State / Region")}
+              ${renderInput("postalCode", "Postal code")}
+              ${renderInput("country", "Country", "text", "US")}
+              ${renderInput("timezone", "Timezone", "text", state.gym?.timezone ?? "America/New_York")}
+              ${renderInput("phone", "Phone", "tel")}
+              <button type="submit">Create location</button>
+            </form>
+          </details>
+          <details class="form-card location-action-menu">
+            <summary class="location-action-summary">Add Resource</summary>
+            <form id="create-resource-form" class="location-action-form">
+              ${renderInput("name", "Resource name")}
+              ${renderInput("resourceType", "Type", "text", "room")}
+              ${renderSelect("locationId", "Location", locationOptions, state.selectedLocationId)}
+              ${renderInput("amountCents", "Price cents", "number", "0")}
+              <button type="submit" ${locationOptions.length > 0 ? "" : "disabled"}>Create resource</button>
+            </form>
+          </details>
+        </div>
       </div>
     </section>
   `;
+}
+
+function renderLocationResourceChip(resource: ResourceRecord) {
+  const typeLabel = resource.resourceType
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+  return `<span class="location-resource-chip"><strong>${escapeHtml(resource.name)}</strong><small>${escapeHtml(typeLabel)}</small></span>`;
 }
 
 function renderClassesView() {
@@ -2452,7 +2856,7 @@ function renderClassesView() {
       </div>
       ${renderModelTable(page.table, "No class sessions are visible for the current public schedule window.")}
       <div class="club-mini-nav">
-        <button type="button" class="ghost-button" data-dashboard-view="bookings">Open bookings</button>
+        <button type="button" class="ghost-button" data-dashboard-view="bookings">Open reservations</button>
         <button type="button" class="ghost-button" data-dashboard-view="locations">Locations</button>
       </div>
     </section>
@@ -2460,16 +2864,132 @@ function renderClassesView() {
 }
 
 function renderBookingsView() {
-  const session = selectedClassSession();
-  if (!session) {
-    return `
-      <section class="club-panel club-page">
-        <div class="empty-state">
-          <h3>No class session selected</h3>
-          <p>Load a public schedule or create a class session before reviewing bookings and waitlists.</p>
+  const agenda = reservationAgendaItems();
+  const selected = selectedReservationAgendaItem(agenda);
+  const classCount = agenda.filter((item) => item.kind === "class").length;
+  const facilityCount = agenda.filter((item) => item.kind === "facility").length;
+  const selectedDetail = selected ? renderReservationAgendaDetail(selected) : "";
+  return `
+    <section class="club-panel club-page">
+      <div class="card-head">
+        <div>
+          <p class="eyebrow">Reservations</p>
+          <h2>Unified agenda</h2>
         </div>
-      </section>
-    `;
+        <span>${classCount} classes · ${facilityCount} resource reservations</span>
+      </div>
+      <div class="stat-grid compact">
+        <article class="mini-card"><span>Agenda items</span><strong>${agenda.length}</strong></article>
+        <article class="mini-card"><span>Classes</span><strong>${classCount}</strong></article>
+        <article class="mini-card"><span>Resources</span><strong>${facilityCount}</strong></article>
+        <article class="mini-card"><span>Bookable</span><strong>${bookableResourceOptions().length}</strong></article>
+      </div>
+      <div class="club-page-split reservations-hub-split">
+        <div class="section-stack">
+          <div class="data-card">
+            <div class="card-head">
+              <div>
+                <h3>Agenda</h3>
+                <p class="club-copy">Classes and staff-created resource reservations share this operational view.</p>
+              </div>
+            </div>
+            ${renderReservationAgendaTable(agenda, selected?.id)}
+          </div>
+          ${selectedDetail}
+        </div>
+        <div class="section-stack">
+          ${renderCreateResourceReservationForm()}
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function reservationAgendaItems() {
+  return buildReservationAgendaItems({
+    classes: dashboardClassSessions().map((session) => {
+      const bookingSession = bookingSessionView(session);
+      return {
+        id: session.id,
+        title: bookingSession.className,
+        locationName: bookingSession.locationName,
+        startsAt: session.startsAt,
+        endsAt: session.endsAt,
+        capacity: session.capacity,
+        waitlistCapacity: session.waitlistCapacity,
+        status: session.status
+      };
+    }),
+    facilityReservations: state.facilityReservations.map((reservation) => ({
+      id: reservation.id,
+      resourceId: reservation.resourceId,
+      memberId: reservation.memberId,
+      resourceName: resourceDisplayName(reservation.resourceId),
+      memberName: memberDisplayName(reservation.memberId),
+      locationName: locationDisplayName(reservation.locationId ?? resourceById(reservation.resourceId)?.locationId),
+      startsAt: reservation.startsAt,
+      endsAt: reservation.endsAt,
+      status: reservation.status,
+      paymentLabel: reservationPaymentLabel(reservation)
+    }))
+  });
+}
+
+function selectedReservationAgendaItem(agenda: ReservationAgendaItem[]) {
+  const preferredId =
+    state.selectedReservationAgendaItemId ||
+    (state.selectedClassSessionId ? `class:${state.selectedClassSessionId}` : "");
+  return agenda.find((item) => item.id === preferredId) ?? agenda[0];
+}
+
+function renderReservationAgendaTable(agenda: ReservationAgendaItem[], selectedId?: string) {
+  if (agenda.length === 0) {
+    return `<div class="empty-state"><p>No classes or resource reservations are visible in the current schedule window.</p></div>`;
+  }
+  return `
+    <div class="table-wrap">
+      <table class="reservations-agenda-table">
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Time</th>
+            <th>Name / Resource</th>
+            <th>Location</th>
+            <th>Customer / Capacity</th>
+            <th>Status</th>
+            <th>Payment</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${agenda.map((item) => `
+            <tr class="${item.id === selectedId ? "selected-row" : ""}">
+              <td>${item.kind === "class" ? "Class" : "Resource"}</td>
+              <td>${escapeHtml(formatDateTimeRange(item.startsAt, item.endsAt))}</td>
+              <td>
+                <button type="button" class="table-link-button" data-reservation-agenda-select="${escapeAttribute(item.id)}">
+                  ${escapeHtml(item.title)}
+                </button>
+              </td>
+              <td>${escapeHtml(item.locationName)}</td>
+              <td>${escapeHtml(item.customerOrCapacity)}</td>
+              <td>${escapeHtml(formatReservationStatus(item.status))}</td>
+              <td>${escapeHtml(item.paymentLabel)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderReservationAgendaDetail(item: ReservationAgendaItem) {
+  return item.kind === "class" ? renderClassReservationDetail(item.sourceId) : renderFacilityReservationDetail(item.sourceId);
+}
+
+function renderClassReservationDetail(sessionId: string) {
+  const session = dashboardClassSessions().find((candidate) => candidate.id === sessionId);
+  if (!session) {
+    return `<div class="data-card"><div class="empty-state"><p>Class session not found.</p></div></div>`;
   }
   const bookingPage = buildBookingListPage({
     session: bookingSessionView(session),
@@ -2479,11 +2999,11 @@ function renderBookingsView() {
   });
   const sessions = dashboardClassSessions();
   return `
-    <section class="club-panel club-page">
+    <div class="data-card">
       <div class="card-head">
         <div>
-          <p class="eyebrow">Bookings</p>
-          <h2>${escapeHtml(bookingPage.session.className)}</h2>
+          <h3>${escapeHtml(bookingPage.session.className)}</h3>
+          <p class="club-copy">${escapeHtml(formatDateTimeRange(session.startsAt, session.endsAt))}</p>
         </div>
         <span>${bookingPage.summaryLabel}</span>
       </div>
@@ -2492,7 +3012,7 @@ function renderBookingsView() {
         <select data-class-session-select>
           ${sessions.map((item) => {
             const option = bookingSessionView(item);
-            return `<option value="${item.id}" ${item.id === session.id ? "selected" : ""}>${escapeHtml(option.className)} · ${escapeHtml(option.startsAt)}</option>`;
+            return `<option value="${escapeAttribute(item.id)}" ${item.id === session.id ? "selected" : ""}>${escapeHtml(option.className)} · ${escapeHtml(formatDateTimeRange(option.startsAt, option.endsAt))}</option>`;
           }).join("")}
         </select>
       </label>
@@ -2502,8 +3022,138 @@ function renderBookingsView() {
         <article class="mini-card"><span>Cancelled</span><strong>${bookingPage.summary.cancelledCount}</strong></article>
         <article class="mini-card"><span>Staff-created</span><strong>${bookingPage.summary.staffCreatedCount}</strong></article>
       </div>
+      ${renderClassResourceAllocationPanel(session)}
       ${renderModelTable(bookingPage.table, "No bookings for this class session.")}
+    </div>
+  `;
+}
+
+function renderClassResourceAllocationPanel(session: PublicSessionRecord) {
+  const allocations = state.classResourceAllocations.filter((allocation) => allocation.classSessionId === session.id);
+  const options = classResourceAllocationOptions(session);
+  const canAllocate = currentPermissions().includes(Permission.ClassWrite);
+  const disabled = !canAllocate || options.length === 0;
+  return `
+    <section class="class-resource-panel">
+      <div class="class-resource-head">
+        <div>
+          <h4>Class resources</h4>
+          <p class="club-copy">Attach rooms, courts, equipment, or staff-linked human resources to this session.</p>
+        </div>
+        <span>${allocations.length} allocated</span>
+      </div>
+      <div class="class-resource-list">
+        ${allocations.length > 0
+          ? allocations.map((allocation) => renderClassResourceAllocation(allocation)).join("")
+          : `<div class="empty-state compact"><p>No resources allocated to this class yet.</p></div>`}
+      </div>
+      <form id="allocate-class-resource-form" class="compact-form class-resource-form">
+        <input type="hidden" name="sessionId" value="${escapeAttribute(session.id)}" />
+        ${renderSelect(
+          "resourceId",
+          "Add resource",
+          options.length > 0 ? options : [{ value: "", label: "No eligible resources available" }],
+          options[0]?.value ?? "",
+          disabled
+        )}
+        <div class="two-up stacked-mobile">
+          ${renderInput("startsAt", "Custom starts at", "datetime-local", "", disabled)}
+          ${renderInput("endsAt", "Custom ends at", "datetime-local", "", disabled)}
+        </div>
+        <label class="permission-chip">
+          <input type="checkbox" name="overrideConflict" value="true" ${disabled ? "disabled" : ""} />
+          <span class="permission-chip-copy">
+            <strong>Override conflicts</strong>
+            <small>Requires a reason and records the staff override.</small>
+          </span>
+        </label>
+        ${renderInput("overrideReason", "Override reason", "text", "", disabled)}
+        <button type="submit" ${disabled ? "disabled" : ""}>Add class resource</button>
+      </form>
     </section>
+  `;
+}
+
+function renderClassResourceAllocation(allocation: ResourceAllocationRecord) {
+  const resource = resourceById(allocation.resourceId);
+  const resourceType = resource?.linkedStaffUserId ? "Human resource" : formatReservationStatus(resource?.resourceType ?? "Resource");
+  const bufferLabel =
+    allocation.bufferBeforeMinutes > 0 || allocation.bufferAfterMinutes > 0
+      ? ` · Buffer ${allocation.bufferBeforeMinutes}/${allocation.bufferAfterMinutes} min`
+      : "";
+  return `
+    <article class="class-resource-item">
+      <div>
+        <strong>${escapeHtml(resourceDisplayName(allocation.resourceId))}</strong>
+        <p class="club-copy">${escapeHtml(formatDateTimeRange(allocation.startsAt, allocation.endsAt))}${escapeHtml(bufferLabel)}</p>
+      </div>
+      <span>${escapeHtml(resourceType)}${allocation.staffOverride ? " · Override" : ""}</span>
+    </article>
+  `;
+}
+
+function renderFacilityReservationDetail(reservationId: string) {
+  const reservation = state.facilityReservations.find((candidate) => candidate.id === reservationId);
+  if (!reservation) {
+    return `<div class="data-card"><div class="empty-state"><p>Resource reservation not found.</p></div></div>`;
+  }
+  const canCancel = currentPermissions().includes(Permission.BookingWrite) && reservation.status !== "cancelled";
+  return `
+    <div class="data-card">
+      <div class="card-head">
+        <div>
+          <h3>${escapeHtml(resourceDisplayName(reservation.resourceId))}</h3>
+          <p class="club-copy">${escapeHtml(formatDateTimeRange(reservation.startsAt, reservation.endsAt))}</p>
+        </div>
+        <span>${escapeHtml(formatReservationStatus(reservation.status))}</span>
+      </div>
+      <div class="stat-grid compact">
+        <article class="mini-card"><span>Customer</span><strong>${escapeHtml(memberDisplayName(reservation.memberId))}</strong></article>
+        <article class="mini-card"><span>Location</span><strong>${escapeHtml(locationDisplayName(reservation.locationId ?? resourceById(reservation.resourceId)?.locationId))}</strong></article>
+        <article class="mini-card"><span>Price</span><strong>${escapeHtml(formatReservationCurrency(reservation.amountCents))}</strong></article>
+        <article class="mini-card"><span>Payment</span><strong>${escapeHtml(formatReservationStatus(reservation.paymentStatus))}</strong></article>
+      </div>
+      ${reservation.note ? `<div class="club-note"><span class="club-note-label">Note</span><p>${escapeHtml(reservation.note)}</p></div>` : ""}
+      <form id="cancel-resource-reservation-form" class="compact-form reservation-cancel-form">
+        <input type="hidden" name="reservationId" value="${escapeAttribute(reservation.id)}" />
+        ${renderInput("reason", "Cancellation reason")}
+        <button type="submit" class="danger-button" ${canCancel ? "" : "disabled"}>Cancel reservation</button>
+      </form>
+    </div>
+  `;
+}
+
+function renderCreateResourceReservationForm() {
+  const canBook = currentPermissions().includes(Permission.BookingWrite);
+  const resources = bookableResourceOptions();
+  const members = reservationMemberOptions();
+  const now = new Date();
+  const startsAt = isoToDatetimeLocal(new Date(now.getTime() + 60 * 60 * 1000));
+  const endsAt = isoToDatetimeLocal(new Date(now.getTime() + 2 * 60 * 60 * 1000));
+  const disabled = !canBook || resources.length === 0 || members.length === 0;
+  return `
+    <form id="create-resource-reservation-form" class="form-card">
+      <div>
+        <h3>Create resource reservation</h3>
+        <p class="club-copy">Reserve a room, court, scarce equipment, or staff-linked resource for one customer.</p>
+      </div>
+      ${renderSelect("resourceId", "Resource", resources, resources[0]?.value ?? "")}
+      ${renderSelect("memberId", "Customer", members, members[0]?.value ?? "")}
+      <div class="two-up stacked-mobile">
+        ${renderInput("startsAt", "Starts at", "datetime-local", startsAt)}
+        ${renderInput("endsAt", "Ends at", "datetime-local", endsAt)}
+      </div>
+      ${renderInput("note", "Note")}
+      <label class="permission-chip">
+        <input type="checkbox" name="overrideConflict" value="true" />
+        <span class="permission-chip-copy">
+          <strong>Override conflicts</strong>
+          <small>Requires a reason and records the staff override.</small>
+        </span>
+      </label>
+      ${renderInput("overrideReason", "Override reason")}
+      <button type="submit" ${disabled ? "disabled" : ""}>Create reservation</button>
+    </form>
   `;
 }
 
@@ -2795,6 +3445,18 @@ function renderPermissionCheckboxes(selectedPermissions: string[] = []) {
   ).join("");
 }
 
+function renderReservableResourceRoleToggle(checked: boolean) {
+  return `
+    <label class="permission-chip${checked ? " active" : ""}">
+      <input type="checkbox" name="createsReservableResource" value="true" ${checked ? "checked" : ""} />
+      <span class="permission-chip-copy">
+        <strong>Creates reservable resource</strong>
+        <small>Active staff assigned to this role can be booked as a resource.</small>
+      </span>
+    </label>
+  `;
+}
+
 function staffAssignableRoles() {
   return state.roles
     .filter((role) => role.name !== RoleName.Owner && role.name !== RoleName.Member)
@@ -2985,6 +3647,7 @@ function renderStaffRoleCreator() {
         <p class="club-copy staff-role-preset-copy" data-staff-role-preset-description>${escapeHtml(preset.description)}</p>
         ${renderInput("staffRoleName", "Role name", "text", preset.defaultName)}
         ${renderRoleParentPicker(parentRoles)}
+        ${renderReservableResourceRoleToggle(false)}
         <div class="permissions-grid staff-role-permissions">
           ${renderPermissionCheckboxes([...preset.permissions])}
         </div>
@@ -3804,11 +4467,16 @@ function renderSettingsSectionContent(activeLocations: LocationRecord[]) {
                   <strong>Permissions</strong>
                   <p>${selectedRole.permissions.map((permission) => escapeHtml(formatPermissionLabel(permission))).join(", ") || "No permissions"}</p>
                 </div>
+                <div class="settings-placeholder" style="margin-bottom: 14px;">
+                  <strong>Reservable resource</strong>
+                  <p>${selectedRole.createsReservableResource ? "Staff assigned to this role get a reservable resource." : "Staff assigned to this role do not get reservable resources."}</p>
+                </div>
                 ${selectedRole.isSystem
                   ? `<p class="muted">System roles cannot be edited from the UI.</p>`
                   : `
                     <form id="edit-role-form" class="form-card">
                       ${renderInput("roleName", "Role name", "text", selectedRole.name)}
+                      ${renderReservableResourceRoleToggle(selectedRole.createsReservableResource === true)}
                       <div class="permissions-grid">
                         ${renderPermissionCheckboxes(selectedRole.permissions)}
                       </div>
@@ -3850,6 +4518,7 @@ function renderSettingsSectionContent(activeLocations: LocationRecord[]) {
             <p class="club-copy">Build a new custom access role from the permission set below.</p>
             <form id="create-role-form" class="form-card">
               ${renderInput("newRoleName", "Role name")}
+              ${renderReservableResourceRoleToggle(false)}
               <div class="permissions-grid">
                 ${renderPermissionCheckboxes()}
               </div>
@@ -3860,12 +4529,28 @@ function renderSettingsSectionContent(activeLocations: LocationRecord[]) {
       `;
     case "featured_items":
       return `
-        <div class="club-panel">
-          <h3>Featured Items</h3>
-          <p class="club-copy">Highlight products, offers, or services for the front desk and POS.</p>
-          <div class="settings-placeholder">
-            <strong>${state.plans.length} plans available</strong>
-            <p>Use this section for pinned items and quick-sale highlights.</p>
+        <div class="settings-grid settings-grid-wide">
+          <div class="club-panel">
+            <h3>Featured Items</h3>
+            <p class="club-copy">Highlight products, offers, or services for the front desk and POS.</p>
+            <div class="settings-placeholder">
+              <strong>${state.plans.length} plans available</strong>
+              <p>Use this section for pinned items and quick-sale highlights.</p>
+            </div>
+          </div>
+          <div class="club-panel">
+            <h3>Point Of Sale rules</h3>
+            <p class="club-copy">Control whether simple one-time sales can be collected without attaching them to a customer record.</p>
+            <form id="pos-settings-form" class="form-card compact-form">
+              <label class="permission-chip active">
+                <input type="checkbox" name="allowAnonymousWalkInPos" value="true" ${state.gym?.featureFlags.includes(FeatureFlag.AnonymousWalkInPos) ? "checked" : ""} />
+                <span>Allow anonymous walk-in POS sales</span>
+              </label>
+              <div class="club-note">
+                <p>When enabled, staff can collect a one-time walk-in payment with only a buyer name. Plan assignments still require customer contact details.</p>
+              </div>
+              <button type="submit" ${hasPermission(Permission.GymUpdate) ? "" : "disabled"}>Save POS rules</button>
+            </form>
           </div>
         </div>
       `;
@@ -4112,6 +4797,106 @@ function locationSelectOptions() {
   return state.locations
     .filter((location) => location.status === LocationStatus.Active)
     .map((location) => ({ value: location.id, label: location.name }));
+}
+
+function reservationMemberOptions() {
+  return state.members
+    .filter((member) => member.status !== MemberStatus.Archived)
+    .map((member) => ({ value: member.id, label: memberDisplayName(member.id) }));
+}
+
+function bookableResourceOptions() {
+  return state.resources
+    .filter((resource) => resource.status === "active" && resource.isBookable)
+    .map((resource) => ({ value: resource.id, label: resourceDisplayName(resource.id) }));
+}
+
+function classResourceAllocationOptions(session: PublicSessionRecord) {
+  const allocatedResourceIds = new Set(
+    state.classResourceAllocations
+      .filter((allocation) => allocation.classSessionId === session.id)
+      .map((allocation) => allocation.resourceId)
+  );
+  return state.resources
+    .filter(
+      (resource) =>
+        resource.status === "active" &&
+        resource.isBookable &&
+        !allocatedResourceIds.has(resource.id) &&
+        (!resource.locationId || resource.locationId === session.locationId)
+    )
+    .map((resource) => ({
+      value: resource.id,
+      label: `${resource.linkedStaffUserId ? "Staff: " : ""}${resourceDisplayName(resource.id)}`
+    }));
+}
+
+function resourceById(resourceId: string) {
+  return state.resources.find((resource) => resource.id === resourceId);
+}
+
+function resourceDisplayName(resourceId: string) {
+  const resource = resourceById(resourceId);
+  if (!resource) {
+    return resourceId;
+  }
+  const locationName = locationDisplayName(resource.locationId);
+  return locationName === "Gym-wide" ? resource.name : `${resource.name} · ${locationName}`;
+}
+
+function memberDisplayName(memberId: string) {
+  const member = state.members.find((candidate) => candidate.id === memberId);
+  if (!member) {
+    return memberId;
+  }
+  return `${member.firstName} ${member.lastName}`.trim() || member.email || member.id;
+}
+
+function locationDisplayName(locationId?: string) {
+  if (!locationId) {
+    return "Gym-wide";
+  }
+  return state.locations.find((location) => location.id === locationId)?.name ?? locationId;
+}
+
+function reservationPaymentLabel(reservation: FacilityReservationRecord) {
+  if (reservation.amountCents <= 0 || reservation.paymentStatus === "not_required") {
+    return "Not required";
+  }
+  return `${formatReservationStatus(reservation.paymentStatus)} / ${formatReservationCurrency(reservation.amountCents)}`;
+}
+
+function formatDateTimeRange(startsAt: string, endsAt: string) {
+  const start = new Date(startsAt);
+  const end = new Date(endsAt);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return `${startsAt} - ${endsAt}`;
+  }
+  const sameDay = start.toDateString() === end.toDateString();
+  const startText = start.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
+  const endText = end.toLocaleString([], sameDay
+    ? { hour: "numeric", minute: "2-digit" }
+    : { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return `${startText} - ${endText}`;
+}
+
+function formatReservationStatus(status: string) {
+  return status
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function formatReservationCurrency(cents: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD"
+  }).format(cents / 100);
 }
 
 function planSelectOptions() {
@@ -4948,7 +5733,36 @@ function renderCheckInHistoryView() {
 
 
 
+function renderPlatformGymOptions(gyms: GymRecord[], selectedGymSlug = "") {
+  if (gyms.length === 0) {
+    return '<option value="" selected>No gyms available</option>';
+  }
+
+  return gyms
+    .map(
+      (gym) => `
+        <option value="${escapeAttribute(gym.slug)}" ${gym.slug === selectedGymSlug ? "selected" : ""}>
+          ${escapeHtml(gym.name)} (${escapeHtml(gym.slug)})
+        </option>
+      `
+    )
+    .join("");
+}
+
+function filterPlatformGyms(query: string) {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) {
+    return state.platformGyms;
+  }
+
+  return state.platformGyms.filter((gym) => `${gym.name} ${gym.slug}`.toLowerCase().includes(normalizedQuery));
+}
+
 function renderPlatformDashboard() {
+  const selectedGymSlug = state.platformGyms.some((gym) => gym.slug === state.publicSlug)
+    ? state.publicSlug
+    : state.platformGyms[0]?.slug ?? "";
+
   return `
     <div class="section-head">
       <div>
@@ -4964,14 +5778,28 @@ function renderPlatformDashboard() {
           <h3>All Gyms</h3>
           <span>${state.platformGyms.length} total</span>
         </div>
-        <div class="gym-cards" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; padding: 1rem;">
-          ${state.platformGyms.map(gym => `
-            <a href="?gymSlug=${gym.slug}#/dashboard" class="form-card" style="text-decoration:none; color:inherit;">
-              <h4>${gym.name}</h4>
-              <small>${gym.slug}</small>
-            </a>
-          `).join('')}
-        </div>
+        <form id="platform-gym-picker-form" class="platform-gym-picker">
+          <label class="field">
+            <span>Search gyms</span>
+            <input
+              id="platform-gym-search"
+              name="gymSearch"
+              type="search"
+              placeholder="Search by gym name or slug"
+              autocomplete="off"
+            />
+          </label>
+          <label class="field">
+            <span>Gym</span>
+            <select id="platform-gym-select" name="gymSlug" ${state.platformGyms.length === 0 ? "disabled" : ""}>
+              ${renderPlatformGymOptions(state.platformGyms, selectedGymSlug)}
+            </select>
+          </label>
+          <button id="platform-gym-picker-submit" type="submit" ${state.platformGyms.length === 0 ? "disabled" : ""}>Open Gym</button>
+        </form>
+        <p id="platform-gym-search-status" class="muted platform-gym-picker-status">
+          Search by name or slug across ${state.platformGyms.length} gyms.
+        </p>
       </section>
       
       <section class="data-card">
@@ -4989,6 +5817,39 @@ function renderPlatformDashboard() {
       </section>
     </div>
   `;
+}
+
+function bindPlatformGymPicker() {
+  const searchInput = app.querySelector<HTMLInputElement>("#platform-gym-search");
+  const select = app.querySelector<HTMLSelectElement>("#platform-gym-select");
+  const status = app.querySelector<HTMLElement>("#platform-gym-search-status");
+  const submitButton = app.querySelector<HTMLButtonElement>("#platform-gym-picker-submit");
+  if (!searchInput || !select || !status || !submitButton) {
+    return;
+  }
+
+  const updateOptions = () => {
+    const filteredGyms = filterPlatformGyms(searchInput.value);
+    const selectedGymSlug = filteredGyms.some((gym) => gym.slug === select.value)
+      ? select.value
+      : filteredGyms[0]?.slug ?? "";
+
+    select.innerHTML = renderPlatformGymOptions(filteredGyms, selectedGymSlug);
+    const hasMatches = filteredGyms.length > 0;
+    select.disabled = !hasMatches;
+    submitButton.disabled = !hasMatches;
+
+    if (!searchInput.value.trim()) {
+      status.textContent = `Search by name or slug across ${state.platformGyms.length} gyms.`;
+      return;
+    }
+
+    status.textContent = hasMatches
+      ? `${filteredGyms.length} ${filteredGyms.length === 1 ? "gym" : "gyms"} match your search.`
+      : `No gyms match \"${searchInput.value.trim()}\".`;
+  };
+
+  searchInput.addEventListener("input", updateOptions);
 }
 
 function renderPublic(
@@ -5061,6 +5922,10 @@ function bindEvents() {
       event.preventDefault();
       const view = btn.dataset.dashboardView as AppState["dashboardView"];
       if (view) {
+        if (btn.dataset.checkInRailToggle === "true") {
+          toggleCheckInRail();
+          return;
+        }
         navigateDashboardView(view, { preserveContext: btn.dataset.preserveContext === "true" });
       }
     });
@@ -5122,7 +5987,7 @@ function bindEvents() {
   app.querySelectorAll<HTMLButtonElement>("[data-check-in-member-id]").forEach((button) => {
     button.addEventListener("click", () => {
       state.selectedMemberId = button.dataset.checkInMemberId;
-      navigateDashboardView("check_in", { preserveContext: true });
+      openCheckInRail();
     });
   });
   app.querySelectorAll<HTMLButtonElement>("[data-check-in-record-id]").forEach((button) => {
@@ -5176,8 +6041,29 @@ function bindEvents() {
   app.querySelectorAll<HTMLSelectElement>("[data-class-session-select]").forEach((select) => {
     select.addEventListener("change", async () => {
       state.selectedClassSessionId = select.value;
+      state.selectedReservationAgendaItemId = `class:${select.value}`;
       await refreshSelectedClassBookings();
       render();
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-reservation-agenda-select]").forEach((button) => {
+    button.addEventListener("click", () => {
+      void (async () => {
+        const itemId = button.dataset.reservationAgendaSelect;
+        if (!itemId) {
+          return;
+        }
+        state.selectedReservationAgendaItemId = itemId;
+        if (itemId.startsWith("class:")) {
+          state.selectedClassSessionId = itemId.slice("class:".length);
+          await refreshSelectedClassBookings();
+        }
+        render();
+      })().catch((error) => {
+        setBanner("error", describeError(error));
+        render();
+      });
     });
   });
 
@@ -5548,7 +6434,8 @@ function bindEvents() {
     }
     await client.createCustomRole(state.gym.id, {
       name: data.newRoleName,
-      permissions: permissions as Permission[]
+      permissions: permissions as Permission[],
+      createsReservableResource: data.createsReservableResource === "true"
     });
     setBanner("success", "Custom role created.");
     await refreshDashboard();
@@ -5571,7 +6458,8 @@ function bindEvents() {
     const role = (await client.createCustomRole(state.gym.id, {
       name: data.staffRoleName,
       ...(data.parentRoleId ? { parentRoleId: data.parentRoleId } : {}),
-      permissions: permissions as Permission[]
+      permissions: permissions as Permission[],
+      createsReservableResource: data.createsReservableResource === "true"
     })) as RoleRecord;
     state.selectedRoleId = role.id ?? state.selectedRoleId;
     setBanner("success", "Role saved. You can assign it from the staff directory.");
@@ -5592,7 +6480,8 @@ function bindEvents() {
     }
     await client.updateCustomRole(state.gym.id, state.selectedRoleId, {
       name: data.roleName,
-      permissions: permissions as Permission[]
+      permissions: permissions as Permission[],
+      createsReservableResource: data.createsReservableResource === "true"
     });
     setBanner("success", "Role updated.");
     await refreshDashboard();
@@ -5846,6 +6735,20 @@ function bindEvents() {
     });
   });
 
+  bindPlatformGymPicker();
+
+  bindForm("platform-gym-picker-form", async (form) => {
+    const data = formData(form);
+    const selectedGymSlug = data.gymSlug?.trim();
+    if (!selectedGymSlug) {
+      setBanner("error", "Select a gym before opening the dashboard.");
+      render();
+      return;
+    }
+
+    window.location.assign(`?gymSlug=${encodeURIComponent(selectedGymSlug)}#/dashboard`);
+  });
+
   bindForm("platform-create-gym-form", async (form) => {
     const data = registerInputFromForm(form, { requireGymName: true });
     if (!data) {
@@ -5975,6 +6878,102 @@ function bindEvents() {
     navigateDashboardView(state.dashboardView === "locations" ? "locations" : "settings", { preserveContext: true });
   });
 
+  bindForm("create-resource-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const data = formData(form);
+    const name = data.name.trim();
+    const resourceType = data.resourceType.trim();
+    const locationId = data.locationId || state.selectedLocationId || state.locations[0]?.id;
+    const amountCents = Number.parseInt(data.amountCents || "0", 10);
+    if (!name || !resourceType || !locationId) {
+      throw new Error("Resource name, type, and location are required.");
+    }
+    if (!Number.isFinite(amountCents) || amountCents < 0) {
+      throw new Error("Resource price must be zero or greater.");
+    }
+    await client.createResource(state.gym.id, {
+      locationId,
+      name,
+      resourceType,
+      pricing: { amountCents },
+      paymentRequirement:
+        amountCents > 0 ? ReservationPaymentRequirement.PayLater : ReservationPaymentRequirement.Free
+    });
+    setBanner("success", "Resource created.");
+    await refreshDashboard();
+    navigateDashboardView("locations", { preserveContext: true });
+  });
+
+  bindForm("create-resource-reservation-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const data = formData(form);
+    const input = createResourceReservationSubmission({
+      resourceId: data.resourceId,
+      memberId: data.memberId,
+      startsAtLocal: data.startsAt,
+      endsAtLocal: data.endsAt,
+      note: data.note,
+      overrideConflict: data.overrideConflict === "true",
+      overrideReason: data.overrideReason
+    });
+    const reservation = (await client.createFacilityReservation(
+      state.gym.id,
+      input
+    )) as FacilityReservationRecord;
+    state.selectedReservationAgendaItemId = `facility:${reservation.id}`;
+    setBanner("success", "Resource reservation created.");
+    await refreshDashboard(false);
+    navigateDashboardView("bookings", { preserveContext: true });
+  });
+
+  bindForm("cancel-resource-reservation-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const data = formData(form);
+    const reservationId = data.reservationId;
+    if (!reservationId) {
+      throw new Error("Reservation is required.");
+    }
+    await client.cancelFacilityReservation(
+      state.gym.id,
+      reservationId,
+      createResourceReservationCancelSubmission({ reason: data.reason })
+    );
+    state.selectedReservationAgendaItemId = `facility:${reservationId}`;
+    setBanner("success", "Resource reservation cancelled.");
+    await refreshDashboard(false);
+    navigateDashboardView("bookings", { preserveContext: true });
+  });
+
+  bindForm("allocate-class-resource-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const data = formData(form);
+    const sessionId = data.sessionId;
+    if (!sessionId) {
+      throw new Error("Class session is required.");
+    }
+    const input = createClassResourceAllocationSubmission({
+      resourceId: data.resourceId,
+      startsAtLocal: data.startsAt,
+      endsAtLocal: data.endsAt,
+      overrideConflict: data.overrideConflict === "true",
+      overrideReason: data.overrideReason
+    });
+    await client.allocateClassSessionResource(state.gym.id, sessionId, input);
+    state.selectedClassSessionId = sessionId;
+    state.selectedReservationAgendaItemId = `class:${sessionId}`;
+    setBanner("success", "Class resource allocated.");
+    await refreshSelectedClassBookings();
+    render();
+  });
+
   bindForm("create-access-device-form", async (form) => {
     if (!state.gym) {
       return;
@@ -6030,49 +7029,52 @@ function bindEvents() {
       return;
     }
     const data = formData(form);
-    const firstName = data.firstName.trim();
-    const lastName = data.lastName.trim();
-    const email = data.email.trim() || undefined;
-    const phone = data.phone.trim() || undefined;
-    const planId = data.planId || undefined;
-    if (!firstName || !lastName) {
-      throw new Error("Buyer first and last name are required for POS sales.");
-    }
-    if (!email && !phone) {
-      throw new Error("Enter at least an email or phone number so the buyer can be added as a customer.");
-    }
-    if (data.paymentMethod === StripePaymentMethod.CardReader) {
-      throw new Error("Stripe Terminal card-reader support is not wired in this browser app yet. Use manual entry for now.");
-    }
-    if (planId && recurringMembershipPlanById(planId)) {
-      assertRecurringMembershipRequirements({ email, phone }, "before assigning a recurring membership from POS.");
-    }
-    const purchaseInput = {
-      firstName,
-      lastName,
-      ...(email ? { email } : {}),
-      ...(phone ? { phone } : {}),
-      amountCents: dollarsToCents(data.amount || "0"),
-      paymentMethod: (data.paymentMethod as StripePaymentMethod) || StripePaymentMethod.ManualEntry,
-      ...(data.note.trim() ? { note: data.note.trim() } : {}),
-      ...(data.receiptEmail.trim() ? { receiptEmail: data.receiptEmail.trim() } : {}),
-      ...(planId ? { planId } : {})
-    };
+    const purchaseInput = buildPosPurchaseInput(data);
     const purchase = state.posStripeConfig?.enabled && state.posStripeConfig.publishableKey
-      ? await submitStripePosPurchase(state.gym.id, purchaseInput)
+      ? purchaseInput.paymentMethod === StripePaymentMethod.CardReader
+        ? await submitStripeTerminalPosPurchase(state.gym.id, purchaseInput)
+        : await submitStripePosPurchase(state.gym.id, purchaseInput)
       : await client.createPosPurchase(state.gym.id, purchaseInput);
-    const resolvedPurchase = purchase as { consumer: MemberRecord; membership?: { id: string } };
-    state.selectedMemberId = resolvedPurchase.consumer.id;
-    state.editingMemberId = resolvedPurchase.consumer.id;
-    await refreshCreatedConsumerState(state.gym.id, resolvedPurchase.consumer.id);
-    navigateDashboardView("customer_profile", { preserveContext: true });
-    setBanner(
-      "success",
-      resolvedPurchase.membership
-        ? "Payment collected. Buyer added to the consumer directory and plan assigned."
-        : "Payment collected. Buyer added to the consumer directory as a customer."
-    );
+    const resolvedPurchase = purchase as PosPurchaseResult;
+    if ("consumer" in resolvedPurchase && resolvedPurchase.consumer) {
+      state.selectedMemberId = resolvedPurchase.consumer.id;
+      state.editingMemberId = resolvedPurchase.consumer.id;
+      await refreshCreatedConsumerState(state.gym.id, resolvedPurchase.consumer.id);
+      navigateDashboardView("customer_profile", { preserveContext: true });
+      setBanner(
+        "success",
+        resolvedPurchase.membership
+          ? "Payment collected. Buyer added to the consumer directory and plan assigned."
+          : "Payment collected. Buyer added to the consumer directory as a customer."
+      );
+    } else if (resolvedPurchase.anonymousSale) {
+      setBanner("success", `Payment collected for ${resolvedPurchase.buyerName}. This sale was recorded as an anonymous walk-in purchase.`);
+    }
     void refreshDashboard(false);
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-pos-terminal-connect]").forEach((button) => {
+    button.addEventListener("click", () => {
+      void connectSimulatedPosTerminal().catch((error) => {
+        setBanner("error", describeError(error));
+        render();
+      });
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-pos-terminal-disconnect]").forEach((button) => {
+    button.addEventListener("click", () => {
+      void disconnectPosTerminal().catch((error) => {
+        setBanner("error", describeError(error));
+        render();
+      });
+    });
+  });
+
+  app.querySelectorAll<HTMLSelectElement>('select[name="paymentMethod"]').forEach((select) => {
+    select.addEventListener("change", () => {
+      void syncPosStripePaymentField();
+    });
   });
 
   bindForm("pos-stripe-setup-form", async (form) => {
@@ -6093,6 +7095,48 @@ function bindEvents() {
     navigateDashboardView("pos", { preserveContext: true });
   });
 
+  bindForm("pos-settings-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    if (!currentPermissions().includes(Permission.GymUpdate)) {
+      throw new Error("Gym update permission is required to save POS rules.");
+    }
+    const allowAnonymousWalkInPos = form.querySelector<HTMLInputElement>('input[name="allowAnonymousWalkInPos"]')?.checked === true;
+    const currentFlags = state.gym.featureFlags ?? [];
+    const nextFlags = (allowAnonymousWalkInPos
+      ? [...new Set([...currentFlags, FeatureFlag.AnonymousWalkInPos])]
+      : currentFlags.filter((flag) => flag !== FeatureFlag.AnonymousWalkInPos)) as FeatureFlag[];
+    await client.updateGym(state.gym.id, { featureFlags: nextFlags });
+    setBanner("success", allowAnonymousWalkInPos ? "Anonymous walk-in POS sales enabled." : "Anonymous walk-in POS sales disabled.");
+    await refreshDashboard(false);
+    navigateSettingsSection("featured_items");
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-pos-stripe-connect]").forEach((button) => {
+    button.addEventListener("click", () => {
+      void (async () => {
+        if (!state.gym) {
+          return;
+        }
+        if (!currentPermissions().includes(Permission.GymUpdate)) {
+          throw new Error("Gym update permission is required to start Stripe onboarding.");
+        }
+        await launchStripeConnectOnboarding(state.gym.id);
+      })().catch((error) => {
+        setBanner("error", describeError(error));
+        render();
+      });
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-pos-stripe-embed-toggle]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.stripeConnectEmbeddedOpen = !state.stripeConnectEmbeddedOpen;
+      render();
+    });
+  });
+
   app.querySelectorAll<HTMLButtonElement>("[data-pos-stripe-copy]").forEach((button) => {
     button.addEventListener("click", async () => {
       const stripeAccountId = state.gym?.stripeAccountId;
@@ -6106,6 +7150,26 @@ function bindEvents() {
         setBanner("error", "Could not copy the Stripe connected account id from this browser.");
       }
       render();
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-pos-stripe-disconnect]").forEach((button) => {
+    button.addEventListener("click", () => {
+      void (async () => {
+        if (!state.gym) {
+          return;
+        }
+        if (!currentPermissions().includes(Permission.GymUpdate)) {
+          throw new Error("Gym update permission is required to disconnect Stripe.");
+        }
+        await client.disconnectStripeConnectAccount(state.gym.id);
+        setBanner("success", "Stripe connected account removed from this gym.");
+        await refreshDashboard(false);
+        navigateDashboardView("pos", { preserveContext: true });
+      })().catch((error) => {
+        setBanner("error", describeError(error));
+        render();
+      });
     });
   });
 
@@ -6217,6 +7281,10 @@ function bindEvents() {
   }
 }
 
+function renderBannerMarkup(tone: BannerTone, text: string, className = "") {
+  return `<div class="banner ${tone}${className ? ` ${className}` : ""}">${escapeHtml(text)}</div>`;
+}
+
 function applyStaffAccessFilters() {
   const searchInput = app.querySelector<HTMLInputElement>("[data-staff-access-search]");
   const roleSelect = app.querySelector<HTMLSelectElement>("[data-staff-access-role-filter]");
@@ -6313,11 +7381,11 @@ function formData(form: HTMLFormElement) {
   return Object.fromEntries(values.entries()) as Record<string, string>;
 }
 
-function renderInput(name: string, label: string, type = "text", value = "") {
+function renderInput(name: string, label: string, type = "text", value = "", disabled = false) {
   return `
     <label class="field">
       <span>${label}</span>
-      <input name="${name}" type="${type}" value="${escapeAttribute(value)}" />
+      <input name="${name}" type="${type}" value="${escapeAttribute(value)}" ${disabled ? "disabled" : ""} />
     </label>
   `;
 }
@@ -6388,12 +7456,13 @@ function renderSelect(
   name: string,
   label: string,
   options: Array<{ value: string; label: string }>,
-  selectedValue: string
+  selectedValue: string,
+  disabled = false
 ) {
   return `
     <label class="field">
       <span>${label}</span>
-      <select name="${name}">
+      <select name="${name}" ${disabled ? "disabled" : ""}>
         ${options
           .map(
             (option) =>
@@ -6484,15 +7553,27 @@ async function syncCameraCaptureModal() {
   await cameraStartPromise;
 }
 
-async function syncPosStripeCardField() {
+async function syncPosStripePaymentField() {
   const mount = app.querySelector<HTMLDivElement>("[data-pos-stripe-card]");
-  if (!mount || !state.posStripeConfig?.publishableKey) {
+  const paymentMethod = app.querySelector<HTMLSelectElement>('select[name="paymentMethod"]')?.value as StripePaymentMethod | undefined;
+  const keyedField = app.querySelector<HTMLElement>("[data-pos-keyed-card-field]");
+  const keyedNote = app.querySelector<HTMLElement>("[data-pos-keyed-note]");
+  const terminalPanel = app.querySelector<HTMLElement>("[data-pos-terminal-panel]");
+  const useTerminal = paymentMethod === StripePaymentMethod.CardReader;
+  if (keyedField) {
+    keyedField.hidden = useTerminal;
+  }
+  if (keyedNote) {
+    keyedNote.hidden = useTerminal;
+  }
+  if (terminalPanel) {
+    terminalPanel.hidden = !useTerminal;
+  }
+  syncPosTerminalUi();
+  if (useTerminal || !mount || !state.posStripeConfig?.publishableKey) {
     if (stripeCardElement) {
       stripeCardElement.unmount();
     }
-    return;
-  }
-  if (mount.childElementCount > 0) {
     return;
   }
   if (!stripePromise || stripePromiseKey !== state.posStripeConfig.publishableKey) {
@@ -6500,6 +7581,7 @@ async function syncPosStripeCardField() {
     stripePromise = loadStripe(state.posStripeConfig.publishableKey);
     stripeElements = undefined;
     stripeCardElement = undefined;
+    stripeCardThemeKey = undefined;
   }
   const stripe = await stripePromise;
   if (!stripe) {
@@ -6507,29 +7589,213 @@ async function syncPosStripeCardField() {
     render();
     return;
   }
+  if (mount.childElementCount > 0) {
+    const nextThemeKey = buildStripeCardThemeKey();
+    if (stripeCardThemeKey === nextThemeKey) {
+      return;
+    }
+    if (stripeCardElement) {
+      stripeCardElement.unmount();
+      stripeCardElement.destroy();
+      stripeCardElement = undefined;
+    }
+  }
   if (!stripeElements) {
     stripeElements = stripe.elements();
   }
+  const nextThemeKey = buildStripeCardThemeKey();
   if (!stripeCardElement) {
-    stripeCardElement = stripeElements.create("card", { hidePostalCode: true });
+    stripeCardElement = stripeElements.create("card", buildStripeCardOptions());
+    stripeCardThemeKey = nextThemeKey;
   }
   stripeCardElement.mount(mount);
 }
 
-async function submitStripePosPurchase(
-  gymId: string,
-  input: {
-    firstName: string;
-    lastName: string;
-    email?: string;
-    phone?: string;
-    amountCents: number;
-    paymentMethod: StripePaymentMethod;
-    note?: string;
-    receiptEmail?: string;
-    planId?: string;
+async function ensurePosTerminalInstance() {
+  if (!state.gym) {
+    throw new Error("Choose a gym before connecting a Stripe reader.");
   }
-) {
+  if (!stripeTerminalPromise) {
+    stripeTerminalPromise = loadStripeTerminal();
+  }
+  const StripeTerminal = await stripeTerminalPromise;
+  if (!StripeTerminal) {
+    throw new Error("Stripe Terminal could not be initialized in this browser.");
+  }
+  if (!stripeTerminalInstance) {
+    stripeTerminalInstance = StripeTerminal.create({
+      onFetchConnectionToken: async () => {
+        const response = (await client.createPosTerminalConnectionToken(state.gym!.id)) as { secret?: string };
+        if (!response.secret) {
+          throw new Error("Stripe Terminal connection token response was empty.");
+        }
+        return response.secret;
+      },
+      onUnexpectedReaderDisconnect: () => {
+        state.posTerminalConnectionState = "not_connected";
+        state.posTerminalPaymentState = "not_ready";
+        state.posTerminalReaderLabel = undefined;
+        setBanner("info", "The Stripe Terminal reader disconnected.");
+        render();
+      },
+      onConnectionStatusChange: (status) => {
+        state.posTerminalConnectionState = normalizePosTerminalConnectionState(status);
+        syncPosTerminalUi();
+      },
+      onPaymentStatusChange: (status) => {
+        state.posTerminalPaymentState = normalizePosTerminalPaymentState(status);
+        syncPosTerminalUi();
+      }
+    });
+  }
+  return stripeTerminalInstance;
+}
+
+function syncPosTerminalUi() {
+  const status = app.querySelector<HTMLElement>("[data-pos-terminal-status]");
+  const disconnectButton = app.querySelector<HTMLButtonElement>("[data-pos-terminal-disconnect]");
+  if (status) {
+    status.textContent = formatPosTerminalStatus();
+  }
+  if (disconnectButton) {
+    disconnectButton.disabled = state.posTerminalConnectionState !== "connected";
+  }
+}
+
+function normalizePosTerminalConnectionState(value: unknown): PosTerminalConnectionState {
+  const raw = extractPosTerminalStatus(value);
+  if (raw === "connected") {
+    return "connected";
+  }
+  if (raw === "connecting") {
+    return "connecting";
+  }
+  return "not_connected";
+}
+
+function normalizePosTerminalPaymentState(value: unknown): PosTerminalPaymentState {
+  const raw = extractPosTerminalStatus(value);
+  if (raw === "ready" || raw === "waiting_for_input" || raw === "processing") {
+    return raw;
+  }
+  return "not_ready";
+}
+
+function extractPosTerminalStatus(value: unknown) {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (value && typeof value === "object") {
+    const status = "status" in value ? value.status : "connectionStatus" in value ? value.connectionStatus : "paymentStatus" in value ? value.paymentStatus : undefined;
+    return typeof status === "string" ? status : "";
+  }
+  return "";
+}
+
+function getPosTerminalError(value: unknown) {
+  if (!value || typeof value !== "object" || !("error" in value)) {
+    return undefined;
+  }
+  const error = value.error;
+  return error && typeof error === "object" ? error as { message?: string } : undefined;
+}
+
+function getPosTerminalDiscoveredReaders(value: unknown) {
+  if (!value || typeof value !== "object" || !("discoveredReaders" in value)) {
+    return [] as Array<{ label?: string }>;
+  }
+  return Array.isArray(value.discoveredReaders) ? value.discoveredReaders as Array<{ label?: string }> : [];
+}
+
+function getPosTerminalReader(value: unknown) {
+  if (!value || typeof value !== "object" || !("reader" in value)) {
+    return undefined;
+  }
+  const reader = value.reader;
+  return reader && typeof reader === "object" ? reader as { label?: string } : undefined;
+}
+
+function getPosTerminalPaymentIntent(value: unknown) {
+  if (!value || typeof value !== "object" || !("paymentIntent" in value)) {
+    return undefined;
+  }
+  const paymentIntent = value.paymentIntent;
+  return paymentIntent && typeof paymentIntent === "object" ? paymentIntent as { id?: string } : undefined;
+}
+
+function formatPosTerminalStatus() {
+  const readerName = state.posTerminalReaderLabel ? `: ${state.posTerminalReaderLabel}` : "";
+  switch (state.posTerminalConnectionState) {
+    case "connected":
+      return state.posTerminalPaymentState === "waiting_for_input"
+        ? `Connected${readerName} • waiting for card`
+        : state.posTerminalPaymentState === "processing"
+          ? `Connected${readerName} • processing`
+          : `Connected${readerName}`;
+    case "connecting":
+      return "Connecting simulated reader";
+    default:
+      return "Not connected";
+  }
+}
+
+function posTerminalHelperText() {
+  if (state.posTerminalConnectionState === "connected") {
+    return "This browser is connected to Stripe's simulated reader on this machine. Submit the sale to run a local Terminal payment flow.";
+  }
+  if (state.posTerminalConnectionState === "connecting") {
+    return "Connecting to Stripe's simulated reader in this browser.";
+  }
+  return "Connect Stripe's simulated reader in this browser to test Terminal without physical hardware.";
+}
+
+async function connectSimulatedPosTerminal() {
+  const terminal = await ensurePosTerminalInstance();
+  type PosTerminalReader = Parameters<typeof terminal.connectReader>[0];
+  state.posTerminalConnectionState = "connecting";
+  syncPosTerminalUi();
+  const discoverResult = await terminal.discoverReaders({ simulated: true });
+  const discoverError = getPosTerminalError(discoverResult);
+  if (discoverError) {
+    state.posTerminalConnectionState = "not_connected";
+    syncPosTerminalUi();
+    throw new Error(discoverError.message ?? "Stripe could not discover a simulated reader.");
+  }
+  const reader = getPosTerminalDiscoveredReaders(discoverResult)[0] as PosTerminalReader | undefined;
+  if (!reader) {
+    state.posTerminalConnectionState = "not_connected";
+    syncPosTerminalUi();
+    throw new Error("No simulated Stripe Terminal reader was available.");
+  }
+  const connectResult = await terminal.connectReader(reader);
+  const connectError = getPosTerminalError(connectResult);
+  if (connectError) {
+    state.posTerminalConnectionState = "not_connected";
+    syncPosTerminalUi();
+    throw new Error(connectError.message ?? "Stripe could not connect to the simulated reader.");
+  }
+  state.posTerminalConnectionState = "connected";
+  state.posTerminalPaymentState = normalizePosTerminalPaymentState(terminal.getPaymentStatus());
+  state.posTerminalReaderLabel = getPosTerminalReader(connectResult)?.label ?? "Simulated reader";
+  syncPosTerminalUi();
+}
+
+async function disconnectPosTerminal() {
+  if (!stripeTerminalInstance) {
+    state.posTerminalConnectionState = "not_connected";
+    state.posTerminalPaymentState = "not_ready";
+    state.posTerminalReaderLabel = undefined;
+    syncPosTerminalUi();
+    return;
+  }
+  await stripeTerminalInstance.disconnectReader();
+  state.posTerminalConnectionState = "not_connected";
+  state.posTerminalPaymentState = "not_ready";
+  state.posTerminalReaderLabel = undefined;
+  syncPosTerminalUi();
+}
+
+async function submitStripePosPurchase(gymId: string, input: PosPurchaseRequest) {
   if (!stripePromise || !stripeCardElement) {
     throw new Error("Stripe card entry is not ready yet. Try again in a moment.");
   }
@@ -6559,6 +7825,219 @@ async function submitStripePosPurchase(
   }
   const paymentIntentId = confirmedIntent?.id ?? paymentIntent.paymentIntentId;
   return client.finalizePosPaymentIntent(gymId, paymentIntentId);
+}
+
+async function submitStripeTerminalPosPurchase(gymId: string, input: PosPurchaseRequest) {
+  const terminal = await ensurePosTerminalInstance();
+  type PosTerminalPaymentIntent = Parameters<typeof terminal.processPayment>[0];
+  if (state.posTerminalConnectionState !== "connected") {
+    await connectSimulatedPosTerminal();
+  }
+  await terminal.setSimulatorConfiguration({
+    testCardNumber: "4242424242424242"
+  });
+  const paymentIntent = (await client.createPosPaymentIntent(gymId, input)) as {
+    paymentIntentId: string;
+    clientSecret: string;
+  };
+  const collectResult = await terminal.collectPaymentMethod(paymentIntent.clientSecret);
+  const collectError = getPosTerminalError(collectResult);
+  if (collectError) {
+    throw new Error(collectError.message ?? "Stripe Terminal could not collect a payment method.");
+  }
+  const collectedPaymentIntent = getPosTerminalPaymentIntent(collectResult) as PosTerminalPaymentIntent | undefined;
+  if (!collectedPaymentIntent) {
+    throw new Error("Stripe Terminal did not return a collected payment intent.");
+  }
+  const processResult = await terminal.processPayment(collectedPaymentIntent);
+  const processError = getPosTerminalError(processResult);
+  if (processError) {
+    throw new Error(processError.message ?? "Stripe Terminal could not process the payment.");
+  }
+  const paymentIntentId = getPosTerminalPaymentIntent(processResult)?.id ?? paymentIntent.paymentIntentId;
+  return client.finalizePosPaymentIntent(gymId, paymentIntentId);
+}
+
+async function syncStripeConnectEmbed() {
+  const onboardingMount = app.querySelector<HTMLDivElement>("[data-stripe-connect-onboarding]");
+  const bannerMount = app.querySelector<HTMLDivElement>("[data-stripe-connect-banner]");
+  const accountManagementMount = app.querySelector<HTMLDivElement>("[data-stripe-connect-account-management]");
+  const balancesMount = app.querySelector<HTMLDivElement>("[data-stripe-connect-balances]");
+  const payoutsMount = app.querySelector<HTMLDivElement>("[data-stripe-connect-payouts]");
+  const paymentsMount = app.querySelector<HTMLDivElement>("[data-stripe-connect-payments]");
+  if (!state.gym || !state.posStripeConfig?.publishableKey || !currentPermissions().includes(Permission.GymUpdate)) {
+    return;
+  }
+  if (!onboardingMount && !bannerMount && !accountManagementMount && !balancesMount && !payoutsMount && !paymentsMount) {
+    return;
+  }
+
+  const connectKey = `${state.gym.id}:${state.posStripeConfig.publishableKey}`;
+  if (!stripeConnectInstance || stripeConnectInstanceKey !== connectKey) {
+    stripeConnectInstance = loadConnectAndInitialize({
+      publishableKey: state.posStripeConfig.publishableKey,
+      fetchClientSecret: async () => {
+        const response = (await client.createStripeConnectAccountSession(state.gym!.id)) as StripeConnectSessionRecord;
+        const previousSession = state.stripeConnectSession;
+        state.stripeConnectSession = response;
+        if (JSON.stringify(previousSession?.components) !== JSON.stringify(response.components)) {
+          render();
+        }
+        return response.clientSecret;
+      },
+      appearance: {
+        overlays: "dialog"
+      }
+    });
+    stripeConnectInstanceKey = connectKey;
+  }
+
+  if (bannerMount && bannerMount.childElementCount === 0) {
+    const notificationBanner = stripeConnectInstance.create("notification-banner");
+    notificationBanner.setOnLoadError(({ error }) => {
+      setBanner("error", error.message ?? "Stripe could not load the in-app notification banner.");
+      render();
+    });
+    bannerMount.appendChild(notificationBanner);
+  }
+
+  if (onboardingMount && onboardingMount.childElementCount === 0) {
+    const accountOnboarding = stripeConnectInstance.create("account-onboarding");
+    accountOnboarding.setCollectionOptions({
+      fields: "eventually_due",
+      futureRequirements: "include"
+    });
+    accountOnboarding.setOnExit(() => {
+      void refreshDashboard(false);
+    });
+    accountOnboarding.setOnLoadError(({ error }) => {
+      setBanner("error", error.message ?? "Stripe could not load the in-app onboarding flow.");
+      render();
+    });
+    onboardingMount.appendChild(accountOnboarding);
+  }
+
+  if (accountManagementMount && accountManagementMount.childElementCount === 0) {
+    const accountManagement = stripeConnectInstance.create("account-management");
+    accountManagement.setOnLoadError(({ error }) => {
+      setBanner("error", error.message ?? "Stripe could not load account management.");
+    });
+    accountManagementMount.appendChild(accountManagement);
+  }
+
+  if (balancesMount && balancesMount.childElementCount === 0) {
+    const balances = stripeConnectInstance.create("balances");
+    balances.setOnLoadError(({ error }) => {
+      setBanner("error", error.message ?? "Stripe could not load balances.");
+    });
+    balancesMount.appendChild(balances);
+  }
+
+  if (payoutsMount && payoutsMount.childElementCount === 0) {
+    const payouts = stripeConnectInstance.create("payouts");
+    payouts.setOnLoadError(({ error }) => {
+      setBanner("error", error.message ?? "Stripe could not load payouts.");
+    });
+    payoutsMount.appendChild(payouts);
+  }
+
+  if (paymentsMount && paymentsMount.childElementCount === 0) {
+    const payments = stripeConnectInstance.create("payments");
+    payments.setOnLoadError(({ error }) => {
+      setBanner("error", error.message ?? "Stripe could not load payments.");
+    });
+    paymentsMount.appendChild(payments);
+  }
+}
+
+function buildStripeCardOptions() {
+  const rootStyle = getComputedStyle(document.documentElement);
+  const textColor = rootStyle.getPropertyValue("--ink").trim() || "#0f172a";
+  const mutedColor = rootStyle.getPropertyValue("--muted").trim() || "#64748b";
+  const errorColor = rootStyle.getPropertyValue("--error").trim() || "#dc2626";
+  return {
+    hidePostalCode: true,
+    style: {
+      base: {
+        color: textColor,
+        fontFamily: '"Space Grotesk", "Segoe UI", sans-serif',
+        fontSize: "16px",
+        fontSmoothing: "antialiased",
+        iconColor: mutedColor,
+        "::placeholder": {
+          color: mutedColor
+        }
+      },
+      invalid: {
+        color: errorColor,
+        iconColor: errorColor
+      }
+    }
+  };
+}
+
+function buildStripeCardThemeKey() {
+  const rootStyle = getComputedStyle(document.documentElement);
+  return [
+    state.theme,
+    rootStyle.getPropertyValue("--ink").trim(),
+    rootStyle.getPropertyValue("--muted").trim(),
+    rootStyle.getPropertyValue("--error").trim()
+  ].join("|");
+}
+
+function buildPosPurchaseInput(data: Record<string, string>) {
+  const firstName = data.firstName.trim();
+  const lastName = data.lastName.trim();
+  const email = data.email.trim() || undefined;
+  const phone = data.phone.trim() || undefined;
+  const planId = data.planId || undefined;
+  const anonymousWalkInEnabled = state.gym?.featureFlags.includes(FeatureFlag.AnonymousWalkInPos) ?? false;
+  if (!firstName || !lastName) {
+    throw new Error("Buyer first and last name are required for POS sales.");
+  }
+  if (!email && !phone && (planId || !anonymousWalkInEnabled)) {
+    throw new Error(
+      planId
+        ? "A customer email or phone number is required before collecting payment when a membership plan is being assigned."
+        : anonymousWalkInEnabled
+          ? "Enter an email or phone number to attach this sale to a customer record, or leave plan assignment empty to treat it as an anonymous walk-in sale."
+          : "Enter at least an email or phone number before collecting payment. This gym currently requires POS sales to attach to a customer record."
+    );
+  }
+  const amountCents = dollarsToCents(data.amount || "0");
+  if (amountCents <= 0) {
+    throw new Error("Enter an amount greater than $0.00 before collecting payment.");
+  }
+  if (amountCents > 99_999_999) {
+    throw new Error("Stripe POS payments must be less than $1,000,000. Enter $999,999.99 or less.");
+  }
+  if (planId && recurringMembershipPlanById(planId)) {
+    assertRecurringMembershipRequirements({ email, phone }, "before assigning a recurring membership from POS.");
+  }
+  return {
+    firstName,
+    lastName,
+    ...(email ? { email } : {}),
+    ...(phone ? { phone } : {}),
+    amountCents,
+    paymentMethod: (data.paymentMethod as StripePaymentMethod) || StripePaymentMethod.ManualEntry,
+    ...(data.note.trim() ? { note: data.note.trim() } : {}),
+    ...(data.receiptEmail.trim() ? { receiptEmail: data.receiptEmail.trim() } : {}),
+    ...(planId ? { planId } : {})
+  } satisfies PosPurchaseRequest;
+}
+
+
+async function launchStripeConnectOnboarding(gymId: string) {
+  const response = (await client.createStripeConnectOnboardingLink(gymId, {
+    returnUrl: window.location.href,
+    refreshUrl: window.location.href
+  })) as { url: string };
+  if (!response.url) {
+    throw new Error("Stripe did not return an onboarding URL.");
+  }
+  window.location.assign(response.url);
 }
 
 function closeCameraCapture() {
@@ -6732,6 +8211,7 @@ function clearDashboardState() {
   state.me = null;
   state.gym = null;
   state.members = [];
+  state.resources = [];
   state.staff = [];
   state.staffShifts = [];
   state.staffTimeEntries = [];
@@ -6745,12 +8225,22 @@ function clearDashboardState() {
   state.plans = [];
   state.classTypes = [];
   state.classBookings = [];
+  state.classResourceAllocations = [];
+  state.facilityReservations = [];
+  state.selectedReservationAgendaItemId = "";
   state.accessDevices = [];
   state.accessRules = [];
   state.accessEvents = [];
   state.memberCache = {};
   state.checkInDebug = undefined;
   state.checkInReview = undefined;
+  state.posStripeConfig = undefined;
+  state.posTerminalConnectionState = "not_connected";
+  state.posTerminalPaymentState = "not_ready";
+  state.posTerminalReaderLabel = undefined;
+  state.stripeConnectAccount = undefined;
+  state.stripeConnectSession = undefined;
+  state.stripeConnectEmbeddedOpen = false;
   state.selectedRoleId = "";
 }
 
@@ -6761,17 +8251,18 @@ function setBanner(tone: BannerTone, text: string) {
 function readRoute(): {
   view: ViewName;
   dashboardView: AppState["dashboardView"];
+  checkInRailExpanded: boolean;
   settingsSection?: SettingsSectionKey;
   consumerSegment?: ConsumerSegmentFilter;
 } {
   const segments = getHashSegments();
   if (segments[0] === "public") {
-    return { view: "public", dashboardView: "home" };
+    return { view: "public", dashboardView: "home", checkInRailExpanded: false };
   }
   if (segments[0] === "dashboard") {
     return { view: "dashboard", ...parseDashboardRoute(segments.slice(1)) };
   }
-  return { view: "dashboard", dashboardView: "home" };
+  return { view: "dashboard", dashboardView: "home", checkInRailExpanded: false };
 }
 
 function syncRouteFromHash() {
@@ -6784,6 +8275,7 @@ function syncRouteFromHash() {
       resetDashboardTransientState();
     }
     state.dashboardView = route.dashboardView;
+    state.checkInRailExpanded = route.checkInRailExpanded;
     if (route.dashboardView === "settings") {
       state.settingsSection = route.settingsSection ?? "setup";
     }
@@ -6803,69 +8295,98 @@ function parseDashboardRoute(segments: string[]) {
     case undefined:
     case "":
     case "home":
-      return { dashboardView: "home" as const };
+      return { dashboardView: "home" as const, checkInRailExpanded: false };
     case "check-in":
-      return { dashboardView: subsection === "history" ? "check_in_history" as const : "check_in" as const };
+      return {
+        dashboardView: subsection === "history" ? "check_in_history" as const : "home" as const,
+        checkInRailExpanded: true
+      };
     case "consumers":
       if (subsection === "profile") {
-        return { dashboardView: "customer_profile" as const, consumerSegment: "all" as const };
+        return {
+          dashboardView: "customer_profile" as const,
+          consumerSegment: "all" as const,
+          checkInRailExpanded: false
+        };
       }
       if (subsection === "edit") {
-        return { dashboardView: "customer_edit" as const, consumerSegment: "all" as const };
+        return {
+          dashboardView: "customer_edit" as const,
+          consumerSegment: "all" as const,
+          checkInRailExpanded: false
+        };
       }
       return {
         dashboardView: "consumers" as const,
-        consumerSegment: parseConsumerSegmentRoute(subsection)
+        consumerSegment: parseConsumerSegmentRoute(subsection),
+        checkInRailExpanded: false
       };
     case "customers":
       if (subsection === "profile") {
-        return { dashboardView: "customer_profile" as const, consumerSegment: "all" as const };
+        return {
+          dashboardView: "customer_profile" as const,
+          consumerSegment: "all" as const,
+          checkInRailExpanded: false
+        };
       }
       if (subsection === "edit") {
-        return { dashboardView: "customer_edit" as const, consumerSegment: "all" as const };
+        return {
+          dashboardView: "customer_edit" as const,
+          consumerSegment: "all" as const,
+          checkInRailExpanded: false
+        };
       }
-      return { dashboardView: "consumers" as const, consumerSegment: "customers" as const };
+      return {
+        dashboardView: "consumers" as const,
+        consumerSegment: "customers" as const,
+        checkInRailExpanded: false
+      };
     case "leads":
-      return { dashboardView: "consumers" as const, consumerSegment: "leads" as const };
+      return { dashboardView: "consumers" as const, consumerSegment: "leads" as const, checkInRailExpanded: false };
     case "staff":
-      return { dashboardView: "staff" as const };
+      return { dashboardView: "staff" as const, checkInRailExpanded: false };
     case "point-of-sale":
     case "pos":
-      return { dashboardView: "pos" as const };
+      return { dashboardView: "pos" as const, checkInRailExpanded: false };
     case "plans":
     case "membership-plans":
-      return { dashboardView: "plans" as const };
+      return { dashboardView: "plans" as const, checkInRailExpanded: false };
     case "locations":
-      return { dashboardView: "locations" as const };
+      return { dashboardView: "locations" as const, checkInRailExpanded: false };
     case "classes":
-      return { dashboardView: "classes" as const };
+      return { dashboardView: "classes" as const, checkInRailExpanded: false };
     case "bookings":
-      return { dashboardView: "bookings" as const };
+      return { dashboardView: "bookings" as const, checkInRailExpanded: false };
     case "personal-training":
     case "training":
-      return { dashboardView: "personal_training" as const };
+      return { dashboardView: "personal_training" as const, checkInRailExpanded: false };
     case "access-control":
     case "access":
-      return { dashboardView: "access_control" as const };
+      return { dashboardView: "access_control" as const, checkInRailExpanded: false };
     case "contracts":
     case "forms":
-      return { dashboardView: "contracts" as const };
+      return { dashboardView: "contracts" as const, checkInRailExpanded: false };
     case "member-portal":
     case "portal":
-      return { dashboardView: "member_portal" as const };
+      return { dashboardView: "member_portal" as const, checkInRailExpanded: false };
     case "marketing":
-      return { dashboardView: "marketing" as const };
+      return { dashboardView: "marketing" as const, checkInRailExpanded: false };
     case "reporting":
     case "reports":
-      return { dashboardView: "reports" as const };
+      return { dashboardView: "reports" as const, checkInRailExpanded: false };
     case "settings":
       return {
         dashboardView: "settings" as const,
-        settingsSection: parseSettingsSectionRoute(subsection)
+        settingsSection: parseSettingsSectionRoute(subsection),
+        checkInRailExpanded: false
       };
     default:
-      return { dashboardView: "home" as const };
+      return { dashboardView: "home" as const, checkInRailExpanded: false };
   }
+}
+
+function dashboardContentView(view: AppState["dashboardView"]) {
+  return view === "check_in" ? "home" : view;
 }
 
 function parseSettingsSectionRoute(section?: string): SettingsSectionKey | undefined {
@@ -7015,17 +8536,32 @@ function resetDashboardTransientState() {
 }
 
 function navigateDashboardView(view: AppState["dashboardView"], options?: { preserveContext?: boolean }) {
+  if (view === "check_in") {
+    openCheckInRail();
+    return;
+  }
   const previousTopLevel = dashboardTopLevelView(state.dashboardView);
   const nextTopLevel = dashboardTopLevelView(view);
   if (!options?.preserveContext && previousTopLevel !== nextTopLevel) {
     resetDashboardTransientState();
   }
   state.dashboardView = view;
+  state.checkInRailExpanded = false;
   const targetHash = dashboardViewToHash(view);
   if (window.location.hash !== targetHash) {
     window.location.hash = targetHash;
     return;
   }
+  render();
+}
+
+function openCheckInRail() {
+  state.checkInRailExpanded = true;
+  render();
+}
+
+function toggleCheckInRail() {
+  state.checkInRailExpanded = !state.checkInRailExpanded;
   render();
 }
 
@@ -7105,6 +8641,8 @@ function clearPublicSlug() {
   state.publicSchedule = [];
   state.selectedClassSessionId = "";
   state.classBookings = [];
+  state.classResourceAllocations = [];
+  state.selectedReservationAgendaItemId = "";
   state.selectedPlanId = "";
   localStorage.removeItem(PUBLIC_SLUG_STORAGE_KEY);
 }

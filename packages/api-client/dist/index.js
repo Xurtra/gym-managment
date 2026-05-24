@@ -166,8 +166,23 @@ export class GymApiClient {
     getPosStripeConfig(gymId) {
         return this.request("GET", `/gyms/${gymId}/pos/stripe/config`);
     }
+    getStripeConnectAccount(gymId) {
+        return this.request("GET", `/gyms/${gymId}/stripe/connect-account`);
+    }
+    createStripeConnectOnboardingLink(gymId, input) {
+        return this.request("POST", `/gyms/${gymId}/stripe/connect-account/onboarding-link`, input);
+    }
+    createStripeConnectAccountSession(gymId) {
+        return this.request("POST", `/gyms/${gymId}/stripe/connect-account/session`, {});
+    }
+    disconnectStripeConnectAccount(gymId) {
+        return this.request("DELETE", `/gyms/${gymId}/stripe/connect-account`);
+    }
     createPosPaymentIntent(gymId, input) {
         return this.request("POST", `/gyms/${gymId}/pos/payment-intents`, input);
+    }
+    createPosTerminalConnectionToken(gymId) {
+        return this.request("POST", `/gyms/${gymId}/pos/terminal/connection-token`, {});
     }
     finalizePosPaymentIntent(gymId, paymentIntentId) {
         return this.request("POST", `/gyms/${gymId}/pos/payment-intents/${paymentIntentId}/finalize`, {});
@@ -210,6 +225,9 @@ export class GymApiClient {
     }
     allocateClassSessionResource(gymId, sessionId, input) {
         return this.request("POST", `/gyms/${gymId}/class-sessions/${sessionId}/resource-allocations`, input);
+    }
+    listClassSessionResourceAllocations(gymId, sessionId) {
+        return this.request("GET", `/gyms/${gymId}/class-sessions/${sessionId}/resource-allocations`);
     }
     listResources(gymId, locationId) {
         const query = locationId ? `?locationId=${encodeURIComponent(locationId)}` : "";

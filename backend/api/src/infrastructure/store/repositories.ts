@@ -147,6 +147,7 @@ export interface ReservationResourceRepository {
   getAllocation(allocationId: string): RepositoryResult<ResourceAllocation | undefined>;
   listAllocationsForGym(gymId: string): RepositoryResult<ResourceAllocation[]>;
   listAllocationsForResource(resourceId: string): RepositoryResult<ResourceAllocation[]>;
+  listAllocationsForClassSession(classSessionId: string): RepositoryResult<ResourceAllocation[]>;
   updateAllocation(allocation: ResourceAllocation): RepositoryResult<ResourceAllocation>;
   createFacilityReservation(
     reservation: FacilityReservation

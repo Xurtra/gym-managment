@@ -1,3 +1,5 @@
+import { RoleName, UserStatus } from "@gym-platform/constants";
+import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { createServices, type Services } from "../../app.js";
 import { fixedClock, testConfig } from "../../testUtils.js";
@@ -126,6 +128,111 @@ describe("ClassScheduleService", () => {
         waitlistCapacity: 5
       })
     ).rejects.toThrow(/trainer/i);
+  });
+
+  it("auto-allocates reservable trainer resources and blocks trainer conflicts", async () => {
+    const services = createServices(testConfig, fixedClock);
+    const { gymId, locationId } = await createGymWithLocation(services);
+    const trainer = await services.authService.register({
+      email: "trainer@example.com",
+      password: "Password123",
+      firstName: "Tara",
+      lastName: "Trainer",
+      timezone: "America/New_York",
+      locale: "en-US"
+    });
+    const memberRole = await services.roleService.getRoleByName(gymId, RoleName.Member);
+    const trainerRole = await services.roleService.getRoleByName(gymId, RoleName.Trainer);
+    await services.repositories.gymUsers.createGymUser({
+      id: randomUUID(),
+      gymId,
+      userId: trainer.user.id,
+      roleId: memberRole.id,
+      status: UserStatus.Active,
+      createdAt: fixedClock.now(),
+      updatedAt: fixedClock.now()
+    });
+    await services.roleService.assignRole(gymId, trainer.user.id, trainerRole.id);
+    const classType = await services.classScheduleService.createClassType(gymId, {
+      name: "Barbell Basics",
+      defaultDurationMinutes: 60,
+      defaultCapacity: 12,
+      defaultWaitlistCapacity: 2,
+      isPublic: true
+    });
+
+    const session = await services.classScheduleService.createSession(gymId, {
+      classTypeId: classType.id,
+      locationId,
+      trainerUserId: trainer.user.id,
+      startsAt: "2026-05-18T14:00:00.000Z",
+      endsAt: "2026-05-18T15:00:00.000Z",
+      capacity: 12,
+      waitlistCapacity: 2
+    });
+    const trainerResource = (
+      await services.reservationResourceService.listResources(gymId)
+    ).find((resource) => resource.linkedStaffUserId === trainer.user.id);
+    const allocations = await services.repositories.reservationResources.listAllocationsForGym(gymId);
+
+    await expect(
+      services.classScheduleService.createSession(gymId, {
+        classTypeId: classType.id,
+        locationId,
+        trainerUserId: trainer.user.id,
+        startsAt: "2026-05-18T14:30:00.000Z",
+        endsAt: "2026-05-18T15:30:00.000Z",
+        capacity: 12,
+        waitlistCapacity: 2
+      })
+    ).rejects.toMatchObject({ code: "resource_conflict" });
+
+    expect(trainerResource?.locationId).toBeUndefined();
+    expect(allocations).toHaveLength(1);
+    expect(allocations[0]?.resourceId).toBe(trainerResource?.id);
+    expect(allocations[0]?.classSessionId).toBe(session.id);
+  });
+
+  it("rejects reservable-role trainers when the linked resource is missing", async () => {
+    const services = createServices(testConfig, fixedClock);
+    const { gymId, locationId } = await createGymWithLocation(services);
+    const trainer = await services.authService.register({
+      email: "missing-resource-trainer@example.com",
+      password: "Password123",
+      firstName: "Mina",
+      lastName: "Missing",
+      timezone: "America/New_York",
+      locale: "en-US"
+    });
+    const trainerRole = await services.roleService.getRoleByName(gymId, RoleName.Trainer);
+    await services.repositories.gymUsers.createGymUser({
+      id: randomUUID(),
+      gymId,
+      userId: trainer.user.id,
+      roleId: trainerRole.id,
+      status: UserStatus.Active,
+      createdAt: fixedClock.now(),
+      updatedAt: fixedClock.now()
+    });
+    const classType = await services.classScheduleService.createClassType(gymId, {
+      name: "Recovery Flow",
+      defaultDurationMinutes: 45,
+      defaultCapacity: 8,
+      defaultWaitlistCapacity: 0,
+      isPublic: true
+    });
+
+    await expect(
+      services.classScheduleService.createSession(gymId, {
+        classTypeId: classType.id,
+        locationId,
+        trainerUserId: trainer.user.id,
+        startsAt: "2026-05-18T16:00:00.000Z",
+        endsAt: "2026-05-18T16:45:00.000Z",
+        capacity: 8,
+        waitlistCapacity: 0
+      })
+    ).rejects.toMatchObject({ code: "trainer_resource_missing" });
   });
 });
 

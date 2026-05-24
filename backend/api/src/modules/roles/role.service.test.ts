@@ -26,10 +26,13 @@ describe("RoleService", () => {
 
     const ownerRole = await services.roleService.getRoleByName(gymId, RoleName.Owner);
     const managerRole = await services.roleService.getRoleByName(gymId, RoleName.Manager);
+    const trainerRole = await services.roleService.getRoleByName(gymId, RoleName.Trainer);
     const memberRole = await services.roleService.getRoleByName(gymId, RoleName.Member);
 
     expect(ownerRole.permissions).toContain(Permission.StaffRoleAssign);
     expect(managerRole.permissions).toContain(Permission.StaffRemove);
+    expect(trainerRole.createsReservableResource).toBe(true);
+    expect(managerRole.createsReservableResource).toBe(false);
     expect(memberRole.permissions).not.toContain(Permission.StaffRoleAssign);
     await expect(
       services.roleService.requirePermission(gymId, owner.user.id, Permission.StaffRoleAssign)
@@ -76,6 +79,9 @@ describe("RoleService", () => {
       trainerRole.id,
       owner.user.id
     );
+    const trainerResource = (
+      await services.reservationResourceService.listResources(gymId)
+    ).find((resource) => resource.linkedStaffUserId === staff.user.id);
     const listedStaff = await services.roleService.listStaffAccess(gymId);
     const firstAuditEntries = await services.roleService.listStaffAuditLogs(gymId);
     const reassigned = await services.roleService.assignRole(
@@ -84,6 +90,9 @@ describe("RoleService", () => {
       frontDeskRole.id,
       owner.user.id
     );
+    const archivedTrainerResource = trainerResource
+      ? await services.repositories.reservationResources.getResource(trainerResource.id)
+      : undefined;
     await expect(
       services.roleService.removeStaffAccess(gymId, staff.user.id, staff.user.id)
     ).rejects.toThrow(/own access/i);
@@ -99,7 +108,11 @@ describe("RoleService", () => {
     );
 
     expect(assigned.roleId).toBe(trainerRole.id);
+    expect(trainerResource?.locationId).toBeUndefined();
+    expect(trainerResource?.resourceType).toBe("trainer");
+    expect(trainerResource?.autoManaged).toBe(true);
     expect(reassigned.roleId).toBe(frontDeskRole.id);
+    expect(archivedTrainerResource?.status).toBe("archived");
     expect(removed.status).toBe(UserStatus.Disabled);
     expect(listedStaff.find((entry) => entry.userId === staff.user.id)?.roleName).toBe(
       RoleName.Trainer
@@ -133,11 +146,13 @@ describe("RoleService", () => {
         Permission.MemberRead,
         Permission.MemberRead,
         Permission.StaffRead
-      ]
+      ],
+      createsReservableResource: true
     });
     const updated = await services.roleService.updateCustomRole(gymId, created.id, {
       name: "Operations Lead",
-      permissions: [Permission.GymRead, Permission.MemberRead, Permission.ReportRead]
+      permissions: [Permission.GymRead, Permission.MemberRead, Permission.ReportRead],
+      createsReservableResource: false
     });
     const temporary = await services.roleService.createCustomRole(gymId, {
       name: "Temporary Role",
@@ -147,12 +162,14 @@ describe("RoleService", () => {
     const roles = await services.roleService.listRoles(gymId);
 
     expect(created.isSystem).toBe(false);
+    expect(created.createsReservableResource).toBe(true);
     expect(created.permissions).toEqual([
       Permission.GymRead,
       Permission.MemberRead,
       Permission.StaffRead
     ]);
     expect(updated.name).toBe("Operations Lead");
+    expect(updated.createsReservableResource).toBe(false);
     expect(updated.permissions).toEqual([
       Permission.GymRead,
       Permission.MemberRead,
@@ -181,6 +198,126 @@ describe("RoleService", () => {
     await expect(
       services.roleService.deleteCustomRole(gymId, managerRole.id, owner.user.id)
     ).rejects.toThrow(/system/i);
+  });
+
+  it("creates linked resources on invite acceptance and backfills enabled custom roles", async () => {
+    const services = createServices(testConfig, fixedClock);
+    const owner = await services.authService.register({
+      email: "owner@example.com",
+      password: "Password123",
+      firstName: "Demo",
+      lastName: "Owner",
+      gymName: "Demo Strength Club",
+      timezone: "America/New_York",
+      locale: "en-US"
+    });
+    const gymId = owner.gym?.id ?? "";
+    const trainerRole = await services.roleService.getRoleByName(gymId, RoleName.Trainer);
+
+    const invite = await services.roleService.inviteStaff(gymId, owner.user.id, {
+      email: "trainer.invite@example.com",
+      roleId: trainerRole.id
+    });
+    const accepted = await services.authService.acceptStaffInvite({
+      token: invite.inviteToken,
+      firstName: "Tara",
+      lastName: "Trainer",
+      password: "Password123"
+    });
+    const invitedResource = (
+      await services.reservationResourceService.listResources(gymId)
+    ).find((resource) => resource.linkedStaffUserId === accepted.user.id);
+
+    const specialtyRole = await services.roleService.createCustomRole(gymId, {
+      name: "Recovery Specialist",
+      permissions: [Permission.GymRead, Permission.StaffRead],
+      createsReservableResource: false
+    });
+    const specialist = await services.authService.register({
+      email: "specialist@example.com",
+      password: "Password123",
+      firstName: "Riley",
+      lastName: "Recovery",
+      timezone: "America/New_York",
+      locale: "en-US"
+    });
+    await services.repositories.gymUsers.createGymUser({
+      id: randomUUID(),
+      gymId,
+      userId: specialist.user.id,
+      roleId: specialtyRole.id,
+      status: UserStatus.Active,
+      createdAt: fixedClock.now(),
+      updatedAt: fixedClock.now()
+    });
+    await services.roleService.updateCustomRole(gymId, specialtyRole.id, {
+      createsReservableResource: true
+    });
+    const backfilledResource = (
+      await services.reservationResourceService.listResources(gymId)
+    ).find((resource) => resource.linkedStaffUserId === specialist.user.id);
+
+    expect(invitedResource?.resourceType).toBe("trainer");
+    expect(invitedResource?.locationId).toBeUndefined();
+    expect(invitedResource?.createdFromRoleId).toBe(trainerRole.id);
+    expect(backfilledResource?.resourceType).toBe("recovery_specialist");
+    expect(backfilledResource?.autoManaged).toBe(true);
+  });
+
+  it("keeps one active linked resource when switching between reservable roles", async () => {
+    const services = createServices(testConfig, fixedClock);
+    const owner = await services.authService.register({
+      email: "owner@example.com",
+      password: "Password123",
+      firstName: "Demo",
+      lastName: "Owner",
+      gymName: "Demo Strength Club",
+      timezone: "America/New_York",
+      locale: "en-US"
+    });
+    const staff = await services.authService.register({
+      email: "coach@example.com",
+      password: "Password123",
+      firstName: "Casey",
+      lastName: "Coach",
+      timezone: "America/New_York",
+      locale: "en-US"
+    });
+    const gymId = owner.gym?.id ?? "";
+    const memberRole = await services.roleService.getRoleByName(gymId, RoleName.Member);
+    const trainerRole = await services.roleService.getRoleByName(gymId, RoleName.Trainer);
+    const seniorCoachRole = await services.roleService.createCustomRole(gymId, {
+      name: "Senior Coach",
+      permissions: [Permission.GymRead, Permission.StaffRead],
+      createsReservableResource: true
+    });
+    await services.repositories.gymUsers.createGymUser({
+      id: randomUUID(),
+      gymId,
+      userId: staff.user.id,
+      roleId: memberRole.id,
+      status: UserStatus.Active,
+      createdAt: fixedClock.now(),
+      updatedAt: fixedClock.now()
+    });
+
+    await services.roleService.assignRole(gymId, staff.user.id, trainerRole.id, owner.user.id);
+    const initialResource = (
+      await services.reservationResourceService.listResources(gymId)
+    ).find((resource) => resource.linkedStaffUserId === staff.user.id);
+    await services.reservationResourceService.updateResource(gymId, initialResource?.id ?? "", {
+      name: "Casey Coaching"
+    });
+    await services.roleService.assignRole(gymId, staff.user.id, seniorCoachRole.id, owner.user.id);
+    const linkedResources = (
+      await services.reservationResourceService.listResources(gymId)
+    ).filter((resource) => resource.linkedStaffUserId === staff.user.id);
+
+    expect(linkedResources).toHaveLength(1);
+    expect(linkedResources[0]?.id).toBe(initialResource?.id);
+    expect(linkedResources[0]?.name).toBe("Casey Coaching");
+    expect(linkedResources[0]?.createdFromRoleId).toBe(seniorCoachRole.id);
+    expect(linkedResources[0]?.status).toBe("active");
   });
 
   it("limits role and staff visibility to the actor's own branch", async () => {

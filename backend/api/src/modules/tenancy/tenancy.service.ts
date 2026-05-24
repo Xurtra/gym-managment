@@ -100,7 +100,13 @@ export class TenancyService {
     if (input.timezone) updated.timezone = input.timezone;
     if (input.locale) updated.locale = input.locale;
     if (input.logoUrl) updated.logoUrl = input.logoUrl;
-    if (input.stripeAccountId) updated.stripeAccountId = input.stripeAccountId;
+    if (Object.prototype.hasOwnProperty.call(input, "stripeAccountId")) {
+      if (input.stripeAccountId) {
+        updated.stripeAccountId = input.stripeAccountId;
+      } else {
+        delete updated.stripeAccountId;
+      }
+    }
     if (input.brandColors) updated.brandColors = cleanBrandColors(input.brandColors);
     if (input.businessInfo) updated.businessInfo = cleanBusinessInfo(input.businessInfo);
     if (input.operatingHours) updated.operatingHours = input.operatingHours;

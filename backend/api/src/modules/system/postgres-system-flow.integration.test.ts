@@ -1,10 +1,12 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createApp, createPostgresServices } from "../../app.js";
 import type { ApiConfig } from "../../config/env.js";
 import { runMigrations } from "../../db/migrationRunner.js";
+import { PostgresRepositories } from "../../infrastructure/store/postgresRepositories.js";
 import { fixedClock, testConfig } from "../../testUtils.js";
 
 const describePostgres = process.env.RUN_POSTGRES_TESTS === "1" ? describe : describe.skip;
@@ -96,6 +98,94 @@ describePostgres("Postgres-backed API flow", () => {
 
     const countResult = await api.pool.query<{ count: string }>("SELECT count(*) FROM users");
     expect(Number(countResult.rows[0]?.count ?? 0)).toBe(1);
+  });
+
+  it("reads directly seeded role-gated staff resources and enforces one active link", async () => {
+    const repositories = new PostgresRepositories(api.pool);
+    const now = new Date("2026-05-16T12:00:00.000Z");
+    const ownerUserId = randomUUID();
+    const trainerUserId = randomUUID();
+    const gymId = randomUUID();
+    const trainerRoleId = randomUUID();
+    const resourceId = randomUUID();
+
+    await api.pool.query(
+      `
+        INSERT INTO users (id, email, password_hash, first_name, last_name, status, created_at, updated_at)
+        VALUES
+          ($1, 'owner-raw@example.com', 'hash', 'Raw', 'Owner', 'active', $6, $6),
+          ($2, 'trainer-raw@example.com', 'hash', 'Tess', 'Trainer', 'active', $6, $6)
+      `,
+      [ownerUserId, trainerUserId, gymId, trainerRoleId, resourceId, now]
+    );
+    await api.pool.query(
+      `
+        INSERT INTO gyms (id, name, slug, owner_user_id, status, timezone, locale, created_at, updated_at)
+        VALUES ($1, 'Raw Strength Club', 'raw-strength-club', $2, 'active', 'America/New_York', 'en-US', $3, $3)
+      `,
+      [gymId, ownerUserId, now]
+    );
+    await api.pool.query(
+      `
+        INSERT INTO roles (
+          id, gym_id, name, permissions, is_system, creates_reservable_resource, created_at, updated_at
+        )
+        VALUES ($1, $2, 'trainer', $3::jsonb, true, true, $4, $4)
+      `,
+      [trainerRoleId, gymId, JSON.stringify(["gym:read", "class:read", "class:write"]), now]
+    );
+    await api.pool.query(
+      `
+        INSERT INTO gym_users (id, gym_id, user_id, role_id, status, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, 'active', $5, $5)
+      `,
+      [randomUUID(), gymId, trainerUserId, trainerRoleId, now]
+    );
+    await insertRawStaffResource(api.pool, {
+      id: resourceId,
+      gymId,
+      staffUserId: trainerUserId,
+      roleId: trainerRoleId,
+      status: "active",
+      now
+    });
+
+    const role = await repositories.roles.getRole(trainerRoleId);
+    const resources = await repositories.reservationResources.listResourcesForGym(gymId);
+    const linked = resources.find((resource) => resource.id === resourceId);
+
+    expect(role?.createsReservableResource).toBe(true);
+    expect(linked).toMatchObject({
+      id: resourceId,
+      gymId,
+      name: "Tess Trainer",
+      resourceType: "trainer",
+      status: "active",
+      linkedStaffUserId: trainerUserId,
+      createdFromRoleId: trainerRoleId,
+      autoManaged: true
+    });
+    expect(linked?.locationId).toBeUndefined();
+    await expect(
+      insertRawStaffResource(api.pool, {
+        id: randomUUID(),
+        gymId,
+        staffUserId: trainerUserId,
+        roleId: trainerRoleId,
+        status: "active",
+        now
+      })
+    ).rejects.toMatchObject({ code: "23505" });
+    await expect(
+      insertRawStaffResource(api.pool, {
+        id: randomUUID(),
+        gymId,
+        staffUserId: trainerUserId,
+        roleId: trainerRoleId,
+        status: "archived",
+        now
+      })
+    ).resolves.toBeDefined();
   });
 });
 
@@ -195,6 +285,86 @@ function authHeaders(accessToken?: string) {
     headers.authorization = `Bearer ${accessToken}`;
   }
   return headers;
+}
+
+async function insertRawStaffResource(
+  pool: Pool,
+  input: {
+    id: string;
+    gymId: string;
+    staffUserId: string;
+    roleId: string;
+    status: "active" | "archived";
+    now: Date;
+  }
+) {
+  return pool.query(
+    `
+      INSERT INTO reservable_resources (
+        id,
+        gym_id,
+        location_id,
+        name,
+        resource_type,
+        status,
+        is_bookable,
+        is_exclusive,
+        capacity,
+        amenities,
+        slot_rules,
+        pricing,
+        payment_requirement,
+        confirmation_mode,
+        cancellation_policy,
+        linked_staff_user_id,
+        created_from_role_id,
+        auto_managed,
+        archived_at,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        $1,
+        $2,
+        NULL,
+        'Tess Trainer',
+        'trainer',
+        $5,
+        true,
+        true,
+        1,
+        '[]'::jsonb,
+        $6::jsonb,
+        $7::jsonb,
+        'free',
+        'automatic',
+        $8::jsonb,
+        $3,
+        $4,
+        true,
+        CASE WHEN $5 = 'archived' THEN $9 ELSE NULL END,
+        $9,
+        $9
+      )
+    `,
+    [
+      input.id,
+      input.gymId,
+      input.staffUserId,
+      input.roleId,
+      input.status,
+      JSON.stringify({
+        minDurationMinutes: 30,
+        maxDurationMinutes: 120,
+        incrementMinutes: 30,
+        bufferBeforeMinutes: 0,
+        bufferAfterMinutes: 0
+      }),
+      JSON.stringify({ amountCents: 0 }),
+      JSON.stringify({ cutoffMinutes: 0, feeCents: 0 }),
+      input.now
+    ]
+  );
 }
 
 async function closeServer(server: Server) {

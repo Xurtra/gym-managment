@@ -211,6 +211,7 @@ export declare const FeatureFlag: {
     readonly WebsiteBuilder: "website_builder";
     readonly PointOfSale: "point_of_sale";
     readonly AccessControl: "access_control";
+    readonly AnonymousWalkInPos: "anonymous_walk_in_pos";
 };
 export type FeatureFlag = (typeof FeatureFlag)[keyof typeof FeatureFlag];
 export declare const TokenPurpose: {

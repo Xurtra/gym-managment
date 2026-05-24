@@ -160,7 +160,8 @@ export const customRoleCreateSchema = z.object({
     .max(80)
     .regex(/^[A-Za-z][A-Za-z0-9 '&-]*$/),
   parentRoleId: id.optional(),
-  permissions: z.array(z.nativeEnum(Permission)).min(1)
+  permissions: z.array(z.nativeEnum(Permission)).min(1),
+  createsReservableResource: z.boolean().default(false)
 });
 
 export const customRoleUpdateSchema = customRoleCreateSchema
@@ -269,13 +270,18 @@ export const posPurchaseSchema = z
     (value) =>
       Boolean(
         value.consumerId ||
-          (value.firstName && value.lastName && (value.email || value.phone))
+          (value.firstName && value.lastName)
       ),
-    "Choose an existing consumer or provide the buyer's name plus email or phone."
+    "Choose an existing consumer or provide the buyer's first and last name."
   );
 
 export const posStripeFinalizeSchema = z.object({
   paymentIntentId: trimmed.min(1).max(120)
+});
+
+export const stripeConnectOnboardingLinkSchema = z.object({
+  returnUrl: trimmed.url(),
+  refreshUrl: trimmed.url().optional()
 });
 
 const membershipPlanBaseSchema = z.object({
@@ -381,11 +387,12 @@ const cancellationPolicySchema = z.object({
   feeCents: z.number().int().min(0).default(0)
 });
 
-export const resourceCreateSchema = z.object({
-  locationId: id,
+const resourceBaseSchema = z.object({
+  locationId: id.optional(),
   parentResourceId: id.optional(),
   name: trimmed.min(1).max(120),
   resourceType: trimmed.min(1).max(80),
+  linkedStaffUserId: id.optional(),
   isBookable: z.boolean().default(true),
   isExclusive: z.boolean().default(true),
   capacity: z.number().int().min(1).max(1000).default(1),
@@ -398,8 +405,13 @@ export const resourceCreateSchema = z.object({
   cancellationPolicy: cancellationPolicySchema.default({})
 });
 
-export const resourceUpdateSchema = resourceCreateSchema
-  .omit({ locationId: true, parentResourceId: true })
+export const resourceCreateSchema = resourceBaseSchema
+  .refine((value) => Boolean(value.locationId || value.linkedStaffUserId), {
+    message: "A physical resource location or linked staff user is required."
+  });
+
+export const resourceUpdateSchema = resourceBaseSchema
+  .omit({ locationId: true, parentResourceId: true, linkedStaffUserId: true })
   .partial()
   .refine((value) => Object.keys(value).length > 0, "At least one field must be provided.");
 
@@ -428,6 +440,7 @@ export const classSessionResourceAllocationSchema = z
 export const facilityReservationCreateSchema = z
   .object({
     resourceId: id,
+    locationId: id.optional(),
     memberId: id,
     startsAt: z.string().datetime(),
     endsAt: z.string().datetime(),
@@ -525,8 +538,8 @@ export type GymUpdateInput = z.infer<typeof gymUpdateSchema>;
 export type LocationCreateInput = z.infer<typeof locationCreateSchema>;
 export type LocationUpdateInput = z.infer<typeof locationUpdateSchema>;
 export type RoleAssignmentInput = z.infer<typeof roleAssignmentSchema>;
-export type CustomRoleCreateInput = z.infer<typeof customRoleCreateSchema>;
-export type CustomRoleUpdateInput = z.infer<typeof customRoleUpdateSchema>;
+export type CustomRoleCreateInput = z.input<typeof customRoleCreateSchema>;
+export type CustomRoleUpdateInput = z.input<typeof customRoleUpdateSchema>;
 export type StaffAccessRemoveInput = z.infer<typeof staffAccessRemoveSchema>;
 export type StaffInviteCreateInput = z.infer<typeof staffInviteCreateSchema>;
 export type StaffInviteAcceptInput = z.infer<typeof staffInviteAcceptSchema>;
@@ -540,6 +553,7 @@ export type ConsumerUpdateInput = z.input<typeof consumerUpdateSchema>;
 export type ConsumerProfileImageUploadInput = z.infer<typeof consumerProfileImageUploadSchema>;
 export type PosPurchaseInput = z.infer<typeof posPurchaseSchema>;
 export type PosStripeFinalizeInput = z.infer<typeof posStripeFinalizeSchema>;
+export type StripeConnectOnboardingLinkInput = z.infer<typeof stripeConnectOnboardingLinkSchema>;
 export type MemberCreateInput = z.input<typeof memberCreateSchema>;
 export type MemberUpdateInput = z.input<typeof memberUpdateSchema>;
 export type MembershipPlanCreateInput = z.infer<typeof membershipPlanCreateSchema>;
