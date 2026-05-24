@@ -59,12 +59,60 @@ export interface Gym {
   stripeAccountId?: string;
   brandColors?: BrandColors;
   businessInfo?: GymBusinessInfo;
+  migrationChecklist?: GymMigrationChecklist;
   operatingHours: OperatingHours;
   featureFlags: FeatureFlag[];
   onboardingCompletedSteps: string[];
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface GymMigrationChecklist {
+  currentSoftware?: string;
+  notes?: string;
+  items: Partial<Record<GymMigrationChecklistItem, boolean>>;
+  details?: Partial<Record<GymMigrationChecklistItem, GymMigrationChecklistItemDetail>>;
+}
+
+export interface GymMigrationChecklistItemDetail {
+  sourceType: GymMigrationSourceType;
+  sourceName?: string;
+  fieldNotes?: string;
+  importNotes?: string;
+  uploads?: GymMigrationUpload[];
+}
+
+export interface GymMigrationUpload {
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  base64Data: string;
+  textPreview?: string;
+}
+
+export type GymMigrationChecklistItem =
+  | "memberList"
+  | "activeMemberships"
+  | "billingDates"
+  | "paymentStatus"
+  | "attendanceHistory"
+  | "classSchedules"
+  | "appointments"
+  | "staffList"
+  | "staffRoles"
+  | "waiversDocuments"
+  | "notesTags"
+  | "productsPackages"
+  | "paymentMethods";
+
+export type GymMigrationSourceType =
+  | "unknown"
+  | "csv_excel"
+  | "pdf_document"
+  | "api_export"
+  | "manual_entry"
+  | "old_system_report"
+  | "not_available";
 
 export interface BrandColors {
   primary: string;

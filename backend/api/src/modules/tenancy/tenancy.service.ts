@@ -30,9 +30,10 @@ export class TenancyService {
         status: GymStatus.Active,
         timezone: input.timezone,
         locale: input.locale,
+        ...(input.migrationChecklist ? { migrationChecklist: cleanMigrationChecklist(input.migrationChecklist) } : {}),
         operatingHours: {},
         featureFlags: input.featureFlags.length > 0 ? input.featureFlags : defaultFeatureFlags(),
-        onboardingCompletedSteps: ["gym-details"],
+        onboardingCompletedSteps: input.migrationChecklist ? ["gym-details", "migration-checklist"] : ["gym-details"],
         createdAt: now,
         updatedAt: now
       };
@@ -134,6 +135,7 @@ export class TenancyService {
     if (input.onboardingCompletedSteps) {
       updated.onboardingCompletedSteps = input.onboardingCompletedSteps;
     }
+    if (input.migrationChecklist) updated.migrationChecklist = cleanMigrationChecklist(input.migrationChecklist);
     return this.repositories.gyms.updateGym(updated);
   }
 
@@ -178,6 +180,42 @@ function cleanBusinessInfo(input: NonNullable<GymUpdateInput["businessInfo"]>): 
     }
   }
   return business;
+}
+
+function cleanMigrationChecklist(
+  input: NonNullable<GymCreateInput["migrationChecklist"]>
+): NonNullable<Gym["migrationChecklist"]> {
+  const checklist: NonNullable<Gym["migrationChecklist"]> = { items: { ...input.items } };
+  const currentSoftware = input.currentSoftware?.trim();
+  const notes = input.notes?.trim();
+  if (currentSoftware) checklist.currentSoftware = currentSoftware;
+  if (notes) checklist.notes = notes;
+  if (input.details) {
+    const details = Object.fromEntries(
+      Object.entries(input.details).map(([key, detail]) => [
+        key,
+        {
+          sourceType: detail.sourceType,
+          ...(detail.sourceName?.trim() ? { sourceName: detail.sourceName.trim() } : {}),
+          ...(detail.fieldNotes?.trim() ? { fieldNotes: detail.fieldNotes.trim() } : {}),
+          ...(detail.importNotes?.trim() ? { importNotes: detail.importNotes.trim() } : {}),
+          ...(detail.uploads?.length
+            ? {
+                uploads: detail.uploads.map((upload) => ({
+                  fileName: upload.fileName.trim(),
+                  contentType: upload.contentType.trim() || "application/octet-stream",
+                  sizeBytes: upload.sizeBytes,
+                  base64Data: upload.base64Data,
+                  ...(upload.textPreview?.trim() ? { textPreview: upload.textPreview.trim() } : {})
+                }))
+              }
+            : {})
+        }
+      ])
+    ) as NonNullable<NonNullable<Gym["migrationChecklist"]>["details"]>;
+    checklist.details = details;
+  }
+  return checklist;
 }
 
 function defaultFeatureFlags(): FeatureFlag[] {

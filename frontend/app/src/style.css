@@ -100,6 +100,118 @@ select {
   color: var(--muted);
 }
 
+.create-gym-onboarding-form {
+  display: grid;
+  gap: 18px;
+}
+
+.signup-form-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.75fr) minmax(360px, 1.25fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.signup-account-section,
+.migration-intake {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.migration-intake-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.migration-intake-head h3 {
+  margin: 2px 0 0;
+}
+
+.migration-intake-head span {
+  color: var(--muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.migration-checklist-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.migration-check-item {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.migration-check-header {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.migration-check-header input {
+  margin-top: 3px;
+}
+
+.migration-check-item strong {
+  display: block;
+  color: var(--ink);
+  font-size: 0.94rem;
+}
+
+.migration-check-item small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.migration-source-details {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.migration-source-details summary {
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.migration-source-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.migration-upload-field,
+.migration-source-grid .field:nth-last-child(-n + 2) {
+  grid-column: span 2;
+}
+
+.migration-upload-field small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .banner {
   border-radius: 8px;
   padding: 14px 16px;
@@ -609,7 +721,8 @@ html[data-theme="dark"] .club-shell {
 }
 
 html[data-theme="dark"] .field input,
-html[data-theme="dark"] .field select {
+html[data-theme="dark"] .field select,
+html[data-theme="dark"] .field textarea {
   background: #0f172a;
   color: #e5eef8;
 }
@@ -4103,7 +4216,8 @@ html[data-theme="dark"] .consumer-card-grid .club-customer-card:focus-visible {
   .two-up,
   .list-grid,
   .stat-grid,
-  .three-up {
+  .three-up,
+  .signup-form-grid {
     grid-template-columns: 1fr;
   }
 
@@ -4187,6 +4301,17 @@ html[data-theme="dark"] .consumer-card-grid .club-customer-card:focus-visible {
 
   .platform-gym-picker {
     grid-template-columns: 1fr;
+  }
+
+  .migration-checklist-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .migration-source-grid,
+  .migration-upload-field,
+  .migration-source-grid .field:nth-last-child(-n + 2) {
+    grid-template-columns: 1fr;
+    grid-column: auto;
   }
 
   .club-topbar {

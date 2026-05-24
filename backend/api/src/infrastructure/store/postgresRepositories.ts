@@ -81,6 +81,7 @@ interface GymRow extends QueryResultRow {
   stripe_account_id: string | null;
   brand_colors: unknown;
   business_info: unknown;
+  migration_checklist: unknown;
   operating_hours: unknown;
   feature_flags: unknown;
   onboarding_completed_steps: unknown;
@@ -840,8 +841,8 @@ export class PostgresRepositories implements Repositories {
     const result = await this.executor.query<GymRow>(
       `INSERT INTO gyms (
         id, name, slug, owner_user_id, status, timezone, locale, logo_url, stripe_account_id, brand_colors,
-        business_info, operating_hours, feature_flags, onboarding_completed_steps, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb, $15, $16)
+        business_info, migration_checklist, operating_hours, feature_flags, onboarding_completed_steps, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb, $15::jsonb, $16, $17)
       RETURNING *`,
       [
         gym.id,
@@ -855,6 +856,7 @@ export class PostgresRepositories implements Repositories {
         gym.stripeAccountId ?? null,
         JSON.stringify(gym.brandColors ?? {}),
         JSON.stringify(gym.businessInfo ?? {}),
+        JSON.stringify(gym.migrationChecklist ?? {}),
         JSON.stringify(gym.operatingHours),
         JSON.stringify(gym.featureFlags),
         JSON.stringify(gym.onboardingCompletedSteps),
@@ -890,11 +892,12 @@ export class PostgresRepositories implements Repositories {
            stripe_account_id = $6,
            brand_colors = $7::jsonb,
            business_info = $8::jsonb,
-           operating_hours = $9::jsonb,
-           feature_flags = $10::jsonb,
-           onboarding_completed_steps = $11::jsonb,
-           status = $12,
-           updated_at = $13
+           migration_checklist = $9::jsonb,
+           operating_hours = $10::jsonb,
+           feature_flags = $11::jsonb,
+           onboarding_completed_steps = $12::jsonb,
+           status = $13,
+           updated_at = $14
        WHERE id = $1
        RETURNING *`,
       [
@@ -906,6 +909,7 @@ export class PostgresRepositories implements Repositories {
         gym.stripeAccountId ?? null,
         JSON.stringify(gym.brandColors ?? {}),
         JSON.stringify(gym.businessInfo ?? {}),
+        JSON.stringify(gym.migrationChecklist ?? {}),
         JSON.stringify(gym.operatingHours),
         JSON.stringify(gym.featureFlags),
         JSON.stringify(gym.onboardingCompletedSteps),
@@ -2767,6 +2771,9 @@ function mapGym(row: GymRow): Gym {
   }
   if (isRecord(row.business_info) && Object.keys(row.business_info).length > 0) {
     gym.businessInfo = row.business_info as unknown as NonNullable<Gym["businessInfo"]>;
+  }
+  if (isRecord(row.migration_checklist) && Object.keys(row.migration_checklist).length > 0) {
+    gym.migrationChecklist = row.migration_checklist as unknown as NonNullable<Gym["migrationChecklist"]>;
   }
   return gym;
 }

@@ -8,12 +8,76 @@ export const passwordSchema = z.string().min(1);
 export function formatZodIssues(issues) {
     return issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ");
 }
+const migrationChecklistItemKeySchema = z.enum([
+    "memberList",
+    "activeMemberships",
+    "billingDates",
+    "paymentStatus",
+    "attendanceHistory",
+    "classSchedules",
+    "appointments",
+    "staffList",
+    "staffRoles",
+    "waiversDocuments",
+    "notesTags",
+    "productsPackages",
+    "paymentMethods"
+]);
+const migrationSourceTypeSchema = z.enum([
+    "unknown",
+    "csv_excel",
+    "pdf_document",
+    "api_export",
+    "manual_entry",
+    "old_system_report",
+    "not_available"
+]);
+export const migrationChecklistSchema = z.object({
+    currentSoftware: trimmed.max(120).optional(),
+    notes: trimmed.max(2000).optional(),
+    items: z
+        .object({
+        memberList: z.boolean().default(false),
+        activeMemberships: z.boolean().default(false),
+        billingDates: z.boolean().default(false),
+        paymentStatus: z.boolean().default(false),
+        attendanceHistory: z.boolean().default(false),
+        classSchedules: z.boolean().default(false),
+        appointments: z.boolean().default(false),
+        staffList: z.boolean().default(false),
+        staffRoles: z.boolean().default(false),
+        waiversDocuments: z.boolean().default(false),
+        notesTags: z.boolean().default(false),
+        productsPackages: z.boolean().default(false),
+        paymentMethods: z.boolean().default(false)
+    })
+        .default({}),
+    details: z
+        .record(migrationChecklistItemKeySchema, z.object({
+        sourceType: migrationSourceTypeSchema.default("unknown"),
+        sourceName: trimmed.max(160).optional(),
+        fieldNotes: trimmed.max(2000).optional(),
+        importNotes: trimmed.max(2000).optional(),
+        uploads: z
+            .array(z.object({
+            fileName: trimmed.min(1).max(180),
+            contentType: trimmed.max(120).default("application/octet-stream"),
+            sizeBytes: z.number().int().nonnegative().max(2_000_000),
+            base64Data: trimmed.min(1).max(2_800_000),
+            textPreview: trimmed.max(20_000).optional()
+        }))
+            .max(5)
+            .optional()
+    }))
+        .optional()
+});
 export const registerSchema = z.object({
     email: emailSchema,
     password: passwordSchema,
     firstName: trimmed.min(1).max(80),
     lastName: trimmed.min(1).max(80),
     gymName: trimmed.min(2).max(120).optional(),
+    migrationChecklist: migrationChecklistSchema.optional(),
     timezone: trimmed.min(1).max(80).default("America/New_York"),
     locale: trimmed.min(2).max(20).default("en-US")
 });
@@ -64,6 +128,7 @@ export const gymCreateSchema = z.object({
         .optional(),
     timezone: trimmed.min(1).max(80).default("America/New_York"),
     locale: trimmed.min(2).max(20).default("en-US"),
+    migrationChecklist: registerSchema.shape.migrationChecklist,
     featureFlags: z.array(z.nativeEnum(FeatureFlag)).default([])
 });
 export const brandColorsSchema = z.object({
@@ -102,7 +167,8 @@ export const gymUpdateSchema = z
     businessInfo: gymBusinessInfoSchema.optional(),
     operatingHours: operatingHoursSchema.optional(),
     featureFlags: z.array(z.nativeEnum(FeatureFlag)).optional(),
-    onboardingCompletedSteps: z.array(trimmed.min(1).max(80)).optional()
+    onboardingCompletedSteps: z.array(trimmed.min(1).max(80)).optional(),
+    migrationChecklist: registerSchema.shape.migrationChecklist
 })
     .refine((value) => Object.keys(value).length > 0, "At least one field must be provided.");
 export const locationCreateSchema = z.object({

@@ -295,6 +295,88 @@ const DEFAULT_SIGNATURE_REQUIREMENTS = [
   "Emergency contact acknowledgment"
 ];
 
+const MIGRATION_CHECKLIST_ITEMS = [
+  {
+    key: "memberList",
+    label: "Member list",
+    description: "Names, emails, phone numbers, birthdays, and member status."
+  },
+  {
+    key: "activeMemberships",
+    label: "Active memberships",
+    description: "Current plans, start dates, renewal state, and cancellation dates."
+  },
+  {
+    key: "billingDates",
+    label: "Billing dates",
+    description: "Next bill dates, renewal dates, and billing cycle timing."
+  },
+  {
+    key: "paymentStatus",
+    label: "Payment status",
+    description: "Paid, failed, overdue, frozen, or comped account states."
+  },
+  {
+    key: "attendanceHistory",
+    label: "Attendance and check-in history",
+    description: "Visits, check-ins, no-shows, and recent engagement patterns."
+  },
+  {
+    key: "classSchedules",
+    label: "Class schedules",
+    description: "Class types, sessions, coaches, rooms, capacity, and recurrence."
+  },
+  {
+    key: "appointments",
+    label: "Appointments",
+    description: "Personal training, consultations, tours, and booked services."
+  },
+  {
+    key: "staffList",
+    label: "Staff list",
+    description: "Employees, trainers, front desk, managers, and contact info."
+  },
+  {
+    key: "staffRoles",
+    label: "Staff roles",
+    description: "Positions, permission levels, schedule ownership, and payroll role."
+  },
+  {
+    key: "waiversDocuments",
+    label: "Waivers and documents",
+    description: "Signed waivers, agreements, contracts, forms, and document status."
+  },
+  {
+    key: "notesTags",
+    label: "Notes and tags",
+    description: "Internal notes, lead tags, member flags, and cancellation reasons."
+  },
+  {
+    key: "productsPackages",
+    label: "Products and packages",
+    description: "Retail items, service packages, punch cards, and swim lessons."
+  },
+  {
+    key: "paymentMethods",
+    label: "Payment methods, if possible",
+    description: "Cards or ACH tokens only when the old provider allows secure transfer."
+  }
+] as const;
+
+const MIGRATION_SOURCE_TYPES = [
+  { value: "unknown", label: "Not sure yet" },
+  { value: "csv_excel", label: "CSV or Excel export" },
+  { value: "pdf_document", label: "PDF or document export" },
+  { value: "api_export", label: "API export or integration" },
+  { value: "manual_entry", label: "Manual entry" },
+  { value: "old_system_report", label: "Report from old software" },
+  { value: "not_available", label: "Not available from old system" }
+] as const;
+
+const MIGRATION_UPLOAD_ACCEPT = ".csv,.tsv,.xlsx,.xls,.json,.txt,.pdf";
+const MIGRATION_UPLOAD_MAX_FILES = 5;
+const MIGRATION_UPLOAD_MAX_BYTES = 2 * 1024 * 1024;
+
 interface SessionTokens {
   accessToken: string;
   refreshToken: string;
@@ -319,6 +401,29 @@ interface GymRecord {
   stripeAccountId?: string;
   brandColors?: { primary: string; secondary?: string; accent?: string };
   businessInfo?: { email?: string; phone?: string; website?: string };
+  migrationChecklist?: {
+    currentSoftware?: string;
+    notes?: string;
+    items: Partial<Record<(typeof MIGRATION_CHECKLIST_ITEMS)[number]["key"], boolean>>;
+    details?: Partial<
+      Record<
+        (typeof MIGRATION_CHECKLIST_ITEMS)[number]["key"],
+        {
+          sourceType: (typeof MIGRATION_SOURCE_TYPES)[number]["value"];
+          sourceName?: string;
+          fieldNotes?: string;
+          importNotes?: string;
+          uploads?: {
+            fileName: string;
+            contentType: string;
+            sizeBytes: number;
+            base64Data: string;
+            textPreview?: string;
+          }[];
+        }
+      >
+    >;
+  };
 }
 
 interface StripeConnectAccountRecord {
@@ -1164,6 +1269,10 @@ function currentGymSlugFromUrl() {
 
 function isPlatformAdminRoute() {
   return new URLSearchParams(window.location.search).get("admin") === "1";
+}
+
+function isNewGymSignupRoute() {
+  return new URLSearchParams(window.location.search).get("createGym") === "1";
 }
 
 async function refreshDashboard(options: { silent?: boolean; renderAfter?: boolean } | boolean = {}) {
@@ -6712,7 +6821,132 @@ function filterPlatformGyms(query: string) {
   return state.platformGyms.filter((gym) => `${gym.name} ${gym.slug}`.toLowerCase().includes(normalizedQuery));
 }
 
+function renderMigrationChecklistFields() {
+  return `
+    <section class="migration-intake">
+      <div class="migration-intake-head">
+        <div>
+          <p class="eyebrow">Pre-migration checklist</p>
+          <h3>What needs to move?</h3>
+        </div>
+        <span>${MIGRATION_CHECKLIST_ITEMS.length} categories</span>
+      </div>
+      <label class="field">
+        <span>Current gym software</span>
+        <input name="migrationCurrentSoftware" type="text" placeholder="Mindbody, ClubReady, Pike13, spreadsheets, etc." />
+      </label>
+      <div class="migration-checklist-grid">
+        ${MIGRATION_CHECKLIST_ITEMS.map((item) => `
+          <article class="migration-check-item">
+            <label class="migration-check-header">
+              <input type="checkbox" name="migrationItems" value="${escapeAttribute(item.key)}" />
+              <span>
+                <strong>${escapeHtml(item.label)}</strong>
+                <small>${escapeHtml(item.description)}</small>
+              </span>
+            </label>
+            <details class="migration-source-details">
+              <summary>How will this data be provided?</summary>
+              <div class="migration-source-grid">
+                <label class="field">
+                  <span>Export/source type</span>
+                  <select name="migrationSourceType_${escapeAttribute(item.key)}">
+                    ${MIGRATION_SOURCE_TYPES.map((type) => `
+                      <option value="${escapeAttribute(type.value)}">${escapeHtml(type.label)}</option>
+                    `).join("")}
+                  </select>
+                </label>
+                <label class="field">
+                  <span>File, report, or source name</span>
+                  <input
+                    name="migrationSourceName_${escapeAttribute(item.key)}"
+                    type="text"
+                    placeholder="members.csv, Billing Detail report, API endpoint, etc."
+                  />
+                </label>
+                <label class="field migration-upload-field">
+                  <span>Upload export files</span>
+                  <input
+                    name="migrationUploads_${escapeAttribute(item.key)}"
+                    type="file"
+                    accept="${escapeAttribute(MIGRATION_UPLOAD_ACCEPT)}"
+                    multiple
+                  />
+                  <small>CSV, Excel, JSON, TXT, or PDF. Up to ${MIGRATION_UPLOAD_MAX_FILES} files, ${Math.round(MIGRATION_UPLOAD_MAX_BYTES / 1024 / 1024)} MB each.</small>
+                </label>
+                <label class="field">
+                  <span>Fields or columns included</span>
+                  <textarea
+                    name="migrationFieldNotes_${escapeAttribute(item.key)}"
+                    rows="3"
+                    placeholder="Example: first_name, last_name, email, phone, status, next_billing_date"
+                  ></textarea>
+                </label>
+                <label class="field">
+                  <span>Import notes</span>
+                  <textarea
+                    name="migrationImportNotes_${escapeAttribute(item.key)}"
+                    rows="3"
+                    placeholder="Anything special: duplicate cleanup, missing fields, date format, processor limitations."
+                  ></textarea>
+                </label>
+              </div>
+            </details>
+          </article>
+        `).join("")}
+      </div>
+      <label class="field">
+        <span>Migration notes</span>
+        <textarea
+          name="migrationNotes"
+          rows="4"
+          placeholder="Add anything unusual: old system exports, payment processor limits, dirty data, duplicate members, or must-have go-live timing."
+        ></textarea>
+      </label>
+    </section>
+  `;
+}
+
+function renderNewGymSignupDashboard(bannerMarkup: string) {
+  return `
+    ${bannerMarkup}
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Create new gym</p>
+        <h2>Owner account and migration intake</h2>
+        <p class="club-copy">Start a workspace and capture what needs to move from the old gym system.</p>
+      </div>
+      <div class="head-actions">
+        <a href="?#/dashboard" class="ghost-button route-link">Back to login</a>
+        <a href="?admin=1#/dashboard" class="ghost-button route-link">Admin login</a>
+      </div>
+    </div>
+    <form id="register-form" class="form-card create-gym-onboarding-form">
+      <div class="signup-form-grid">
+        <section class="signup-account-section">
+          <p class="eyebrow">Owner account</p>
+          <h3>Account details</h3>
+          ${renderInput("firstName", "Owner first name")}
+          ${renderInput("lastName", "Owner last name")}
+          ${renderInput("email", "Owner email", "email")}
+          ${renderInput("password", "Owner password", "password")}
+          ${renderInput("gymName", "Gym name")}
+        </section>
+        ${renderMigrationChecklistFields()}
+      </div>
+      <div class="form-actions">
+        <a href="?#/dashboard" class="ghost-button route-link">Cancel</a>
+        <button type="submit">Create new gym</button>
+      </div>
+    </form>
+  `;
+}
+
 function renderStaffLoginDashboard(bannerMarkup: string) {
+  if (isNewGymSignupRoute()) {
+    return renderNewGymSignupDashboard(bannerMarkup);
+  }
+
   return `
     ${bannerMarkup}
     <div class="section-head">
@@ -6721,7 +6955,10 @@ function renderStaffLoginDashboard(bannerMarkup: string) {
         <h2>Log in to your workspace</h2>
         <p class="club-copy">Your assigned gym opens automatically after you sign in.</p>
       </div>
-      <a href="?admin=1#/dashboard" class="ghost-button route-link">Admin login</a>
+      <div class="head-actions">
+        <a href="?createGym=1#/dashboard" class="ghost-button route-link">Create new gym</a>
+        <a href="?admin=1#/dashboard" class="ghost-button route-link">Admin login</a>
+      </div>
     </div>
     <div class="two-up">
       <form id="login-form" class="form-card">
@@ -8074,7 +8311,7 @@ function bindEvents() {
   });
 
   bindForm("platform-create-gym-form", async (form) => {
-    const data = registerInputFromForm(form, { requireGymName: true });
+    const data = await registerInputFromForm(form, { requireGymName: true });
     if (!data) {
       return;
     }
@@ -8117,7 +8354,7 @@ function bindEvents() {
   });
 
   bindForm("register-form", async (form) => {
-    const data = registerInputFromForm(form, { requireGymName: true });
+    const data = await registerInputFromForm(form, { requireGymName: true });
     if (!data) {
       return;
     }
@@ -10033,15 +10270,17 @@ function clearPublicSlug() {
   localStorage.removeItem(PUBLIC_SLUG_STORAGE_KEY);
 }
 
-function registerInputFromForm(form: HTMLFormElement, options: { requireGymName?: boolean } = {}) {
+async function registerInputFromForm(form: HTMLFormElement, options: { requireGymName?: boolean } = {}) {
   const data = formData(form);
   const gymName = data.gymName?.trim() ?? "";
+  const migrationChecklist = await migrationChecklistFromForm(form);
   const input = {
     email: data.email?.trim().toLowerCase() ?? "",
     password: data.password ?? "",
     firstName: data.firstName?.trim() ?? "",
     lastName: data.lastName?.trim() ?? "",
     ...(gymName ? { gymName } : {}),
+    ...(migrationChecklist ? { migrationChecklist } : {}),
     timezone: "America/New_York",
     locale: "en-US"
   };
@@ -10069,6 +10308,127 @@ function registerInputFromForm(form: HTMLFormElement, options: { requireGymName?
     return undefined;
   }
   return input;
+}
+
+async function migrationChecklistFromForm(form: HTMLFormElement) {
+  const selectedItems = new Set(Array.from(form.querySelectorAll<HTMLInputElement>('input[name="migrationItems"]:checked'))
+    .map((input) => input.value)
+    .filter((value): value is (typeof MIGRATION_CHECKLIST_ITEMS)[number]["key"] =>
+      MIGRATION_CHECKLIST_ITEMS.some((item) => item.key === value)
+    ));
+  const currentSoftware = form
+    .querySelector<HTMLInputElement>('input[name="migrationCurrentSoftware"]')
+    ?.value.trim();
+  const notes = form.querySelector<HTMLTextAreaElement>('textarea[name="migrationNotes"]')?.value.trim();
+  const detailsEntries = [];
+  for (const item of MIGRATION_CHECKLIST_ITEMS) {
+    const sourceType = form
+      .querySelector<HTMLSelectElement>(`select[name="migrationSourceType_${item.key}"]`)
+      ?.value as (typeof MIGRATION_SOURCE_TYPES)[number]["value"] | undefined;
+    const sourceName = form
+      .querySelector<HTMLInputElement>(`input[name="migrationSourceName_${item.key}"]`)
+      ?.value.trim();
+    const fieldNotes = form
+      .querySelector<HTMLTextAreaElement>(`textarea[name="migrationFieldNotes_${item.key}"]`)
+      ?.value.trim();
+    const importNotes = form
+      .querySelector<HTMLTextAreaElement>(`textarea[name="migrationImportNotes_${item.key}"]`)
+      ?.value.trim();
+    const uploads = await migrationFileUploadsFromForm(form, item.key);
+    const hasDetails = Boolean(
+      sourceName ||
+        fieldNotes ||
+        importNotes ||
+        uploads.length > 0 ||
+        (sourceType && sourceType !== "unknown")
+    );
+    if (!hasDetails) {
+      continue;
+    }
+    selectedItems.add(item.key);
+    detailsEntries.push(
+      [
+        item.key,
+        {
+          sourceType: sourceType ?? "unknown",
+          ...(sourceName ? { sourceName } : {}),
+          ...(fieldNotes ? { fieldNotes } : {}),
+          ...(importNotes ? { importNotes } : {}),
+          ...(uploads.length > 0 ? { uploads } : {})
+        }
+      ]
+    );
+  }
+
+  if (selectedItems.size === 0 && detailsEntries.length === 0 && !currentSoftware && !notes) {
+    return undefined;
+  }
+
+  const items = Object.fromEntries(MIGRATION_CHECKLIST_ITEMS.map((item) => [item.key, selectedItems.has(item.key)]));
+  return {
+    ...(currentSoftware ? { currentSoftware } : {}),
+    ...(notes ? { notes } : {}),
+    items,
+    ...(detailsEntries.length > 0 ? { details: Object.fromEntries(detailsEntries) } : {})
+  };
+}
+
+async function migrationFileUploadsFromForm(
+  form: HTMLFormElement,
+  itemKey: (typeof MIGRATION_CHECKLIST_ITEMS)[number]["key"]
+) {
+  const input = form.querySelector<HTMLInputElement>(`input[name="migrationUploads_${itemKey}"]`);
+  const files = Array.from(input?.files ?? []).filter((file) => file.size > 0);
+  if (files.length === 0) {
+    return [];
+  }
+  if (files.length > MIGRATION_UPLOAD_MAX_FILES) {
+    throw new Error(`Upload no more than ${MIGRATION_UPLOAD_MAX_FILES} files for each migration category.`);
+  }
+
+  return Promise.all(
+    files.map(async (file) => {
+      if (file.size > MIGRATION_UPLOAD_MAX_BYTES) {
+        throw new Error(`${file.name} is too large. Migration upload files must be ${Math.round(MIGRATION_UPLOAD_MAX_BYTES / 1024 / 1024)} MB or smaller.`);
+      }
+      const buffer = await file.arrayBuffer();
+      const textPreview = await migrationTextPreview(file, buffer);
+      return {
+        fileName: file.name,
+        contentType: file.type || migrationContentTypeFromName(file.name),
+        sizeBytes: file.size,
+        base64Data: arrayBufferToBase64(buffer),
+        ...(textPreview ? { textPreview } : {})
+      };
+    })
+  );
+}
+
+async function migrationTextPreview(file: File, buffer: ArrayBuffer) {
+  const lowerName = file.name.toLowerCase();
+  const isTextLike =
+    file.type.startsWith("text/") ||
+    file.type === "application/json" ||
+    lowerName.endsWith(".csv") ||
+    lowerName.endsWith(".tsv") ||
+    lowerName.endsWith(".txt") ||
+    lowerName.endsWith(".json");
+  if (!isTextLike) {
+    return undefined;
+  }
+  return new TextDecoder().decode(buffer.slice(0, 20_000));
+}
+
+function migrationContentTypeFromName(fileName: string) {
+  const lowerName = fileName.toLowerCase();
+  if (lowerName.endsWith(".csv")) return "text/csv";
+  if (lowerName.endsWith(".tsv")) return "text/tab-separated-values";
+  if (lowerName.endsWith(".json")) return "application/json";
+  if (lowerName.endsWith(".txt")) return "text/plain";
+  if (lowerName.endsWith(".pdf")) return "application/pdf";
+  if (lowerName.endsWith(".xlsx")) return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  if (lowerName.endsWith(".xls")) return "application/vnd.ms-excel";
+  return "application/octet-stream";
 }
 
 function describeError(error: unknown) {

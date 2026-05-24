@@ -75,6 +75,7 @@ export class AuthService {
             name: input.gymName,
             timezone: input.timezone,
             locale: input.locale,
+            ...(input.migrationChecklist ? { migrationChecklist: input.migrationChecklist } : {}),
             featureFlags: []
           })
         : undefined;
