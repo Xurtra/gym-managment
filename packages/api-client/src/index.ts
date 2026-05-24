@@ -27,6 +27,7 @@ import type {
   MembershipPlanUpdateInput,
   PosPurchaseInput,
   PosStripeFinalizeInput,
+  StripeConnectOnboardingLinkInput,
   PublicSignupInput,
   RegisterInput,
   ResetPasswordInput,
@@ -378,8 +379,28 @@ export class GymApiClient {
     return this.request("GET", `/gyms/${gymId}/pos/stripe/config`);
   }
 
+  getStripeConnectAccount(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/stripe/connect-account`);
+  }
+
+  createStripeConnectOnboardingLink(gymId: string, input: StripeConnectOnboardingLinkInput) {
+    return this.request("POST", `/gyms/${gymId}/stripe/connect-account/onboarding-link`, input);
+  }
+
+  createStripeConnectAccountSession(gymId: string) {
+    return this.request("POST", `/gyms/${gymId}/stripe/connect-account/session`, {});
+  }
+
+  disconnectStripeConnectAccount(gymId: string) {
+    return this.request("DELETE", `/gyms/${gymId}/stripe/connect-account`);
+  }
+
   createPosPaymentIntent(gymId: string, input: PosPurchaseInput) {
     return this.request("POST", `/gyms/${gymId}/pos/payment-intents`, input);
+  }
+
+  createPosTerminalConnectionToken(gymId: string) {
+    return this.request("POST", `/gyms/${gymId}/pos/terminal/connection-token`, {});
   }
 
   finalizePosPaymentIntent(gymId: string, paymentIntentId: string) {
@@ -444,6 +465,10 @@ export class GymApiClient {
       `/gyms/${gymId}/class-sessions/${sessionId}/resource-allocations`,
       input
     );
+  }
+
+  listClassSessionResourceAllocations(gymId: string, sessionId: string) {
+    return this.request("GET", `/gyms/${gymId}/class-sessions/${sessionId}/resource-allocations`);
   }
 
   listResources(gymId: string, locationId?: string) {

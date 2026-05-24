@@ -87,6 +87,7 @@ export interface Role {
   name: RoleName | string;
   permissions: Permission[];
   parentRoleId?: string;
+  createsReservableResource: boolean;
   isSystem: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -398,7 +399,7 @@ export interface ResourceCancellationPolicy {
 export interface ReservableResource {
   id: string;
   gymId: string;
-  locationId: string;
+  locationId?: string;
   parentResourceId?: string;
   name: string;
   resourceType: string;
@@ -413,6 +414,9 @@ export interface ReservableResource {
   paymentRequirement: ReservationPaymentRequirement;
   confirmationMode: ReservationConfirmationMode;
   cancellationPolicy: ResourceCancellationPolicy;
+  linkedStaffUserId?: string;
+  createdFromRoleId?: string;
+  autoManaged?: boolean;
   createdAt: Date;
   updatedAt: Date;
   archivedAt?: Date;
@@ -440,6 +444,7 @@ export interface FacilityReservation {
   gymId: string;
   resourceId: string;
   allocationId?: string;
+  locationId?: string;
   memberId: string;
   createdByUserId: string;
   status: FacilityReservationStatus;

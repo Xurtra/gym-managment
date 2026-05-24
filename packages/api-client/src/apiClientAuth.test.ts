@@ -762,6 +762,154 @@ describe("GymApiClient auth refresh", () => {
       }
     ]);
   });
+
+  it("builds reservable resource and facility reservation requests", async () => {
+    const calls: Array<{
+      path: string;
+      method: string;
+      authorization?: string;
+      body?: unknown;
+    }> = [];
+    const client = new GymApiClient({
+      baseUrl: "http://api.local",
+      accessToken: "token-1",
+      fetchImpl: (async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+        const resolved = url instanceof URL ? url : new URL(String(url));
+        const headers = new Headers(init?.headers);
+        const authorization = headers.get("authorization") ?? undefined;
+        const body = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
+        calls.push({
+          path: `${resolved.pathname}${resolved.search}`,
+          method: init?.method ?? "GET",
+          ...(authorization ? { authorization } : {}),
+          ...(body !== undefined ? { body } : {})
+        });
+        return jsonResponse({ ok: true });
+      }) as typeof fetch
+    });
+
+    await client.listResources("gym-1", "location-1");
+    await client.createResource("gym-1", {
+      locationId: "location-1",
+      name: "Court 1",
+      resourceType: "court",
+      pricing: { amountCents: 2500 },
+      paymentRequirement: "pay_later"
+    });
+    await client.updateResource("gym-1", "resource-1", {
+      amenities: ["padding", "scoreboard"]
+    });
+    await client.archiveResource("gym-1", "resource-1");
+    await client.resourceAvailability(
+      "gym-1",
+      "resource-1",
+      "2026-05-17T15:00:00.000Z",
+      "2026-05-17T16:00:00.000Z"
+    );
+    await client.allocateClassSessionResource("gym-1", "session-1", {
+      resourceId: "resource-1",
+      overrideConflict: true,
+      overrideReason: "Manager approved"
+    });
+    await client.listClassSessionResourceAllocations("gym-1", "session-1");
+    await client.listFacilityReservations("gym-1");
+    await client.createFacilityReservation("gym-1", {
+      resourceId: "resource-1",
+      memberId: "member-1",
+      startsAt: "2026-05-17T17:00:00.000Z",
+      endsAt: "2026-05-17T18:00:00.000Z",
+      paymentReference: "pos-sale-123",
+      overrideConflict: false
+    });
+    await client.getFacilityReservation("gym-1", "reservation-1");
+    await client.cancelFacilityReservation("gym-1", "reservation-1", {
+      reason: "Customer called"
+    });
+
+    expect(calls).toEqual([
+      {
+        path: "/gyms/gym-1/resources?locationId=location-1",
+        method: "GET",
+        authorization: "Bearer token-1"
+      },
+      {
+        path: "/gyms/gym-1/resources",
+        method: "POST",
+        authorization: "Bearer token-1",
+        body: {
+          locationId: "location-1",
+          name: "Court 1",
+          resourceType: "court",
+          pricing: { amountCents: 2500 },
+          paymentRequirement: "pay_later"
+        }
+      },
+      {
+        path: "/gyms/gym-1/resources/resource-1",
+        method: "PATCH",
+        authorization: "Bearer token-1",
+        body: {
+          amenities: ["padding", "scoreboard"]
+        }
+      },
+      {
+        path: "/gyms/gym-1/resources/resource-1",
+        method: "DELETE",
+        authorization: "Bearer token-1"
+      },
+      {
+        path: "/gyms/gym-1/resources/resource-1/availability?from=2026-05-17T15%3A00%3A00.000Z&to=2026-05-17T16%3A00%3A00.000Z",
+        method: "GET",
+        authorization: "Bearer token-1"
+      },
+      {
+        path: "/gyms/gym-1/class-sessions/session-1/resource-allocations",
+        method: "POST",
+        authorization: "Bearer token-1",
+        body: {
+          resourceId: "resource-1",
+          overrideConflict: true,
+          overrideReason: "Manager approved"
+        }
+      },
+      {
+        path: "/gyms/gym-1/class-sessions/session-1/resource-allocations",
+        method: "GET",
+        authorization: "Bearer token-1"
+      },
+      {
+        path: "/gyms/gym-1/facility-reservations",
+        method: "GET",
+        authorization: "Bearer token-1"
+      },
+      {
+        path: "/gyms/gym-1/facility-reservations",
+        method: "POST",
+        authorization: "Bearer token-1",
+        body: {
+          resourceId: "resource-1",
+          memberId: "member-1",
+          startsAt: "2026-05-17T17:00:00.000Z",
+          endsAt: "2026-05-17T18:00:00.000Z",
+          paymentReference: "pos-sale-123",
+          overrideConflict: false
+        }
+      },
+      {
+        path: "/gyms/gym-1/facility-reservations/reservation-1",
+        method: "GET",
+        authorization: "Bearer token-1"
+      },
+      {
+        path: "/gyms/gym-1/facility-reservations/reservation-1",
+        method: "DELETE",
+        authorization: "Bearer token-1",
+        body: {
+          reason: "Customer called"
+        }
+      }
+    ]);
+  });
 });
 
 function memoryTokenStore(accessToken: string, refreshToken: string): ApiTokenStore {

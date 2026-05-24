@@ -10,7 +10,7 @@ import type { ButtonModel, EmptyStateModel, InputModel, TableModel } from "@gym-
 
 export interface ResourceView {
   id: string;
-  locationId: string;
+  locationId?: string;
   parentResourceId?: string;
   name: string;
   resourceType: string;
@@ -22,11 +22,15 @@ export interface ResourceView {
   pricing: { amountCents: number };
   paymentRequirement: ReservationPaymentRequirement;
   confirmationMode: ReservationConfirmationMode;
+  linkedStaffUserId?: string;
+  createdFromRoleId?: string;
+  autoManaged?: boolean;
 }
 
 export interface FacilityReservationView {
   id: string;
   resourceId: string;
+  locationId?: string;
   memberId: string;
   status: "pending" | "confirmed" | "cancelled";
   startsAt: string;
@@ -114,7 +118,8 @@ export interface ResourceEditorScreen {
 
 export function buildResourceCreateScreen(inputModel: {
   permissions: string[];
-  locationId: string;
+  locationId?: string;
+  linkedStaffUserId?: string;
   name?: string;
   resourceType?: string;
   amountCents?: string;
@@ -137,14 +142,16 @@ export function buildResourceCreateScreen(inputModel: {
 }
 
 export function createResourceSubmission(inputModel: {
-  locationId: string;
+  locationId?: string;
+  linkedStaffUserId?: string;
   name: string;
   resourceType: string;
   amountCents?: string;
 }): ResourceCreateInput {
   const amountCents = numberOrZero(inputModel.amountCents);
   return {
-    locationId: inputModel.locationId,
+    ...(inputModel.locationId ? { locationId: inputModel.locationId } : {}),
+    ...(inputModel.linkedStaffUserId ? { linkedStaffUserId: inputModel.linkedStaffUserId } : {}),
     name: normalizeText(inputModel.name),
     resourceType: normalizeText(inputModel.resourceType),
     pricing: { amountCents },

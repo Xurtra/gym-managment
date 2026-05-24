@@ -22,6 +22,7 @@
     "test": "vitest run",
     "test:postgres": "node tools/run-postgres-integration.mjs",
     "test:e2e": "playwright test",
+    "test:e2e:observe": "node tools/run-observable-playwright.mjs",
     "typecheck": "tsc -b --pretty",
     "lint": "eslint .",
     "format": "prettier --write .",

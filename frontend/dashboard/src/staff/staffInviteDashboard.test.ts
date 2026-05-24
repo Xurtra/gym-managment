@@ -1780,7 +1780,8 @@ describe("staff invite dashboard flow", () => {
     );
     expect(submission).toEqual({
       name: "Operations Lead",
-      permissions: [Permission.GymRead, Permission.MemberRead]
+      permissions: [Permission.GymRead, Permission.MemberRead],
+      createsReservableResource: false
     });
   });
 

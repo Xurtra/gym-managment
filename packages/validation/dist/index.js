@@ -125,7 +125,8 @@ export const customRoleCreateSchema = z.object({
         .max(80)
         .regex(/^[A-Za-z][A-Za-z0-9 '&-]*$/),
     parentRoleId: id.optional(),
-    permissions: z.array(z.nativeEnum(Permission)).min(1)
+    permissions: z.array(z.nativeEnum(Permission)).min(1),
+    createsReservableResource: z.boolean().default(false)
 });
 export const customRoleUpdateSchema = customRoleCreateSchema
     .partial()
@@ -284,9 +285,13 @@ export const posPurchaseSchema = z
     planId: id.optional()
 })
     .refine((value) => Boolean(value.consumerId ||
-    (value.firstName && value.lastName && (value.email || value.phone))), "Choose an existing consumer or provide the buyer's name plus email or phone.");
+    (value.firstName && value.lastName)), "Choose an existing consumer or provide the buyer's first and last name.");
 export const posStripeFinalizeSchema = z.object({
     paymentIntentId: trimmed.min(1).max(120)
+});
+export const stripeConnectOnboardingLinkSchema = z.object({
+    returnUrl: trimmed.url(),
+    refreshUrl: trimmed.url().optional()
 });
 const membershipPlanBaseSchema = z.object({
     name: trimmed.min(1).max(120),
@@ -361,11 +366,12 @@ const cancellationPolicySchema = z.object({
     cutoffMinutes: z.number().int().min(0).max(10080).default(0),
     feeCents: z.number().int().min(0).default(0)
 });
-export const resourceCreateSchema = z.object({
-    locationId: id,
+const resourceBaseSchema = z.object({
+    locationId: id.optional(),
     parentResourceId: id.optional(),
     name: trimmed.min(1).max(120),
     resourceType: trimmed.min(1).max(80),
+    linkedStaffUserId: id.optional(),
     isBookable: z.boolean().default(true),
     isExclusive: z.boolean().default(true),
     capacity: z.number().int().min(1).max(1000).default(1),
@@ -377,8 +383,12 @@ export const resourceCreateSchema = z.object({
     confirmationMode: z.nativeEnum(ReservationConfirmationMode).default(ReservationConfirmationMode.Automatic),
     cancellationPolicy: cancellationPolicySchema.default({})
 });
-export const resourceUpdateSchema = resourceCreateSchema
-    .omit({ locationId: true, parentResourceId: true })
+export const resourceCreateSchema = resourceBaseSchema
+    .refine((value) => Boolean(value.locationId || value.linkedStaffUserId), {
+    message: "A physical resource location or linked staff user is required."
+});
+export const resourceUpdateSchema = resourceBaseSchema
+    .omit({ locationId: true, parentResourceId: true, linkedStaffUserId: true })
     .partial()
     .refine((value) => Object.keys(value).length > 0, "At least one field must be provided.");
 export const resourceAvailabilityQuerySchema = z.object({
@@ -404,6 +414,7 @@ export const classSessionResourceAllocationSchema = z
 export const facilityReservationCreateSchema = z
     .object({
     resourceId: id,
+    locationId: id.optional(),
     memberId: id,
     startsAt: z.string().datetime(),
     endsAt: z.string().datetime(),

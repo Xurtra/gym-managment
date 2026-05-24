@@ -93,6 +93,7 @@ interface RoleRow extends QueryResultRow {
   name: Role["name"];
   permissions: unknown;
   parent_role_id: string | null;
+  creates_reservable_resource: boolean;
   is_system: boolean;
   created_at: Date;
   updated_at: Date;
@@ -356,7 +357,7 @@ interface ClassBookingRow extends QueryResultRow {
 interface ReservableResourceRow extends QueryResultRow {
   id: string;
   gym_id: string;
-  location_id: string;
+  location_id: string | null;
   parent_resource_id: string | null;
   name: string;
   resource_type: string;
@@ -371,6 +372,9 @@ interface ReservableResourceRow extends QueryResultRow {
   payment_requirement: ReservableResource["paymentRequirement"];
   confirmation_mode: ReservableResource["confirmationMode"];
   cancellation_policy: unknown;
+  linked_staff_user_id: string | null;
+  created_from_role_id: string | null;
+  auto_managed: boolean;
   archived_at: Date | null;
   created_at: Date;
   updated_at: Date;
@@ -398,6 +402,7 @@ interface FacilityReservationRow extends QueryResultRow {
   gym_id: string;
   resource_id: string;
   allocation_id: string | null;
+  location_id: string | null;
   member_id: string;
   created_by_user_id: string;
   status: FacilityReservation["status"];
@@ -666,6 +671,8 @@ export class PostgresRepositories implements Repositories {
     listAllocationsForGym: (gymId: string) => this.listAllocationsForGym(gymId),
     listAllocationsForResource: (resourceId: string) =>
       this.listAllocationsForResource(resourceId),
+    listAllocationsForClassSession: (classSessionId: string) =>
+      this.listAllocationsForClassSession(classSessionId),
     updateAllocation: (allocation: ResourceAllocation) => this.updateAllocation(allocation),
     createFacilityReservation: (reservation: FacilityReservation) =>
       this.createFacilityReservation(reservation),
@@ -890,8 +897,9 @@ export class PostgresRepositories implements Repositories {
   async createRole(role: Role) {
     const result = await this.executor.query<RoleRow>(
       `INSERT INTO roles (
-        id, gym_id, name, permissions, parent_role_id, is_system, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8)
+        id, gym_id, name, permissions, parent_role_id, creates_reservable_resource,
+        is_system, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9)
       RETURNING *`,
       [
         role.id,
@@ -899,6 +907,7 @@ export class PostgresRepositories implements Repositories {
         role.name,
         JSON.stringify(role.permissions),
         role.parentRoleId ?? null,
+        role.createsReservableResource,
         role.isSystem,
         role.createdAt,
         role.updatedAt
@@ -912,8 +921,9 @@ export class PostgresRepositories implements Repositories {
     for (const role of roles) {
       const result = await this.executor.query<RoleRow>(
         `INSERT INTO roles (
-          id, gym_id, name, permissions, parent_role_id, is_system, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8)
+          id, gym_id, name, permissions, parent_role_id, creates_reservable_resource,
+          is_system, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9)
         RETURNING *`,
         [
           role.id,
@@ -921,6 +931,7 @@ export class PostgresRepositories implements Repositories {
           role.name,
           JSON.stringify(role.permissions),
           role.parentRoleId ?? null,
+          role.createsReservableResource,
           role.isSystem,
           role.createdAt,
           role.updatedAt
@@ -952,10 +963,18 @@ export class PostgresRepositories implements Repositories {
        SET name = $2,
            permissions = $3::jsonb,
            parent_role_id = $4,
-           updated_at = $5
+           creates_reservable_resource = $5,
+           updated_at = $6
        WHERE id = $1
        RETURNING *`,
-      [role.id, role.name, JSON.stringify(role.permissions), role.parentRoleId ?? null, role.updatedAt]
+      [
+        role.id,
+        role.name,
+        JSON.stringify(role.permissions),
+        role.parentRoleId ?? null,
+        role.createsReservableResource,
+        role.updatedAt
+      ]
     );
     return mapRole(one(result));
   }
@@ -2055,13 +2074,14 @@ export class PostgresRepositories implements Repositories {
         id, gym_id, location_id, parent_resource_id, name, resource_type, status,
         is_bookable, is_exclusive, capacity, amenities, rentable_hours, slot_rules,
         pricing, payment_requirement, confirmation_mode, cancellation_policy,
+        linked_staff_user_id, created_from_role_id, auto_managed,
         archived_at, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb, $15, $16, $17::jsonb, $18, $19, $20)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb, $15, $16, $17::jsonb, $18, $19, $20, $21, $22, $23)
       RETURNING *`,
       [
         resource.id,
         resource.gymId,
-        resource.locationId,
+        resource.locationId ?? null,
         resource.parentResourceId ?? null,
         resource.name,
         resource.resourceType,
@@ -2076,6 +2096,9 @@ export class PostgresRepositories implements Repositories {
         resource.paymentRequirement,
         resource.confirmationMode,
         JSON.stringify(resource.cancellationPolicy),
+        resource.linkedStaffUserId ?? null,
+        resource.createdFromRoleId ?? null,
+        resource.autoManaged ?? false,
         resource.archivedAt ?? null,
         resource.createdAt,
         resource.updatedAt
@@ -2116,8 +2139,11 @@ export class PostgresRepositories implements Repositories {
           payment_requirement = $12,
           confirmation_mode = $13,
           cancellation_policy = $14::jsonb,
-          archived_at = $15,
-          updated_at = $16
+          linked_staff_user_id = $15,
+          created_from_role_id = $16,
+          auto_managed = $17,
+          archived_at = $18,
+          updated_at = $19
       WHERE id = $1
       RETURNING *`,
       [
@@ -2135,6 +2161,9 @@ export class PostgresRepositories implements Repositories {
         resource.paymentRequirement,
         resource.confirmationMode,
         JSON.stringify(resource.cancellationPolicy),
+        resource.linkedStaffUserId ?? null,
+        resource.createdFromRoleId ?? null,
+        resource.autoManaged ?? false,
         resource.archivedAt ?? null,
         resource.updatedAt
       ]
@@ -2194,6 +2223,14 @@ export class PostgresRepositories implements Repositories {
     return result.rows.map(mapResourceAllocation);
   }
 
+  async listAllocationsForClassSession(classSessionId: string) {
+    const result = await this.executor.query<ResourceAllocationRow>(
+      "SELECT * FROM resource_allocations WHERE class_session_id = $1 ORDER BY starts_at, id",
+      [classSessionId]
+    );
+    return result.rows.map(mapResourceAllocation);
+  }
+
   async updateAllocation(allocation: ResourceAllocation) {
     const result = await this.executor.query<ResourceAllocationRow>(
       `UPDATE resource_allocations
@@ -2223,17 +2260,18 @@ export class PostgresRepositories implements Repositories {
   async createFacilityReservation(reservation: FacilityReservation) {
     const result = await this.executor.query<FacilityReservationRow>(
       `INSERT INTO facility_reservations (
-        id, gym_id, resource_id, allocation_id, member_id, created_by_user_id, status,
+        id, gym_id, resource_id, allocation_id, location_id, member_id, created_by_user_id, status,
         starts_at, ends_at, amount_cents, payment_requirement, payment_status,
         payment_reference, cancellation_fee_cents, refund_amount_cents, cancelled_at,
         cancelled_by_user_id, cancellation_reason, note, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
       RETURNING *`,
       [
         reservation.id,
         reservation.gymId,
         reservation.resourceId,
         reservation.allocationId ?? null,
+        reservation.locationId ?? null,
         reservation.memberId,
         reservation.createdByUserId,
         reservation.status,
@@ -2279,13 +2317,14 @@ export class PostgresRepositories implements Repositories {
           status = $3,
           payment_status = $4,
           payment_reference = $5,
-          cancellation_fee_cents = $6,
-          refund_amount_cents = $7,
-          cancelled_at = $8,
-          cancelled_by_user_id = $9,
-          cancellation_reason = $10,
-          note = $11,
-          updated_at = $12
+          location_id = $6,
+          cancellation_fee_cents = $7,
+          refund_amount_cents = $8,
+          cancelled_at = $9,
+          cancelled_by_user_id = $10,
+          cancellation_reason = $11,
+          note = $12,
+          updated_at = $13
       WHERE id = $1
       RETURNING *`,
       [
@@ -2294,6 +2333,7 @@ export class PostgresRepositories implements Repositories {
         reservation.status,
         reservation.paymentStatus,
         reservation.paymentReference ?? null,
+        reservation.locationId ?? null,
         reservation.cancellationFeeCents,
         reservation.refundAmountCents,
         reservation.cancelledAt ?? null,
@@ -2680,6 +2720,7 @@ function mapRole(row: RoleRow): Role {
     gymId: row.gym_id,
     name: row.name,
     permissions: stringArray(row.permissions) as Role["permissions"],
+    createsReservableResource: row.creates_reservable_resource,
     isSystem: row.is_system,
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -3098,7 +3139,6 @@ function mapReservableResource(row: ReservableResourceRow): ReservableResource {
   const resource: ReservableResource = {
     id: row.id,
     gymId: row.gym_id,
-    locationId: row.location_id,
     name: row.name,
     resourceType: row.resource_type,
     status: row.status,
@@ -3114,8 +3154,20 @@ function mapReservableResource(row: ReservableResourceRow): ReservableResource {
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
+  if (row.location_id) {
+    resource.locationId = row.location_id;
+  }
   if (row.parent_resource_id) {
     resource.parentResourceId = row.parent_resource_id;
+  }
+  if (row.linked_staff_user_id) {
+    resource.linkedStaffUserId = row.linked_staff_user_id;
+  }
+  if (row.created_from_role_id) {
+    resource.createdFromRoleId = row.created_from_role_id;
+  }
+  if (row.auto_managed) {
+    resource.autoManaged = true;
   }
   if (isRecord(row.rentable_hours)) {
     resource.rentableHours = row.rentable_hours as OperatingHours;
@@ -3172,6 +3224,9 @@ function mapFacilityReservation(row: FacilityReservationRow): FacilityReservatio
   };
   if (row.allocation_id) {
     reservation.allocationId = row.allocation_id;
+  }
+  if (row.location_id) {
+    reservation.locationId = row.location_id;
   }
   if (row.payment_reference) {
     reservation.paymentReference = row.payment_reference;

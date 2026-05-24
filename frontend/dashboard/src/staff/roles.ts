@@ -31,6 +31,7 @@ export interface CustomRoleScreen {
   selectedPermissionCount: number;
   availablePermissionCount: number;
   disabledPermissionCount: number;
+  createsReservableResource: boolean;
   summaryLabel: string;
   lockedReason?: string;
   canSubmit: boolean;
@@ -41,13 +42,15 @@ export function buildCustomRoleCreateScreen(
   inputModel: {
     name?: string;
     selectedPermissions?: PermissionValue[];
+    createsReservableResource?: boolean;
   } = {}
 ): CustomRoleScreen {
   return buildCustomRoleScreen({
     screen: "custom_role_create",
     actionLabel: "Create role",
     name: inputModel.name,
-    selectedPermissions: inputModel.selectedPermissions
+    selectedPermissions: inputModel.selectedPermissions,
+    createsReservableResource: inputModel.createsReservableResource
   });
 }
 
@@ -63,6 +66,7 @@ export function buildCustomRoleEditScreen(inputModel: {
     roleLabel: inputModel.role.label,
     name: inputModel.name ?? inputModel.role.label,
     selectedPermissions: inputModel.selectedPermissions ?? inputModel.role.permissions ?? [],
+    createsReservableResource: inputModel.role.createsReservableResource ?? false,
     locked: inputModel.role.isSystem === true || inputModel.role.name === RoleName.Owner
   });
 }
@@ -70,10 +74,12 @@ export function buildCustomRoleEditScreen(inputModel: {
 export function createCustomRoleSubmission(inputModel: {
   name: string;
   permissions: PermissionValue[];
+  createsReservableResource?: boolean;
 }): CustomRoleSubmission {
   return {
     name: inputModel.name.trim(),
-    permissions: editablePermissions(inputModel.permissions)
+    permissions: editablePermissions(inputModel.permissions),
+    createsReservableResource: inputModel.createsReservableResource ?? false
   };
 }
 
@@ -84,6 +90,7 @@ function buildCustomRoleScreen(inputModel: {
   roleLabel?: string | undefined;
   name?: string | undefined;
   selectedPermissions?: PermissionValue[] | undefined;
+  createsReservableResource?: boolean | undefined;
   locked?: boolean | undefined;
 }): CustomRoleScreen {
   const name = inputModel.name?.trim() ?? "";
@@ -122,6 +129,7 @@ function buildCustomRoleScreen(inputModel: {
     selectedPermissionCount,
     availablePermissionCount,
     disabledPermissionCount,
+    createsReservableResource: inputModel.createsReservableResource ?? false,
     summaryLabel:
       selectedPermissionCount === 0
         ? "No permissions selected"

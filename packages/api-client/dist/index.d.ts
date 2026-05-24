@@ -1,4 +1,4 @@
-import type { AccessDeviceCreateInput, AccessDeviceEventInput, AccessDeviceHeartbeatInput, AccessRuleCreateInput, ClassBookingCreateInput, ClassSessionResourceAllocationInput, CheckInCreateInput, ClassSessionCreateInput, ClassTypeCreateInput, ConsumerCreateInput, ConsumerProfileImageUploadInput, ConsumerUpdateInput, CustomRoleCreateInput, CustomRoleUpdateInput, FacilityReservationCancelInput, FacilityReservationCreateInput, GymCreateInput, GymUpdateInput, LocationCreateInput, LocationUpdateInput, LoginInput, MemberCreateInput, MemberMembershipAssignInput, MemberUpdateInput, MembershipPlanCreateInput, MembershipPlanUpdateInput, PosPurchaseInput, PublicSignupInput, RegisterInput, ResetPasswordInput, ResourceCreateInput, ResourceUpdateInput, RoleAssignmentInput, SchedulerAvailabilityCreateInput, SchedulerCoverageRuleCreateInput, SchedulerGenerateInput, SchedulerPreferenceRequestCreateInput, SchedulerPreferenceRequestResolveInput, SchedulerPublishInput, SchedulerRequestCreateInput, SchedulerRequestResolveInput, SchedulerSettingsUpdateInput, StaffAccessRemoveInput, StaffClockInInput, StaffClockOutInput, StaffInviteAcceptInput, StaffInviteCreateInput, StaffShiftCreateInput, StaffSelfClockInInput, StaffSelfClockOutInput, StaffManualBookingInput } from "@gym-platform/validation";
+import type { AccessDeviceCreateInput, AccessDeviceEventInput, AccessDeviceHeartbeatInput, AccessRuleCreateInput, ClassBookingCreateInput, ClassSessionResourceAllocationInput, CheckInCreateInput, ClassSessionCreateInput, ClassTypeCreateInput, ConsumerCreateInput, ConsumerProfileImageUploadInput, ConsumerUpdateInput, CustomRoleCreateInput, CustomRoleUpdateInput, FacilityReservationCancelInput, FacilityReservationCreateInput, GymCreateInput, GymUpdateInput, LocationCreateInput, LocationUpdateInput, LoginInput, MemberCreateInput, MemberMembershipAssignInput, MemberUpdateInput, MembershipPlanCreateInput, MembershipPlanUpdateInput, PosPurchaseInput, StripeConnectOnboardingLinkInput, PublicSignupInput, RegisterInput, ResetPasswordInput, ResourceCreateInput, ResourceUpdateInput, RoleAssignmentInput, StaffAccessRemoveInput, StaffClockInInput, StaffClockOutInput, StaffInviteAcceptInput, StaffInviteCreateInput, StaffShiftCreateInput, StaffSelfClockInInput, StaffSelfClockOutInput, StaffManualBookingInput } from "@gym-platform/validation";
 export interface ApiClientOptions {
     baseUrl: string;
     accessToken?: string;
@@ -44,8 +44,6 @@ export declare class GymApiClient {
     me(): Promise<unknown>;
     listGyms(): Promise<unknown>;
     createGym(input: GymCreateInput): Promise<unknown>;
-    createPlatformGymOwner(input: RegisterInput): Promise<unknown>;
-    archivePlatformGym(gymId: string): Promise<unknown>;
     getGym(gymId: string): Promise<unknown>;
     updateGym(gymId: string, input: GymUpdateInput): Promise<unknown>;
     listLocations(gymId: string): Promise<unknown>;
@@ -67,23 +65,6 @@ export declare class GymApiClient {
     listStaffShifts(gymId: string): Promise<unknown>;
     listMyStaffShifts(gymId: string): Promise<unknown>;
     createStaffShift(gymId: string, input: StaffShiftCreateInput): Promise<unknown>;
-    listSchedulerRules(gymId: string): Promise<unknown>;
-    createSchedulerRule(gymId: string, input: SchedulerCoverageRuleCreateInput): Promise<unknown>;
-    listSchedulerAvailability(gymId: string): Promise<unknown>;
-    createSchedulerAvailability(gymId: string, input: SchedulerAvailabilityCreateInput): Promise<unknown>;
-    listMySchedulerAvailability(gymId: string): Promise<unknown>;
-    getSchedulerSettings(gymId: string): Promise<unknown>;
-    updateSchedulerSettings(gymId: string, input: SchedulerSettingsUpdateInput): Promise<unknown>;
-    listSchedulerPreferenceRequests(gymId: string): Promise<unknown>;
-    listMySchedulerPreferenceRequests(gymId: string): Promise<unknown>;
-    createSchedulerPreferenceRequest(gymId: string, input: SchedulerPreferenceRequestCreateInput): Promise<unknown>;
-    resolveSchedulerPreferenceRequest(gymId: string, requestId: string, input: SchedulerPreferenceRequestResolveInput): Promise<unknown>;
-    listSchedulerRequests(gymId: string): Promise<unknown>;
-    listMySchedulerRequests(gymId: string): Promise<unknown>;
-    createSchedulerRequest(gymId: string, input: SchedulerRequestCreateInput): Promise<unknown>;
-    generateSchedule(gymId: string, input: SchedulerGenerateInput): Promise<unknown>;
-    publishSchedule(gymId: string, input: SchedulerPublishInput): Promise<unknown>;
-    resolveSchedulerRequest(gymId: string, requestId: string, input: SchedulerRequestResolveInput): Promise<unknown>;
     listStaffTimeEntries(gymId: string): Promise<unknown>;
     listMyStaffTimeEntries(gymId: string): Promise<unknown>;
     clockStaffIn(gymId: string, input: StaffClockInInput): Promise<unknown>;
@@ -100,7 +81,12 @@ export declare class GymApiClient {
     assignConsumerMembership(gymId: string, consumerId: string, input: MemberMembershipAssignInput): Promise<unknown>;
     createPosPurchase(gymId: string, input: PosPurchaseInput): Promise<unknown>;
     getPosStripeConfig(gymId: string): Promise<unknown>;
+    getStripeConnectAccount(gymId: string): Promise<unknown>;
+    createStripeConnectOnboardingLink(gymId: string, input: StripeConnectOnboardingLinkInput): Promise<unknown>;
+    createStripeConnectAccountSession(gymId: string): Promise<unknown>;
+    disconnectStripeConnectAccount(gymId: string): Promise<unknown>;
     createPosPaymentIntent(gymId: string, input: PosPurchaseInput): Promise<unknown>;
+    createPosTerminalConnectionToken(gymId: string): Promise<unknown>;
     finalizePosPaymentIntent(gymId: string, paymentIntentId: string): Promise<unknown>;
     createMember(gymId: string, input: MemberCreateInput): Promise<unknown>;
     updateMember(gymId: string, memberId: string, input: MemberUpdateInput): Promise<unknown>;
@@ -115,6 +101,7 @@ export declare class GymApiClient {
     createClassType(gymId: string, input: ClassTypeCreateInput): Promise<unknown>;
     createClassSession(gymId: string, input: ClassSessionCreateInput): Promise<unknown>;
     allocateClassSessionResource(gymId: string, sessionId: string, input: ClassSessionResourceAllocationInput): Promise<unknown>;
+    listClassSessionResourceAllocations(gymId: string, sessionId: string): Promise<unknown>;
     listResources(gymId: string, locationId?: string): Promise<unknown>;
     createResource(gymId: string, input: ResourceCreateInput): Promise<unknown>;
     updateResource(gymId: string, resourceId: string, input: ResourceUpdateInput): Promise<unknown>;

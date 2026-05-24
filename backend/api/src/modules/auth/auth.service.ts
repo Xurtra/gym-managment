@@ -19,6 +19,7 @@ import {
 import type { RefreshToken, StaffInvite, User } from "../../infrastructure/store/entities.js";
 import type { Repositories } from "../../infrastructure/store/repositories.js";
 import { addDays, addHours, addMinutes, type Clock } from "../../shared/time.js";
+import { reconcileStaffResourceForMembership } from "../reservations/staffResourceLinking.js";
 import { TenancyService } from "../tenancy/tenancy.service.js";
 
 export interface AuthServiceOptions {
@@ -291,6 +292,7 @@ export class AuthService {
         createdAt: now,
         updatedAt: now
       });
+      await reconcileStaffResourceForMembership(repositories, this.clock, invite.gymId, user.id);
       const acceptedInvite = await repositories.staffInvites.updateStaffInvite({
         ...invite,
         status: StaffInviteStatus.Accepted,

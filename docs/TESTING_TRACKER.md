@@ -123,6 +123,11 @@ Note: Stripe test mode is now expected to run as one platform account plus one c
 | Front desk-only restricted view | ✅ | 🔲 | 🔲 |
 | Custom role creation screen | ✅ | ✅ | 🔲 |
 | Custom role edit screen | ✅ | ✅ | 🔲 |
+| Role reservable-resource toggle | ✅ | 🔲 | 🔲 |
+| Trainer role defaults to reservable resource creation | ✅ | 🔲 | 🔲 |
+| Role-based linked staff-resource create/archive | ✅ | 🔲 | 🔲 |
+| Active staff backfill for newly reservable roles | ✅ | 🔲 | 🔲 |
+| Direct database seeded role/resource mapping | 🔲 | ✅ | 🔲 |
 
 ---
 
@@ -214,6 +219,9 @@ Note: Stripe test mode is now expected to run as one platform account plus one c
 | Class session creation endpoint | ✅ | ✅ | 🔲 |
 | Assign trainer to class session | ✅ | ✅ | 🔲 |
 | Assign room to class session | ✅ | ✅ | 🔲 |
+| Automatic linked trainer resource allocation | ✅ | 🔲 | 🔲 |
+| Trainer resource conflict blocking | ✅ | 🔲 | 🔲 |
+| Missing linked trainer resource rejection | ✅ | 🔲 | 🔲 |
 | Class capacity setting | ✅ | ✅ | 🔲 |
 | Class waitlist capacity setting | ✅ | ✅ | 🔲 |
 | Public schedule API endpoint | ✅ | ✅ | 🔲 |
@@ -237,6 +245,40 @@ Note: Stripe test mode is now expected to run as one platform account plus one c
 | Late cancellation fee logic | ✅ | ✅ | 🔲 |
 | Staff booking override flow | ✅ | ✅ | 🔲 |
 | Staff manual booking flow | ✅ | ✅ | 🔲 |
+
+---
+
+## Reservations & Reservable Resources
+
+| Feature | Unit | Int | E2E |
+|---------|------|-----|-----|
+| Reservable resource database model | ✅ | 🔲 | 🔲 |
+| Resource group and child-unit setup | ✅ | 🔲 | 🔲 |
+| Location-scoped resource listing | ✅ | ✅ | ✅ |
+| Gym-scoped staff-linked resources | ✅ | 🔲 | 🔲 |
+| Manual staff-resource linkage role validation | ✅ | 🔲 | 🔲 |
+| One active linked staff resource database constraint | 🔲 | ✅ | 🔲 |
+| Amenity metadata for non-scarce equipment | ✅ | 🔲 | 🔲 |
+| Safe resource archive behavior | ✅ | 🔲 | 🔲 |
+| Rentable hours inherit from location hours | ✅ | 🔲 | 🔲 |
+| Slot minimum, maximum, and increment validation | ✅ | 🔲 | 🔲 |
+| Buffer-aware resource conflict checks | ✅ | 🔲 | 🔲 |
+| Exclusive resource conflict blocking | ✅ | 🔲 | 🔲 |
+| Shared resource capacity conflict blocking | ✅ | 🔲 | 🔲 |
+| Class-session resource allocation bridge | ✅ | 🔲 | 🔲 |
+| Staff conflict override with required reason | ✅ | 🔲 | 🔲 |
+| Staff-created facility reservation flow | ✅ | ✅ | ✅ |
+| Facility reservations attached to one customer | ✅ | ✅ | ✅ |
+| Facility reservations do not create class waitlists | ✅ | 🔲 | 🔲 |
+| Staff-approval confirmation status for resources | ✅ | 🔲 | 🔲 |
+| Price/payment requirement snapshot at booking | ✅ | 🔲 | 🔲 |
+| POS/payment reference state exposure | ✅ | ✅ | ✅ |
+| Facility-specific cancellation fee policy | ✅ | 🔲 | 🔲 |
+| Resource availability lookup | ✅ | ✅ | ✅ |
+| Dashboard resource registry and availability state | ✅ | 🔲 | 🔲 |
+| Dashboard facility reservation create/detail/cancel state | ✅ | 🔲 | ✅ |
+| Dashboard class resource allocation submission | ✅ | 🔲 | 🔲 |
+| API client reservation resource routes | ✅ | 🔲 | 🔲 |
 
 ---
 
@@ -331,6 +373,7 @@ Priority order for initial Playwright suite:
 | Membership Plans | ✅ full | ✅ full | 🔲 |
 | Class Scheduling | ✅ full | ✅ full | 🔲 |
 | Bookings & Waitlists | ✅ full | ✅ full | ❌ planned |
+| Reservations & Reservable Resources | ✅ full | ❌ planned | 🔲 |
 | Check-Ins | ✅ full | ✅ full | ❌ planned |
 | Access Control | ✅ full | ✅ full | 🔲 |
 | Security Utilities | ❌ gaps | ✅ indirect | 🔲 |

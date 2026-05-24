@@ -18,6 +18,11 @@ import type { GymUser, Role, StaffAuditLog, StaffInvite } from "../../infrastruc
 import type { Repositories } from "../../infrastructure/store/repositories.js";
 import { addDays, type Clock } from "../../shared/time.js";
 import { conflict, forbidden, notFound } from "../../http/errors.js";
+import {
+  archiveAutoManagedStaffResources,
+  backfillRoleLinkedStaffResources,
+  reconcileStaffResourceForMembership
+} from "../reservations/staffResourceLinking.js";
 
 export interface PublicStaffInvite {
   id: string;
@@ -80,6 +85,7 @@ export class RoleService {
         gymId,
         name: name as RoleName,
         permissions,
+        createsReservableResource: name === RoleName.Trainer,
         isSystem: true,
         createdAt: now,
         updatedAt: now
@@ -135,6 +141,7 @@ export class RoleService {
       gymId,
       name: input.name.trim(),
       permissions: customRolePermissions(input.permissions),
+      createsReservableResource: input.createsReservableResource ?? false,
       isSystem: false,
       createdAt: now,
       updatedAt: now
@@ -186,7 +193,32 @@ export class RoleService {
         updated.parentRoleId = parentRoleId;
       }
     }
-    return this.repositories.roles.updateRole(updated);
+    if (input.createsReservableResource !== undefined) {
+      updated.createsReservableResource = input.createsReservableResource;
+    }
+    return this.repositories.transaction(async (repositories) => {
+      const saved = await repositories.roles.updateRole(updated);
+      if (role.createsReservableResource !== saved.createsReservableResource) {
+        if (saved.createsReservableResource) {
+          await backfillRoleLinkedStaffResources(repositories, this.clock, gymId, saved);
+        } else {
+          const memberships = await repositories.gymUsers.listGymUsersForGym(gymId);
+          await Promise.all(
+            memberships
+              .filter((membership) => membership.roleId === saved.id)
+              .map((membership) =>
+                archiveAutoManagedStaffResources(
+                  repositories,
+                  this.clock,
+                  gymId,
+                  membership.userId
+                )
+              )
+          );
+        }
+      }
+      return saved;
+    });
   }
 
   async deleteCustomRole(gymId: string, roleId: string, actorUserId?: string) {
@@ -400,6 +432,12 @@ export class RoleService {
       }
       const updated = { ...membership, roleId, updatedAt: this.clock.now() };
       const saved = await repositories.gymUsers.updateGymUser(updated);
+      await reconcileStaffResourceForMembership(
+        repositories,
+        this.clock,
+        gymId,
+        targetUserId
+      );
       if (actorUserId && membership.roleId !== roleId) {
         await repositories.staffAuditLogs.createStaffAuditLog(
           this.createStaffAuditLog({
@@ -451,6 +489,12 @@ export class RoleService {
         updatedAt: this.clock.now()
       };
       const saved = await repositories.gymUsers.updateGymUser(updated);
+      await reconcileStaffResourceForMembership(
+        repositories,
+        this.clock,
+        gymId,
+        targetUserId
+      );
       const reason = input.reason?.trim();
       const auditInput: Omit<StaffAuditLog, "id" | "createdAt"> = {
         gymId,

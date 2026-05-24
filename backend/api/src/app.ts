@@ -47,6 +47,7 @@ import {
   schedulerRequestCreateSchema,
   schedulerRequestResolveSchema,
   schedulerSettingsUpdateSchema,
+  stripeConnectOnboardingLinkSchema,
   staffAccessRemoveSchema,
   staffClockInSchema,
   staffClockOutSchema,
@@ -1119,8 +1120,10 @@ function createRoutes() {
     const gymId = requiredParam(context, "gymId");
     await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
     await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PaymentWrite);
-    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.MemberWrite);
     const input = parseWith(posPurchaseSchema, context.body);
+    if (input.consumerId || input.email || input.phone || input.planId) {
+      await context.services.roleService.requirePermission(gymId, auth.sub, Permission.MemberWrite);
+    }
     if (input.planId) {
       await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PlanRead);
     }
@@ -1135,17 +1138,60 @@ function createRoutes() {
     return context.services.posStripeService.getConfig(gymId);
   });
 
+  add("GET", "/gyms/:gymId/stripe/connect-account", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymRead);
+    return context.services.posStripeService.getConnectAccount(gymId);
+  });
+
+  add("POST", "/gyms/:gymId/stripe/connect-account/onboarding-link", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymUpdate);
+    const input = parseWith(stripeConnectOnboardingLinkSchema, context.body);
+    return context.services.posStripeService.createConnectOnboardingLink(gymId, input);
+  });
+
+  add("POST", "/gyms/:gymId/stripe/connect-account/session", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymUpdate);
+    return context.services.posStripeService.createConnectAccountSession(gymId);
+  });
+
+  add("DELETE", "/gyms/:gymId/stripe/connect-account", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymUpdate);
+    return context.services.posStripeService.disconnectConnectAccount(gymId);
+  });
+
   add("POST", "/gyms/:gymId/pos/payment-intents", async (context) => {
     const auth = requireAuth(context);
     const gymId = requiredParam(context, "gymId");
     await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
     await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PaymentWrite);
-    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.MemberWrite);
     const input = parseWith(posPurchaseSchema, context.body);
+    if (input.consumerId || input.email || input.phone || input.planId) {
+      await context.services.roleService.requirePermission(gymId, auth.sub, Permission.MemberWrite);
+    }
     if (input.planId) {
       await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PlanRead);
     }
     return context.services.posStripeService.createPaymentIntent(gymId, input);
+  });
+
+  add("POST", "/gyms/:gymId/pos/terminal/connection-token", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PaymentWrite);
+    return context.services.posStripeService.createTerminalConnectionToken(gymId);
   });
 
   add("POST", "/gyms/:gymId/pos/payment-intents/:paymentIntentId/finalize", async (context) => {
@@ -1340,6 +1386,19 @@ function createRoutes() {
       requiredParam(context, "sessionId"),
       input
     );
+  });
+
+  add("GET", "/gyms/:gymId/class-sessions/:sessionId/resource-allocations", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.ClassRead);
+    return {
+      allocations: await context.services.reservationResourceService.listClassSessionAllocations(
+        gymId,
+        requiredParam(context, "sessionId")
+      )
+    };
   });
 
   add("GET", "/gyms/:gymId/class-sessions/:sessionId/bookings", async (context) => {
@@ -1829,6 +1888,7 @@ function sendError(res: ServerResponse, error: unknown) {
     sendJson(res, error.status, { error: { code: error.code, message: error.message } });
     return;
   }
+  console.error("Unhandled API error", error);
   sendJson(res, 500, {
     error: {
       code: "internal_server_error",

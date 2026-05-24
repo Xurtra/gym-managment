@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./observableTest.js";
 import { loginViaUi, navigateToDashboardView, registerOwnerViaApi } from "./helpers.js";
 
 test.describe("Bookings", () => {
