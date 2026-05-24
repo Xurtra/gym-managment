@@ -24,6 +24,9 @@ import {
   facilityReservationCreateSchema,
   loginSchema,
   memberCreateSchema,
+  migrationMemberCsvAiMapSchema,
+  migrationMemberCsvImportSchema,
+  migrationMemberCsvPreviewSchema,
   memberMembershipAssignSchema,
   memberUpdateSchema,
   membershipPlanCreateSchema,
@@ -86,6 +89,7 @@ import { MemberMembershipService } from "./modules/memberMemberships/memberMembe
 import { LocationService } from "./modules/locations/location.service.js";
 import { MemberService } from "./modules/members/member.service.js";
 import { MembershipPlanService } from "./modules/membershipPlans/membershipPlan.service.js";
+import { MigrationImportService } from "./modules/migrations/migrationImport.service.js";
 import { PosService } from "./modules/pos/pos.service.js";
 import { PosStripeService } from "./modules/pos/posStripe.service.js";
 import { ReservationResourceService } from "./modules/reservations/reservationResource.service.js";
@@ -137,6 +141,7 @@ export interface Services {
   tenancyService: TenancyService;
   locationService: LocationService;
   memberService: MemberService;
+  migrationImportService: MigrationImportService;
   crmActivityService: CrmActivityService;
   memberMembershipService: MemberMembershipService;
   membershipPlanService: MembershipPlanService;
@@ -168,6 +173,11 @@ export function createServices(
   const staffTimeClockService = new StaffTimeClockService(repositories, clock);
   const schedulerService = new SchedulerService(repositories, clock);
   const memberService = new MemberService(repositories, clock);
+  const migrationImportService = new MigrationImportService(repositories, memberService, {
+    ...(config.openAiApiKey ? { apiKey: config.openAiApiKey } : {}),
+    ...(config.openAiMigrationModel ? { model: config.openAiMigrationModel } : {}),
+    ...(config.openAiBaseUrl ? { baseUrl: config.openAiBaseUrl } : {})
+  });
   const crmActivityService = new CrmActivityService(repositories, clock);
   const memberMembershipService = new MemberMembershipService(repositories, clock);
   const membershipPlanService = new MembershipPlanService(repositories, clock);
@@ -189,6 +199,7 @@ export function createServices(
     tenancyService,
     locationService,
     memberService,
+    migrationImportService,
     crmActivityService,
     memberMembershipService,
     membershipPlanService,
@@ -208,6 +219,7 @@ export function createServices(
   bootstrapServices.tenancyService = services.tenancyService;
   bootstrapServices.locationService = services.locationService;
   bootstrapServices.memberService = services.memberService;
+  bootstrapServices.migrationImportService = services.migrationImportService;
   bootstrapServices.crmActivityService = services.crmActivityService;
   bootstrapServices.memberMembershipService = services.memberMembershipService;
   bootstrapServices.membershipPlanService = services.membershipPlanService;
@@ -1098,6 +1110,33 @@ function createRoutes() {
     await context.services.roleService.requirePermission(gymId, auth.sub, Permission.MemberWrite);
     const input = parseWith(consumerCreateSchema, context.body);
     return context.services.memberService.create(gymId, input);
+  });
+
+  add("POST", "/gyms/:gymId/migrations/member-list/preview", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.MemberWrite);
+    const input = parseWith(migrationMemberCsvPreviewSchema, context.body);
+    return context.services.migrationImportService.previewMemberListCsv(gymId, input);
+  });
+
+  add("POST", "/gyms/:gymId/migrations/member-list/ai-map", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.MemberWrite);
+    const input = parseWith(migrationMemberCsvAiMapSchema, context.body);
+    return context.services.migrationImportService.suggestMemberListCsvMapping(gymId, input);
+  });
+
+  add("POST", "/gyms/:gymId/migrations/member-list/import", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.MemberWrite);
+    const input = parseWith(migrationMemberCsvImportSchema, context.body);
+    return context.services.migrationImportService.importMemberListCsv(gymId, input);
   });
 
   add("POST", "/gyms/:gymId/consumers/profile-image", async (context) => {

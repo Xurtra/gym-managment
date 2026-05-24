@@ -721,6 +721,62 @@ interface ConsumerListResponse {
   consumers: MemberRecord[];
 }
 
+interface MigrationMemberCsvUpload {
+  fileName: string;
+  contentType?: string;
+  base64Data: string;
+  delimiter: "auto" | "comma" | "tab";
+  mapping?: Record<string, string>;
+}
+
+interface MigrationMemberCsvPreviewRow {
+  rowNumber: number;
+  source: Record<string, string>;
+  input?: {
+    firstName: string;
+    lastName: string;
+    email?: string;
+    phone?: string;
+    barcode?: string;
+    status?: MemberStatus;
+    leadStage?: LeadStage;
+    notes?: string;
+    tagNames?: string[];
+  };
+  valid: boolean;
+  warnings: string[];
+  errors: string[];
+}
+
+interface MigrationMemberCsvPreviewResponse {
+  delimiter: "comma" | "tab";
+  headers: string[];
+  mapping: Record<string, string>;
+  rows: MigrationMemberCsvPreviewRow[];
+  summary: {
+    totalRows: number;
+    validRows: number;
+    skippedRows: number;
+    warningRows: number;
+    previewedRows: number;
+    importedRows?: number;
+  };
+  imported?: Array<{ rowNumber: number; consumer: MemberRecord }>;
+  skipped?: Array<{ rowNumber: number; reason: string }>;
+}
+
+interface MigrationMemberCsvAiMappingResponse {
+  available: boolean;
+  provider: "openai" | "deterministic";
+  model?: string;
+  category: string;
+  confidence: number;
+  mapping: Record<string, string>;
+  warnings: string[];
+  notes: string[];
+  preview: MigrationMemberCsvPreviewResponse;
+}
+
 interface PlanRecord {
   id: string;
   gymId: string;
@@ -973,6 +1029,9 @@ interface AppState {
   theme: ThemeName;
   settingsSection: SettingsSectionKey;
   consumerSegment: ConsumerSegmentFilter;
+  memberCsvImport?: MigrationMemberCsvUpload;
+  memberCsvPreview?: MigrationMemberCsvPreviewResponse;
+  memberCsvAiSuggestion?: MigrationMemberCsvAiMappingResponse;
   roles: RoleRecord[];
   selectedRoleId: string;
   staffShifts: StaffShiftRecord[];
@@ -1102,6 +1161,9 @@ const state: AppState = {
   theme: loadTheme(),
   settingsSection: initialRoute.settingsSection ?? "setup",
   consumerSegment: initialRoute.consumerSegment ?? "all",
+  memberCsvImport: undefined,
+  memberCsvPreview: undefined,
+  memberCsvAiSuggestion: undefined,
   roles: [],
   selectedRoleId: "",
   staffShifts: [],
@@ -2378,6 +2440,7 @@ function renderConsumersView() {
         </div>
         <div class="club-panel club-focus-panel consumer-detail-panel">
           ${canWriteConsumers ? renderConsumerCreatePanel() : ""}
+          ${canWriteConsumers ? renderMemberCsvImportPanel() : ""}
           ${spotlight
             ? `
               <div class="club-focus-card compact">
@@ -2403,6 +2466,150 @@ function renderConsumersView() {
       </div>
     </section>
   `;
+}
+
+function renderMemberCsvImportPanel() {
+  const preview = state.memberCsvPreview;
+  const mappingEntries = preview
+    ? Object.entries(preview.mapping).filter(([, header]) => Boolean(header))
+    : [];
+  const savedUploads = migrationMemberListCsvUploads();
+  return `
+    <div class="form-card compact-form migration-import-card">
+      <div class="card-head">
+        <h3>Import member CSV</h3>
+        <span>${preview ? `${preview.summary.validRows} ready` : "Migration tool"}</span>
+      </div>
+      <p class="club-copy">Upload an old-system member list, preview how columns translate, then import clean rows into the consumer directory.</p>
+      ${savedUploads.length > 0
+        ? `
+          <div class="migration-saved-uploads">
+            <span>Saved checklist uploads</span>
+            ${savedUploads
+              .map(
+                (upload, index) =>
+                  `<button type="button" class="ghost-button" data-member-csv-saved-upload="${index}">${escapeHtml(upload.fileName)}</button>`
+              )
+              .join("")}
+          </div>
+        `
+        : ""}
+      <form id="member-csv-preview-form" class="migration-import-form">
+        <label class="field">
+          <span>CSV or TSV file</span>
+          <input name="memberCsvFile" type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain" />
+        </label>
+        ${renderSelect("delimiter", "Delimiter", [
+          { value: "auto", label: "Auto-detect" },
+          { value: "comma", label: "Comma CSV" },
+          { value: "tab", label: "Tab TSV" }
+        ], state.memberCsvImport?.delimiter ?? "auto")}
+        <div class="migration-import-buttons">
+          <button type="submit">Preview import</button>
+          <button type="submit" name="aiMap" value="1" class="ghost-button">AI map and preview</button>
+        </div>
+      </form>
+      ${state.memberCsvAiSuggestion ? renderMemberCsvAiSuggestion(state.memberCsvAiSuggestion) : ""}
+      ${preview
+        ? `
+          <div class="migration-preview">
+            <div class="migration-preview-summary">
+              <span>${preview.summary.totalRows} rows found</span>
+              <span>${preview.summary.validRows} importable</span>
+              <span>${preview.summary.skippedRows} need review</span>
+              <span>${preview.summary.warningRows} warnings</span>
+            </div>
+            ${mappingEntries.length > 0
+              ? `
+                <div class="migration-mapping-list">
+                  ${mappingEntries
+                    .map(([field, header]) => `<span>${migrationFieldLabel(field)} <strong>${escapeHtml(header)}</strong></span>`)
+                    .join("")}
+                </div>
+              `
+              : `<div class="empty-state"><p>No matching columns were detected. Check the CSV headers and preview again.</p></div>`}
+            ${renderMemberCsvPreviewRows(preview)}
+            <form id="member-csv-import-form" class="migration-import-actions">
+              <button type="submit" ${!state.memberCsvImport || preview.summary.validRows === 0 ? "disabled" : ""}>Import ${preview.summary.validRows} rows</button>
+            </form>
+          </div>
+        `
+        : ""}
+    </div>
+  `;
+}
+
+function renderMemberCsvAiSuggestion(suggestion: MigrationMemberCsvAiMappingResponse) {
+  const confidence = Math.round((suggestion.confidence ?? 0) * 100);
+  const tone = suggestion.available ? "success" : "info";
+  return `
+    <div class="migration-ai-card ${tone}">
+      <div>
+        <strong>${suggestion.available ? "AI mapping applied" : "AI mapping unavailable"}</strong>
+        <span>${suggestion.provider === "openai" ? `OpenAI${suggestion.model ? ` / ${escapeHtml(suggestion.model)}` : ""}` : "Built-in mapper"} - ${confidence}% confidence</span>
+      </div>
+      ${suggestion.warnings.length > 0
+        ? `<ul>${suggestion.warnings.slice(0, 4).map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}</ul>`
+        : ""}
+      ${suggestion.notes.length > 0
+        ? `<p>${escapeHtml(suggestion.notes.slice(0, 2).join(" "))}</p>`
+        : ""}
+    </div>
+  `;
+}
+
+function renderMemberCsvPreviewRows(preview: MigrationMemberCsvPreviewResponse) {
+  if (preview.rows.length === 0) {
+    return `<div class="empty-state"><p>No data rows found in this file.</p></div>`;
+  }
+  return `
+    <div class="migration-preview-rows">
+      ${preview.rows
+        .map((row) => {
+          const input = row.input;
+          const translatedName = input ? `${input.firstName} ${input.lastName}`.trim() : "Not mapped";
+          const details = [
+            input?.email,
+            input?.phone,
+            input?.barcode ? `Barcode ${input.barcode}` : undefined,
+            input?.status
+          ].filter(Boolean);
+          return `
+            <article class="migration-preview-row ${row.valid ? "valid" : "invalid"}">
+              <div>
+                <strong>Row ${row.rowNumber}: ${escapeHtml(translatedName)}</strong>
+                <span>${details.length > 0 ? escapeHtml(details.join(" Â· ")) : "No contact details mapped"}</span>
+              </div>
+              <div class="migration-row-messages">
+                ${row.errors.map((error) => `<span class="migration-row-error">${escapeHtml(error)}</span>`).join("")}
+                ${row.warnings.map((warning) => `<span class="migration-row-warning">${escapeHtml(warning)}</span>`).join("")}
+                ${row.valid ? `<span class="migration-row-ready">Ready</span>` : ""}
+              </div>
+            </article>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function migrationFieldLabel(field: string) {
+  const labels: Record<string, string> = {
+    firstName: "First name <-",
+    lastName: "Last name <-",
+    fullName: "Full name <-",
+    email: "Email <-",
+    phone: "Phone <-",
+    barcode: "Barcode/member ID <-",
+    status: "Status <-",
+    leadStage: "Lead stage <-",
+    notes: "Notes <-",
+    tags: "Tags <-",
+    emergencyContactName: "Emergency contact <-",
+    emergencyContactPhone: "Emergency phone <-",
+    emergencyContactRelationship: "Emergency relationship <-"
+  };
+  return labels[field] ?? `${formatHeaderLabel(field)} <-`;
 }
 
 function renderConsumerCreatePanel() {
@@ -8813,6 +9020,97 @@ function bindEvents() {
     void refreshDashboard({ silent: true });
   });
 
+  bindForm("member-csv-preview-form", async (form, submitter) => {
+    if (!state.gym) {
+      return;
+    }
+    const upload = await memberCsvUploadFromForm(form);
+    const useAiMapping = submitter?.getAttribute("name") === "aiMap";
+    state.memberCsvAiSuggestion = undefined;
+    if (useAiMapping) {
+      const aiSuggestion = (await client.suggestMemberCsvAiMapping(
+        state.gym.id,
+        upload
+      )) as MigrationMemberCsvAiMappingResponse;
+      state.memberCsvAiSuggestion = aiSuggestion;
+      state.memberCsvImport = {
+        ...upload,
+        mapping: aiSuggestion.mapping
+      };
+      state.memberCsvPreview = aiSuggestion.preview;
+      setBanner(
+        aiSuggestion.available ? "success" : "info",
+        aiSuggestion.available
+          ? `AI mapped this file. ${aiSuggestion.preview.summary.validRows} of ${aiSuggestion.preview.summary.totalRows} rows can be imported.`
+          : `AI mapping was not available, so the built-in mapper previewed ${aiSuggestion.preview.summary.validRows} importable rows.`
+      );
+      render();
+      return;
+    }
+    state.memberCsvImport = upload;
+    state.memberCsvPreview = (await client.previewMemberCsvImport(
+      state.gym.id,
+      upload
+    )) as MigrationMemberCsvPreviewResponse;
+    setBanner(
+      "info",
+      `Preview ready: ${state.memberCsvPreview.summary.validRows} of ${state.memberCsvPreview.summary.totalRows} rows can be imported.`
+    );
+    render();
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-member-csv-saved-upload]").forEach((button) => {
+    button.addEventListener("click", () => {
+      void (async () => {
+        if (!state.gym) {
+          return;
+        }
+        const uploadIndex = Number.parseInt(button.dataset.memberCsvSavedUpload ?? "", 10);
+        const upload = migrationMemberListCsvUploads()[uploadIndex];
+        if (!upload) {
+          throw new Error("Saved migration upload was not found.");
+        }
+        state.memberCsvImport = {
+          fileName: upload.fileName,
+          contentType: upload.contentType,
+          base64Data: upload.base64Data,
+          delimiter: "auto"
+        };
+        state.memberCsvAiSuggestion = undefined;
+        state.memberCsvPreview = (await client.previewMemberCsvImport(
+          state.gym.id,
+          state.memberCsvImport
+        )) as MigrationMemberCsvPreviewResponse;
+        setBanner(
+          "info",
+          `Preview ready from saved checklist file: ${state.memberCsvPreview.summary.validRows} of ${state.memberCsvPreview.summary.totalRows} rows can be imported.`
+        );
+        render();
+      })().catch((error) => {
+        setBanner("error", describeError(error));
+        render();
+      });
+    });
+  });
+
+  bindForm("member-csv-import-form", async () => {
+    if (!state.gym || !state.memberCsvImport) {
+      throw new Error("Preview a CSV before importing it.");
+    }
+    const result = (await client.importMemberCsv(
+      state.gym.id,
+      state.memberCsvImport
+    )) as MigrationMemberCsvPreviewResponse;
+    state.memberCsvPreview = result;
+    state.memberCsvImport = undefined;
+    await refreshDashboard({ silent: true });
+    setBanner(
+      "success",
+      `Imported ${result.summary.importedRows ?? 0} consumers. ${result.summary.skippedRows} rows were skipped.`
+    );
+    render();
+  });
+
   bindForm("public-slug-form", async (form) => {
     const data = formData(form);
     state.publicSuccess = undefined;
@@ -8958,7 +9256,7 @@ function updateStaffClockTimers() {
   });
 }
 
-function bindForm(id: string, handler: (form: HTMLFormElement) => Promise<void>) {
+function bindForm(id: string, handler: (form: HTMLFormElement, submitter?: HTMLElement) => Promise<void>) {
   const form = app.querySelector<HTMLFormElement>(`#${id}`);
   if (!form) {
     return;
@@ -8966,7 +9264,10 @@ function bindForm(id: string, handler: (form: HTMLFormElement) => Promise<void>)
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
-      await handler(form);
+      const submitter = event instanceof SubmitEvent && event.submitter instanceof HTMLElement
+        ? event.submitter
+        : undefined;
+      await handler(form, submitter);
     } catch (error) {
       setBanner("error", describeError(error));
       render();
@@ -9099,6 +9400,47 @@ async function uploadProfileImageFromForm(gymId: string, form: HTMLFormElement, 
   })) as { url: string };
   clearPendingCameraPhoto(form.id, "profileImageFile");
   return upload.url;
+}
+
+async function memberCsvUploadFromForm(form: HTMLFormElement): Promise<MigrationMemberCsvUpload> {
+  const fileInput = form.querySelector<HTMLInputElement>('input[name="memberCsvFile"]');
+  const file = fileInput?.files?.[0];
+  if (!file) {
+    throw new Error("Choose a CSV or TSV file to preview.");
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error("CSV imports must be 5 MB or smaller.");
+  }
+  if (!isCsvLikeMigrationFile(file.name, file.type)) {
+    throw new Error("This importer reads CSV, TSV, or plain text files. Export spreadsheets to CSV first.");
+  }
+  const data = formData(form);
+  const delimiter = data.delimiter === "comma" || data.delimiter === "tab" ? data.delimiter : "auto";
+  return {
+    fileName: file.name || "member-list.csv",
+    contentType: file.type || migrationContentTypeFromName(file.name),
+    base64Data: arrayBufferToBase64(await file.arrayBuffer()),
+    delimiter
+  };
+}
+
+function migrationMemberListCsvUploads() {
+  return (state.gym?.migrationChecklist?.details?.memberList?.uploads ?? []).filter((upload) =>
+    isCsvLikeMigrationFile(upload.fileName, upload.contentType)
+  );
+}
+
+function isCsvLikeMigrationFile(fileName: string, contentType?: string) {
+  const lowerName = fileName.toLowerCase();
+  const lowerType = (contentType ?? "").toLowerCase();
+  return (
+    lowerName.endsWith(".csv") ||
+    lowerName.endsWith(".tsv") ||
+    lowerName.endsWith(".txt") ||
+    lowerType.includes("csv") ||
+    lowerType.includes("tab-separated") ||
+    lowerType.includes("text/plain")
+  );
 }
 
 async function syncCameraCaptureModal() {
@@ -9853,6 +10195,9 @@ function clearDashboardState() {
   state.memberCache = {};
   state.checkInDebug = undefined;
   state.checkInReview = undefined;
+  state.memberCsvImport = undefined;
+  state.memberCsvPreview = undefined;
+  state.memberCsvAiSuggestion = undefined;
   state.posStripeConfig = undefined;
   state.posTerminalConnectionState = "not_connected";
   state.posTerminalPaymentState = "not_ready";

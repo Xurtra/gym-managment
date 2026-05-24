@@ -202,6 +202,15 @@ export class GymApiClient {
     createConsumer(gymId, input) {
         return this.request("POST", `/gyms/${gymId}/consumers`, input);
     }
+    previewMemberCsvImport(gymId, input) {
+        return this.request("POST", `/gyms/${gymId}/migrations/member-list/preview`, input);
+    }
+    suggestMemberCsvAiMapping(gymId, input) {
+        return this.request("POST", `/gyms/${gymId}/migrations/member-list/ai-map`, input);
+    }
+    importMemberCsv(gymId, input) {
+        return this.request("POST", `/gyms/${gymId}/migrations/member-list/import`, input);
+    }
     uploadConsumerProfileImage(gymId, input) {
         return this.request("POST", `/gyms/${gymId}/consumers/profile-image`, input);
     }

@@ -23,6 +23,9 @@ export interface ApiConfig {
   stripePublishableKey?: string;
   stripeSecretKey?: string;
   stripeWebhookSecret?: string;
+  openAiApiKey?: string;
+  openAiMigrationModel?: string;
+  openAiBaseUrl?: string;
 }
 
 function numberFromEnv(name: string, fallback: number) {
@@ -85,6 +88,15 @@ export function loadConfig(): ApiConfig {
   }
   if (process.env.STRIPE_WEBHOOK_SECRET) {
     config.stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  }
+  if (process.env.OPENAI_API_KEY) {
+    config.openAiApiKey = process.env.OPENAI_API_KEY;
+  }
+  if (process.env.OPENAI_MIGRATION_MODEL) {
+    config.openAiMigrationModel = process.env.OPENAI_MIGRATION_MODEL;
+  }
+  if (process.env.OPENAI_BASE_URL) {
+    config.openAiBaseUrl = process.env.OPENAI_BASE_URL;
   }
   return config;
 }

@@ -17,5 +17,6 @@ __pycache__/
 .vscode/
 
 # Local environment overrides
+.env
 .env.local
 .env.*.local

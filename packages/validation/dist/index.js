@@ -337,6 +337,32 @@ export const consumerProfileImageUploadSchema = z.object({
     contentType: trimmed.regex(/^image\/[a-z0-9.+-]+$/i),
     base64Data: trimmed.min(16).max(8_000_000)
 });
+export const migrationMemberCsvImportSchema = z.object({
+    fileName: trimmed.min(1).max(180),
+    contentType: trimmed.max(120).optional(),
+    base64Data: trimmed.min(1).max(8_000_000),
+    delimiter: z.enum(["auto", "comma", "tab"]).default("auto"),
+    mapping: z
+        .object({
+        firstName: trimmed.max(160).optional(),
+        lastName: trimmed.max(160).optional(),
+        fullName: trimmed.max(160).optional(),
+        email: trimmed.max(160).optional(),
+        phone: trimmed.max(160).optional(),
+        barcode: trimmed.max(160).optional(),
+        status: trimmed.max(160).optional(),
+        leadStage: trimmed.max(160).optional(),
+        notes: trimmed.max(160).optional(),
+        tags: trimmed.max(160).optional(),
+        emergencyContactName: trimmed.max(160).optional(),
+        emergencyContactPhone: trimmed.max(160).optional(),
+        emergencyContactRelationship: trimmed.max(160).optional()
+    })
+        .partial()
+        .optional()
+});
+export const migrationMemberCsvPreviewSchema = migrationMemberCsvImportSchema;
+export const migrationMemberCsvAiMapSchema = migrationMemberCsvImportSchema;
 export const crmActivityTypeSchema = z.enum([
     "note",
     "call",

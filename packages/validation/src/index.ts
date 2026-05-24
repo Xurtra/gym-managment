@@ -414,6 +414,35 @@ export const consumerProfileImageUploadSchema = z.object({
   base64Data: trimmed.min(16).max(8_000_000)
 });
 
+export const migrationMemberCsvImportSchema = z.object({
+  fileName: trimmed.min(1).max(180),
+  contentType: trimmed.max(120).optional(),
+  base64Data: trimmed.min(1).max(8_000_000),
+  delimiter: z.enum(["auto", "comma", "tab"]).default("auto"),
+  mapping: z
+    .object({
+      firstName: trimmed.max(160).optional(),
+      lastName: trimmed.max(160).optional(),
+      fullName: trimmed.max(160).optional(),
+      email: trimmed.max(160).optional(),
+      phone: trimmed.max(160).optional(),
+      barcode: trimmed.max(160).optional(),
+      status: trimmed.max(160).optional(),
+      leadStage: trimmed.max(160).optional(),
+      notes: trimmed.max(160).optional(),
+      tags: trimmed.max(160).optional(),
+      emergencyContactName: trimmed.max(160).optional(),
+      emergencyContactPhone: trimmed.max(160).optional(),
+      emergencyContactRelationship: trimmed.max(160).optional()
+    })
+    .partial()
+    .optional()
+});
+
+export const migrationMemberCsvPreviewSchema = migrationMemberCsvImportSchema;
+
+export const migrationMemberCsvAiMapSchema = migrationMemberCsvImportSchema;
+
 export const crmActivityTypeSchema = z.enum([
   "note",
   "call",
@@ -745,6 +774,9 @@ export type SchedulerRequestResolveInput = z.infer<typeof schedulerRequestResolv
 export type ConsumerCreateInput = z.input<typeof consumerCreateSchema>;
 export type ConsumerUpdateInput = z.input<typeof consumerUpdateSchema>;
 export type ConsumerProfileImageUploadInput = z.infer<typeof consumerProfileImageUploadSchema>;
+export type MigrationMemberCsvImportInput = z.infer<typeof migrationMemberCsvImportSchema>;
+export type MigrationMemberCsvPreviewInput = z.infer<typeof migrationMemberCsvPreviewSchema>;
+export type MigrationMemberCsvAiMapInput = z.infer<typeof migrationMemberCsvAiMapSchema>;
 export type CrmActivityCreateInput = z.input<typeof crmActivityCreateSchema>;
 export type PosPurchaseInput = z.infer<typeof posPurchaseSchema>;
 export type PosStripeFinalizeInput = z.infer<typeof posStripeFinalizeSchema>;

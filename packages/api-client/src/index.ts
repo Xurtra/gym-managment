@@ -26,6 +26,9 @@ import type {
   MemberUpdateInput,
   MembershipPlanCreateInput,
   MembershipPlanUpdateInput,
+  MigrationMemberCsvAiMapInput,
+  MigrationMemberCsvImportInput,
+  MigrationMemberCsvPreviewInput,
   PosPurchaseInput,
   PosStripeFinalizeInput,
   StripeConnectOnboardingLinkInput,
@@ -350,6 +353,18 @@ export class GymApiClient {
 
   createConsumer(gymId: string, input: ConsumerCreateInput) {
     return this.request("POST", `/gyms/${gymId}/consumers`, input);
+  }
+
+  previewMemberCsvImport(gymId: string, input: MigrationMemberCsvPreviewInput) {
+    return this.request("POST", `/gyms/${gymId}/migrations/member-list/preview`, input);
+  }
+
+  suggestMemberCsvAiMapping(gymId: string, input: MigrationMemberCsvAiMapInput) {
+    return this.request("POST", `/gyms/${gymId}/migrations/member-list/ai-map`, input);
+  }
+
+  importMemberCsv(gymId: string, input: MigrationMemberCsvImportInput) {
+    return this.request("POST", `/gyms/${gymId}/migrations/member-list/import`, input);
   }
 
   uploadConsumerProfileImage(gymId: string, input: ConsumerProfileImageUploadInput) {
