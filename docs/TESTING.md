@@ -69,3 +69,33 @@ npm run test:postgres
 That command starts a disposable Postgres container, runs migrations, runs the gated Postgres API flow test, and tears the container down.
 
 The Postgres flow also includes direct SQL seeding for role-gated staff resources. That coverage verifies that production-shaped rows inserted outside service helpers still map correctly through the repository layer and that the database enforces one active linked resource per staff user per gym.
+
+## Playwright E2E
+
+Run the standard browser suite with:
+
+```bash
+npm run test:e2e
+```
+
+Developers can also run the same suite in an observable mode that is easier to watch locally. Observable mode runs headed, uses a single worker, slows actions down, disables web-server reuse, and shows a visible cursor overlay over interacted elements.
+
+Use it with:
+
+```bash
+npm run test:e2e:observe
+```
+
+You can still pass normal Playwright filters and file arguments:
+
+```bash
+npm run test:e2e:observe -- e2e/auth.spec.ts -g "owner can register via API and log in via the dashboard UI"
+```
+
+Observable mode is controlled by these environment variables:
+
+- `PLAYWRIGHT_OBSERVABLE=1` enables headed developer-observable execution.
+- `PLAYWRIGHT_OBSERVABLE_DELAY_MS=400` controls the pause between visible actions.
+- `PLAYWRIGHT_OBSERVABLE_CURSOR=0` disables the cursor overlay if a developer only wants slowed actions.
+
+New end-to-end specs should import `test` and `expect` from `e2e/observableTest.ts` so they automatically participate in the shared observability layer.

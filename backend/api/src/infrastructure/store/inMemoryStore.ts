@@ -163,6 +163,7 @@ export class InMemoryStore implements Repositories {
     createMemberMembership: (membership) => this.createMemberMembership(membership),
     getMemberMembership: (membershipId) => this.getMemberMembership(membershipId),
     listMemberMembershipsForMember: (memberId) => this.listMemberMembershipsForMember(memberId),
+    listMemberMembershipsForGym: (gymId) => this.listMemberMembershipsForGym(gymId),
     updateMemberMembership: (membership) => this.updateMemberMembership(membership)
   };
 
@@ -492,6 +493,12 @@ export class InMemoryStore implements Repositories {
   async listMemberMembershipsForMember(memberId: string) {
     return [...this.memberMembershipRecords.values()]
       .filter((membership) => membership.memberId === memberId)
+      .sort((left, right) => left.startsAt.getTime() - right.startsAt.getTime());
+  }
+
+  async listMemberMembershipsForGym(gymId: string) {
+    return [...this.memberMembershipRecords.values()]
+      .filter((membership) => membership.gymId === gymId)
       .sort((left, right) => left.startsAt.getTime() - right.startsAt.getTime());
   }
 

@@ -22,6 +22,8 @@ This repository is now scaffolded as a TypeScript monorepo for a modular gym man
 npm install
 npm run typecheck
 npm test
+npm run test:e2e
+npm run test:e2e:observe
 npm run test:postgres
 npm run build
 npm run migrate -w @gym-platform/api
@@ -31,6 +33,8 @@ npm run tracker:summary
 ```
 
 The API defaults to `http://0.0.0.0:4000`. Copy `.env.example` to `.env` when local secrets or service URLs need to differ. `PERSISTENCE_DRIVER=memory` is the local default; set `PERSISTENCE_DRIVER=postgres` with `DATABASE_URL` to run against Postgres.
+
+`npm run test:e2e:observe` runs the Playwright suite in a developer-observable mode: headed browser, slower visible actions, single-worker execution, and a cursor overlay for watched interactions. Pass normal Playwright filters after `--`, for example `npm run test:e2e:observe -- e2e/auth.spec.ts -g "owner can register via API and log in via the dashboard UI"`.
 
 Consumer profile image uploads can be backed by Cloudflare R2 by setting `R2_BUCKET`, `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and optionally `MEDIA_BASE_URL`. The API stores the binary in R2 and serves it back through `/media/member-images/:assetId`, so the bucket does not need to be public.
 

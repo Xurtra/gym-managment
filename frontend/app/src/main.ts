@@ -1589,7 +1589,7 @@ function renderDashboard() {
             ${dashboardTab("plans", "Plans")}
             ${dashboardTab("locations", "Locations")}
             ${dashboardTab("classes", "Classes")}
-            ${dashboardTab("bookings", "Reservations")}
+            ${dashboardTab("bookings", "Bookings")}
             ${dashboardTab("personal_training", "Training")}
             ${dashboardTab("access_control", "Access")}
             ${dashboardTab("contracts", "Forms")}

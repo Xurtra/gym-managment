@@ -23,7 +23,7 @@ export interface MemberView {
   barcode?: string;
   profileImageUrl?: string;
   emergencyContact?: EmergencyContactView;
-  recordStatus?: ConsumerRecordStatus;
+  recordStatus: ConsumerRecordStatus;
   leadStage?: LeadStage;
   segments?: ConsumerSegment[];
   isLead?: boolean;

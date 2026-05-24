@@ -1,4 +1,4 @@
-import { ConsumerSegment, LeadStage, MemberStatus, Permission } from "@gym-platform/constants";
+import { ConsumerRecordStatus, ConsumerSegment, LeadStage, MemberStatus, Permission } from "@gym-platform/constants";
 import { describe, expect, it } from "vitest";
 import { buildConsumerDashboardPage } from "./overview.js";
 import type { MemberView } from "../members/types.js";
@@ -50,6 +50,7 @@ function buildConsumers(): MemberView[] {
       lastName: "Overlap",
       email: "alex@example.com",
       status: MemberStatus.Active,
+      recordStatus: ConsumerRecordStatus.Active,
       leadStage: LeadStage.Open,
       segments: [ConsumerSegment.Lead, ConsumerSegment.Customer],
       isLead: true,
@@ -66,6 +67,7 @@ function buildConsumers(): MemberView[] {
       lastName: "Dual",
       email: "taylor@example.com",
       status: MemberStatus.Active,
+      recordStatus: ConsumerRecordStatus.Active,
       leadStage: LeadStage.None,
       segments: [ConsumerSegment.Customer, ConsumerSegment.Member],
       isLead: false,
@@ -82,6 +84,7 @@ function buildConsumers(): MemberView[] {
       lastName: "Lead",
       email: "jamie@example.com",
       status: MemberStatus.Active,
+      recordStatus: ConsumerRecordStatus.Active,
       leadStage: LeadStage.Open,
       segments: [ConsumerSegment.Lead],
       isLead: true,
@@ -98,6 +101,7 @@ function buildConsumers(): MemberView[] {
       lastName: "Member",
       email: "morgan@example.com",
       status: MemberStatus.Active,
+      recordStatus: ConsumerRecordStatus.Active,
       leadStage: LeadStage.None,
       segments: [ConsumerSegment.Member],
       isLead: false,
@@ -114,6 +118,7 @@ function buildConsumers(): MemberView[] {
       lastName: "Contact",
       email: "pat@example.com",
       status: MemberStatus.Active,
+      recordStatus: ConsumerRecordStatus.Active,
       leadStage: LeadStage.None,
       segments: [],
       isLead: false,

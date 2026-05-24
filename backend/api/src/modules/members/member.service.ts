@@ -21,12 +21,31 @@ export class MemberService {
   ) {}
 
   async list(gymId: string): Promise<Consumer[]> {
-    const members = (await this.repositories.members.listMembersForGym(gymId)).filter(
+    const [allMembers, allMemberships, allPlans] = await Promise.all([
+      this.repositories.members.listMembersForGym(gymId),
+      this.repositories.memberMemberships.listMemberMembershipsForGym(gymId),
+      this.repositories.membershipPlans.listMembershipPlansForGym(gymId)
+    ]);
+    const planMap = new Map(allPlans.map((plan) => [plan.id, plan]));
+    const membershipsByMemberId = new Map<string, MemberMembership[]>();
+    for (const membership of allMemberships) {
+      const list = membershipsByMemberId.get(membership.memberId) ?? [];
+      list.push(membership);
+      membershipsByMemberId.set(membership.memberId, list);
+    }
+    const activeMembers = allMembers.filter(
       (member) =>
         member.status !== MemberStatus.Archived &&
         member.recordStatus !== ConsumerRecordStatus.Archived
     );
-    return Promise.all(members.map((member) => this.enrichConsumer(member)));
+    return Promise.all(
+      activeMembers.map((member) =>
+        this.enrichConsumer(member, {
+          memberships: membershipsByMemberId.get(member.id) ?? [],
+          getPlan: (planId) => Promise.resolve(planMap.get(planId))
+        })
+      )
+    );
   }
 
   async get(gymId: string, memberId: string): Promise<Consumer> {
@@ -52,8 +71,9 @@ export class MemberService {
       createdAt: now,
       updatedAt: now
     };
-    applyOptionalMemberFields(member, input);
-    return this.enrichConsumer(await this.repositories.members.createMember(member));
+    return this.enrichConsumer(
+      await this.repositories.members.createMember(applyOptionalMemberFields(member, input))
+    );
   }
 
   async update(gymId: string, memberId: string, input: MemberUpdateInput) {
@@ -73,8 +93,9 @@ export class MemberService {
       tagNames: input.tagNames ?? existing.tagNames,
       updatedAt: this.clock.now()
     };
-    applyOptionalMemberFields(updated, input);
-    return this.enrichConsumer(await this.repositories.members.updateMember(updated));
+    return this.enrichConsumer(
+      await this.repositories.members.updateMember(applyOptionalMemberFields(updated, input))
+    );
   }
 
   async archive(gymId: string, memberId: string) {
@@ -120,15 +141,28 @@ export class MemberService {
     if (duplicate) {
       throw conflict("A member with this email or barcode already exists.", "member_duplicate");
     }
+    // DB unique indexes (017_consumer_unique_constraints.sql) act as a safety
+    // net for the race window between this check and the insert/update.
   }
 
-  private async enrichConsumer(member: Member): Promise<Consumer> {
-    const memberships = await this.repositories.memberMemberships.listMemberMembershipsForMember(member.id);
+  private async enrichConsumer(
+    member: Member,
+    preloaded?: {
+      memberships: MemberMembership[];
+      getPlan: (planId: string) => Promise<{ billingInterval: BillingInterval; gymId: string } | undefined>;
+    }
+  ): Promise<Consumer> {
+    const memberships =
+      preloaded?.memberships ??
+      (await this.repositories.memberMemberships.listMemberMembershipsForMember(member.id));
+    const getPlan =
+      preloaded?.getPlan ??
+      ((planId: string) => this.repositories.membershipPlans.getMembershipPlan(planId));
     const segments = await consumerSegmentsFor({
       member,
       memberships,
       now: this.clock.now(),
-      getPlan: (planId) => this.repositories.membershipPlans.getMembershipPlan(planId)
+      getPlan
     });
     return {
       ...member,
@@ -209,25 +243,18 @@ function normalizeConsumerLifecycle(status: MemberStatus, leadStage: LeadStage) 
   };
 }
 
-function applyOptionalMemberFields(member: Member, input: MemberCreateInput | MemberUpdateInput) {
-  if (input.email !== undefined) {
-    member.email = input.email;
-  }
-  if (input.phone !== undefined) {
-    member.phone = input.phone;
-  }
-  if (input.barcode !== undefined) {
-    member.barcode = input.barcode;
-  }
-  if (input.profileImageUrl !== undefined) {
-    member.profileImageUrl = input.profileImageUrl;
-  }
-  if (input.emergencyContact !== undefined) {
-    member.emergencyContact = normalizeEmergencyContact(input.emergencyContact);
-  }
-  if (input.notes !== undefined) {
-    member.notes = input.notes;
-  }
+function applyOptionalMemberFields(member: Member, input: MemberCreateInput | MemberUpdateInput): Member {
+  return {
+    ...member,
+    ...(input.email !== undefined ? { email: input.email } : {}),
+    ...(input.phone !== undefined ? { phone: input.phone } : {}),
+    ...(input.barcode !== undefined ? { barcode: input.barcode } : {}),
+    ...(input.profileImageUrl !== undefined ? { profileImageUrl: input.profileImageUrl } : {}),
+    ...(input.emergencyContact !== undefined
+      ? { emergencyContact: normalizeEmergencyContact(input.emergencyContact) }
+      : {}),
+    ...(input.notes !== undefined ? { notes: input.notes } : {})
+  };
 }
 
 function normalizeEmergencyContact(input: NonNullable<MemberCreateInput["emergencyContact"]>): EmergencyContact {

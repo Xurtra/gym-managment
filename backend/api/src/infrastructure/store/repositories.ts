@@ -113,6 +113,7 @@ export interface MemberMembershipRepository {
   createMemberMembership(membership: MemberMembership): RepositoryResult<MemberMembership>;
   getMemberMembership(membershipId: string): RepositoryResult<MemberMembership | undefined>;
   listMemberMembershipsForMember(memberId: string): RepositoryResult<MemberMembership[]>;
+  listMemberMembershipsForGym(gymId: string): RepositoryResult<MemberMembership[]>;
   updateMemberMembership(membership: MemberMembership): RepositoryResult<MemberMembership>;
 }
 

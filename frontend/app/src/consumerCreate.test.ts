@@ -37,4 +37,14 @@ describe("consumer create form rules", () => {
     expect(defaultConsumerCreateKind(plans)).toBe("consumer");
     expect(consumerCreateKindOptions(plans).map((option) => option.value)).toEqual(["lead", "consumer"]);
   });
+
+  it("skips archived recurring plans when selecting the default", () => {
+    const plans = [
+      { id: "archived-monthly", billingInterval: BillingInterval.Monthly, status: PlanStatus.Archived },
+      { id: "active-yearly", billingInterval: BillingInterval.Yearly, status: PlanStatus.Active }
+    ];
+
+    expect(defaultRecurringPlanId(plans)).toBe("active-yearly");
+    expect(defaultConsumerCreateKind(plans)).toBe("member");
+  });
 });

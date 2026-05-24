@@ -22,10 +22,20 @@ git config core.hooksPath .githooks
 npm run lint
 npm run typecheck
 npm test
+npm run test:e2e
+npm run test:e2e:observe
 npm run build
 npm run dev:api
 npm run dev:worker
 ```
+
+For developer-observable Playwright runs, use:
+
+```bash
+npm run test:e2e:observe -- e2e/auth.spec.ts -g "owner can register via API and log in via the dashboard UI"
+```
+
+That mode opens a headed browser, slows actions down for local observation, forces a single worker, and draws a cursor overlay over interacted elements. Tune it with `PLAYWRIGHT_OBSERVABLE_DELAY_MS` or disable the cursor with `PLAYWRIGHT_OBSERVABLE_CURSOR=0`.
 
 Focused dashboard staff-management coverage is in:
 

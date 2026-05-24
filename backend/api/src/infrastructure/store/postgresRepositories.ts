@@ -532,6 +532,8 @@ export class PostgresRepositories implements Repositories {
     getMemberMembership: (membershipId: string) => this.getMemberMembership(membershipId),
     listMemberMembershipsForMember: (memberId: string) =>
       this.listMemberMembershipsForMember(memberId),
+    listMemberMembershipsForGym: (gymId: string) =>
+      this.listMemberMembershipsForGym(gymId),
     updateMemberMembership: (membership: MemberMembership) =>
       this.updateMemberMembership(membership)
   };
@@ -1435,6 +1437,16 @@ export class PostgresRepositories implements Repositories {
       WHERE member_id = $1
       ORDER BY starts_at`,
       [memberId]
+    );
+    return result.rows.map(mapMemberMembership);
+  }
+
+  async listMemberMembershipsForGym(gymId: string) {
+    const result = await this.executor.query<MemberMembershipRow>(
+      `SELECT * FROM member_memberships
+      WHERE gym_id = $1
+      ORDER BY starts_at`,
+      [gymId]
     );
     return result.rows.map(mapMemberMembership);
   }
