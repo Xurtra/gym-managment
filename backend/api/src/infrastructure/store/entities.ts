@@ -8,10 +8,14 @@ import type {
   CheckInMethod,
   CheckInStatus,
   ClassSessionStatus,
+  ContactPreference,
   ConsumerRecordStatus,
   ConsumerSegment,
   FeatureFlag,
   GymStatus,
+  InteractionType,
+  InterestLevel,
+  LeadSource,
   LeadStage,
   LocationStatus,
   MemberStatus,
@@ -26,6 +30,7 @@ import type {
   ReservationPaymentRequirement,
   ReservationPaymentStatus,
   ResourceAllocationSource,
+  RetentionFlag,
   RoleName,
   StaffAuditAction,
   StaffInviteStatus,
@@ -213,9 +218,29 @@ export interface Member {
   emergencyContact?: EmergencyContact;
   notes?: string;
   tagNames: string[];
+  leadSource?: LeadSource;
+  interestLevel?: InterestLevel;
+  assignedStaffId?: string;
+  nextFollowUpAt?: Date;
+  consentEmail?: boolean;
+  consentSms?: boolean;
+  consentPhone?: boolean;
+  contactPreference?: ContactPreference;
+  retentionFlag?: RetentionFlag;
   createdAt: Date;
   updatedAt: Date;
   archivedAt?: Date;
+}
+
+export interface GrowthInteraction {
+  id: string;
+  gymId: string;
+  consumerId: string;
+  staffId?: string;
+  type: InteractionType;
+  notes?: string;
+  occurredAt: Date;
+  createdAt: Date;
 }
 
 export interface Consumer extends Member {
@@ -513,4 +538,5 @@ export interface StoreSnapshot {
   accessEvents: AccessEvent[];
   refreshTokens: RefreshToken[];
   purposeTokens: PurposeToken[];
+  growthInteractions: GrowthInteraction[];
 }

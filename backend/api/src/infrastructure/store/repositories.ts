@@ -3,6 +3,7 @@ import type {
   AccessEvent,
   AccessRule,
   Gym,
+  GrowthInteraction,
   GymUser,
   ClassBooking,
   CheckIn,
@@ -199,6 +200,12 @@ export interface TokenRepository {
   updatePurposeToken(purposeToken: PurposeToken): RepositoryResult<PurposeToken>;
 }
 
+export interface GrowthRepository {
+  createInteraction(interaction: GrowthInteraction): RepositoryResult<GrowthInteraction>;
+  listInteractionsForConsumer(consumerId: string): RepositoryResult<GrowthInteraction[]>;
+  listInteractionsForGym(gymId: string, limit?: number): RepositoryResult<GrowthInteraction[]>;
+}
+
 export interface Repositories {
   users: UserRepository;
   gyms: GymRepository;
@@ -219,5 +226,6 @@ export interface Repositories {
   checkIns: CheckInRepository;
   accessControl: AccessControlRepository;
   tokens: TokenRepository;
+  growth: GrowthRepository;
   transaction<T>(work: (repositories: Repositories) => Promise<T>): Promise<T>;
 }

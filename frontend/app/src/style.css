@@ -50,14 +50,283 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 .shell {
   min-height: 100vh;
   height: 100vh;
   overflow: hidden;
+}
+
+.react-shell {
+  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.react-shell-body {
+  display: grid;
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+  min-height: 0;
+  height: calc(100vh - 82px);
+}
+
+.react-sidebar {
+  border-right: 1px solid var(--line);
+  background: var(--panel-strong);
+  padding: 18px 12px;
+  overflow: auto;
+}
+
+.react-sidebar-group {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.react-sidebar-group h2 {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin: 0 10px 4px;
+  text-transform: uppercase;
+}
+
+.react-shell-content {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: var(--panel);
+}
+
+.react-page-header {
+  border-bottom: 1px solid var(--line);
+  padding: 20px 24px 18px;
+  background: var(--panel-strong);
+}
+
+.react-breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.react-breadcrumbs a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.react-breadcrumbs a:not(:last-child)::after {
+  content: "/";
+  margin-left: 8px;
+  color: var(--line);
+}
+
+.react-member-cell {
+  align-items: center;
+  color: inherit;
+  display: inline-flex;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.ui-avatar {
+  align-items: center;
+  background: var(--accent-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-weight: 700;
+  height: 36px;
+  justify-content: center;
+  overflow: hidden;
+  width: 36px;
+}
+
+.ui-avatar img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.ui-button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+}
+
+.ui-button-primary {
+  background: var(--accent);
+  color: var(--panel);
+}
+
+.ui-button-secondary {
+  background: var(--panel-strong);
+  color: var(--ink);
+}
+
+.ui-button-danger {
+  background: var(--error-soft);
+  color: var(--error);
+}
+
+.ui-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.ui-badge {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 4px 9px;
+}
+
+.ui-badge-neutral {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.ui-badge-success {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.ui-badge-warning,
+.ui-badge-info {
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.ui-badge-danger {
+  background: var(--error-soft);
+  color: var(--error);
+}
+
+.react-detail-list {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.react-detail-list div {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 4px;
+  padding-top: 10px;
+}
+
+.react-detail-list dt {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.react-detail-list dd {
+  margin: 0;
+}
+
+.react-filter-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.react-filter-bar .field {
+  margin: 0;
+}
+
+.schedule-calendar {
+  height: 640px;
+  margin: 18px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.schedule-calendar .rbc-calendar {
+  min-height: 600px;
+}
+
+.schedule-calendar .rbc-toolbar {
+  gap: 8px;
+  align-items: center;
+}
+
+.schedule-calendar .rbc-toolbar button {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.schedule-calendar .rbc-toolbar button.rbc-active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.schedule-calendar .rbc-event {
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+}
+
+.schedule-calendar .rbc-today {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.react-modal-card {
+  width: min(640px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: auto;
+}
+
+@media (max-width: 840px) {
+  .react-shell-body {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: calc(100vh - 82px);
+  }
+
+  .react-sidebar {
+    border-bottom: 1px solid var(--line);
+    border-right: 0;
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+  }
+
+  .react-sidebar-group {
+    min-width: 180px;
+  }
 }
 
 .banner,

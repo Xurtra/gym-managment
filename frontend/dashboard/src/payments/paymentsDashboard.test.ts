@@ -1,4 +1,4 @@
-import { FeatureFlag, MemberStatus, Permission } from "@gym-platform/constants";
+import { ConsumerRecordStatus, FeatureFlag, MemberStatus, Permission } from "@gym-platform/constants";
 import { describe, expect, it } from "vitest";
 import {
   StripePaymentMethod,
@@ -141,6 +141,7 @@ describe("stripe payments dashboard", () => {
         gymId: "gym-1",
         firstName: "Jamie",
         lastName: "Rivera",
+        recordStatus: ConsumerRecordStatus.Active,
         status: MemberStatus.Active,
         email: "jamie@example.com",
         tagNames: [],
@@ -187,6 +188,7 @@ describe("stripe payments dashboard", () => {
         gymId: "gym-1",
         firstName: "Jordan",
         lastName: "Lee",
+        recordStatus: ConsumerRecordStatus.Active,
         status: MemberStatus.PastDue,
         tagNames: [],
         createdAt: "2026-05-01T00:00:00.000Z",
@@ -222,6 +224,7 @@ describe("stripe payments dashboard", () => {
         gymId: "gym-1",
         firstName: "Avery",
         lastName: "Stone",
+        recordStatus: ConsumerRecordStatus.Active,
         status: MemberStatus.Active,
         tagNames: [],
         createdAt: "2026-05-01T00:00:00.000Z",

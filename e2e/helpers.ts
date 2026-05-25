@@ -5,6 +5,7 @@ const API_URL = "http://127.0.0.1:4000";
 export interface TestGym {
   gymId: string;
   gymSlug: string;
+  gymName: string;
   ownerEmail: string;
   ownerPassword: string;
   accessToken: string;
@@ -12,7 +13,7 @@ export interface TestGym {
 
 export async function registerOwnerViaApi(
   request: APIRequestContext,
-  suffix = Date.now().toString()
+  suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 ): Promise<TestGym> {
   const email = `owner-${suffix}@e2e.test`;
   const password = "Password123!";
@@ -37,6 +38,7 @@ export async function registerOwnerViaApi(
   return {
     gymId: body.gym.id,
     gymSlug: body.gym.slug,
+    gymName,
     ownerEmail: email,
     ownerPassword: password,
     accessToken: body.accessToken
@@ -45,14 +47,17 @@ export async function registerOwnerViaApi(
 
 export async function loginViaUi(page: Page, gym: TestGym) {
   await page.goto(`/?gymSlug=${gym.gymSlug}`);
-  await page.waitForSelector("#login-form");
-  await page.fill('input[name="email"]', gym.ownerEmail);
-  await page.fill('input[name="password"]', gym.ownerPassword);
-  await page.click('#login-form button[type="submit"]');
-  await page.waitForSelector('.club-shell', { timeout: 10_000 });
+  await expect(page.getByRole("heading", { name: `Log in to ${gym.gymName}` })).toBeVisible();
+  const loginForm = page.locator("#login-form").filter({ visible: true });
+  await expect(loginForm).toBeVisible();
+  await loginForm.locator('input[name="email"]').fill(gym.ownerEmail);
+  await loginForm.locator('input[name="password"]').fill(gym.ownerPassword);
+  await expect(loginForm.locator('input[name="email"]')).toHaveValue(gym.ownerEmail);
+  await loginForm.locator('button[type="submit"]').click();
+  await expect(page.locator(".club-shell").filter({ visible: true })).toBeVisible({ timeout: 10_000 });
 }
 
 export async function navigateToDashboardView(page: Page, view: string) {
-  await page.click(`[data-dashboard-view="${view}"]`);
-  await page.waitForTimeout(300);
+  await page.locator(`a.club-tab[data-dashboard-view="${view}"]`).filter({ visible: true }).click();
+  await expect(page.locator(`a.club-tab.active[data-dashboard-view="${view}"]`).filter({ visible: true })).toBeVisible();
 }

@@ -2,6 +2,10 @@ import {
   AccessDeviceType,
   BillingInterval,
   CheckInMethod,
+  ContactPreference,
+  InteractionType,
+  InterestLevel,
+  LeadSource,
   LeadStage,
   FeatureFlag,
   ReservationConfirmationMode,
@@ -9,6 +13,7 @@ import {
   MemberStatus,
   MembershipStatus,
   Permission,
+  RetentionFlag,
   RoleName
 } from "@gym-platform/constants";
 import { z } from "zod";
@@ -525,6 +530,44 @@ export const accessDeviceHeartbeatSchema = z.object({
 export const permissionSchema = z.nativeEnum(Permission);
 export const roleNameSchema = z.nativeEnum(RoleName);
 
+export const leadCrmUpdateSchema = z
+  .object({
+    leadSource: z.nativeEnum(LeadSource).optional(),
+    interestLevel: z.nativeEnum(InterestLevel).optional(),
+    assignedStaffId: id.nullable().optional(),
+    nextFollowUpAt: z.string().datetime().nullable().optional(),
+    consentEmail: z.boolean().optional(),
+    consentSms: z.boolean().optional(),
+    consentPhone: z.boolean().optional(),
+    contactPreference: z.nativeEnum(ContactPreference).nullable().optional(),
+    retentionFlag: z.nativeEnum(RetentionFlag).nullable().optional()
+  })
+  .refine((value) => Object.keys(value).length > 0, "At least one field must be provided.");
+
+export const interactionCreateSchema = z.object({
+  type: z.nativeEnum(InteractionType),
+  notes: trimmed.max(2000).optional(),
+  occurredAt: z.string().datetime().optional()
+});
+
+export const leadImportRowSchema = z.object({
+  firstName: trimmed.min(1).max(80),
+  lastName: trimmed.min(1).max(80),
+  email: emailSchema.optional(),
+  phone: trimmed.max(40).optional(),
+  leadSource: z.nativeEnum(LeadSource).optional(),
+  notes: trimmed.max(2000).optional(),
+  tagNames: z.array(trimmed.min(1).max(40)).default([])
+});
+
+export const leadImportSchema = z.object({
+  rows: z.array(leadImportRowSchema).min(1).max(500)
+});
+
+export const leadConvertSchema = z.object({
+  planId: id.optional()
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type PublicSignupInput = z.infer<typeof publicSignupSchema>;
@@ -575,3 +618,8 @@ export type AccessDeviceCreateInput = z.input<typeof accessDeviceCreateSchema>;
 export type AccessRuleCreateInput = z.input<typeof accessRuleCreateSchema>;
 export type AccessDeviceEventInput = z.input<typeof accessDeviceEventSchema>;
 export type AccessDeviceHeartbeatInput = z.input<typeof accessDeviceHeartbeatSchema>;
+export type LeadCrmUpdateInput = z.infer<typeof leadCrmUpdateSchema>;
+export type InteractionCreateInput = z.infer<typeof interactionCreateSchema>;
+export type LeadImportRowInput = z.infer<typeof leadImportRowSchema>;
+export type LeadImportInput = z.infer<typeof leadImportSchema>;
+export type LeadConvertInput = z.infer<typeof leadConvertSchema>;

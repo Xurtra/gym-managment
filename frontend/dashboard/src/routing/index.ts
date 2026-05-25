@@ -54,6 +54,12 @@ export const dashboardRoutes: DashboardRoute[] = [
     requiredPermissions: [Permission.ClassRead]
   },
   {
+    path: "/bookings",
+    title: "Bookings",
+    protected: true,
+    requiredPermissions: [Permission.BookingRead]
+  },
+  {
     path: "/check-ins",
     title: "Check-Ins",
     protected: true,
@@ -64,6 +70,12 @@ export const dashboardRoutes: DashboardRoute[] = [
     title: "Access Control",
     protected: true,
     requiredPermissions: [Permission.AccessRead]
+  },
+  {
+    path: "/growth",
+    title: "Growth",
+    protected: true,
+    requiredPermissions: [Permission.GrowthRead]
   },
   {
     path: "/reports",

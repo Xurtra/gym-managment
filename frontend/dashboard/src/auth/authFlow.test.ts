@@ -73,7 +73,13 @@ describe("dashboard auth and routing", () => {
       ]
     });
 
-    expect(trainerNav.map((item) => item.href)).toEqual(["/", "/locations", "/consumers", "/classes"]);
+    expect(trainerNav.map((item) => item.href)).toEqual([
+      "/",
+      "/locations",
+      "/consumers",
+      "/classes",
+      "/bookings"
+    ]);
     expect(frontDeskLayout.navItems.map((item) => item.href)).toContain("/check-ins");
     expect(frontDeskLayout.navItems.map((item) => item.href)).toContain("/access-control");
     expect(frontDeskLayout.navItems.map((item) => item.href)).not.toContain("/settings");

@@ -34,12 +34,12 @@ const navigationGroups = [
   {
     key: "people",
     label: "People",
-    paths: ["/consumers", "/check-ins"]
+    paths: ["/consumers", "/growth", "/check-ins"]
   },
   {
     key: "classes",
     label: "Classes",
-    paths: ["/classes"]
+    paths: ["/classes", "/bookings"]
   },
   {
     key: "operations",

@@ -6,9 +6,12 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -b",
-    "dev": "tsx --conditions=development src/index.ts",
+    "dev": "tsx watch --conditions=development src/index.ts",
     "start": "node dist/index.js",
     "typecheck": "tsc -b --pretty",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "pg-boss": "^10.4.2"
   }
 }

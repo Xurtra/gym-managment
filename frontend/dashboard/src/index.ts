@@ -9,6 +9,7 @@ export * from "./staff/index.js";
 export * from "./members/index.js";
 export * from "./consumers/index.js";
 export * from "./leads/index.js";
+export * from "./growth/index.js";
 export * from "./membershipPlans/index.js";
 export * from "./contractsWaivers/index.js";
 export * from "./payments/index.js";

@@ -193,6 +193,8 @@ const permissionLabels: Record<PermissionValue, string> = {
   [Permission.PaymentRead]: "View payments",
   [Permission.PaymentWrite]: "Manage payments",
   [Permission.ReportRead]: "View reports",
+  [Permission.GrowthRead]: "View growth",
+  [Permission.GrowthWrite]: "Manage growth",
   [Permission.PlatformAdmin]: "Platform admin"
 };
 

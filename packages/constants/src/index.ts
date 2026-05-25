@@ -66,6 +66,51 @@ export const LeadStage = {
 
 export type LeadStage = (typeof LeadStage)[keyof typeof LeadStage];
 
+export const InteractionType = {
+  Call: "call",
+  Sms: "sms",
+  Email: "email",
+  Note: "note"
+} as const;
+
+export type InteractionType = (typeof InteractionType)[keyof typeof InteractionType];
+
+export const LeadSource = {
+  WalkIn: "walk_in",
+  Referral: "referral",
+  Website: "website",
+  SocialMedia: "social_media",
+  CsvImport: "csv_import",
+  Other: "other"
+} as const;
+
+export type LeadSource = (typeof LeadSource)[keyof typeof LeadSource];
+
+export const InterestLevel = {
+  Low: "low",
+  Medium: "medium",
+  High: "high"
+} as const;
+
+export type InterestLevel = (typeof InterestLevel)[keyof typeof InterestLevel];
+
+export const RetentionFlag = {
+  AtRisk: "at_risk",
+  Lapsed: "lapsed",
+  Churned: "churned"
+} as const;
+
+export type RetentionFlag = (typeof RetentionFlag)[keyof typeof RetentionFlag];
+
+export const ContactPreference = {
+  Email: "email",
+  Sms: "sms",
+  Phone: "phone",
+  Any: "any"
+} as const;
+
+export type ContactPreference = (typeof ContactPreference)[keyof typeof ContactPreference];
+
 export const ConsumerSegment = {
   Lead: "lead",
   Customer: "customer",
@@ -267,6 +312,8 @@ export const Permission = {
   PaymentRead: "payment:read",
   PaymentWrite: "payment:write",
   ReportRead: "report:read",
+  GrowthRead: "growth:read",
+  GrowthWrite: "growth:write",
   PlatformAdmin: "platform:admin"
 } as const;
 
@@ -319,7 +366,9 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
     Permission.AccessRead,
     Permission.AccessWrite,
     Permission.PaymentRead,
-    Permission.ReportRead
+    Permission.ReportRead,
+    Permission.GrowthRead,
+    Permission.GrowthWrite
   ],
   [RoleName.Trainer]: [
     Permission.GymRead,
@@ -340,14 +389,17 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
     Permission.BookingWrite,
     Permission.AccessRead,
     Permission.PaymentRead,
-    Permission.PaymentWrite
+    Permission.PaymentWrite,
+    Permission.GrowthRead
   ],
   [RoleName.Sales]: [
     Permission.GymRead,
     Permission.MemberRead,
     Permission.MemberWrite,
     Permission.PlanRead,
-    Permission.PaymentRead
+    Permission.PaymentRead,
+    Permission.GrowthRead,
+    Permission.GrowthWrite
   ],
   [RoleName.Accountant]: [
     Permission.GymRead,

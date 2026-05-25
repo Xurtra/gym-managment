@@ -1,4 +1,4 @@
-import type { AccessDeviceCreateInput, AccessDeviceEventInput, AccessDeviceHeartbeatInput, AccessRuleCreateInput, ClassBookingCreateInput, ClassSessionResourceAllocationInput, CheckInCreateInput, ClassSessionCreateInput, ClassTypeCreateInput, ConsumerCreateInput, ConsumerProfileImageUploadInput, ConsumerUpdateInput, CustomRoleCreateInput, CustomRoleUpdateInput, FacilityReservationCancelInput, FacilityReservationCreateInput, GymCreateInput, GymUpdateInput, LocationCreateInput, LocationUpdateInput, LoginInput, MemberCreateInput, MemberMembershipAssignInput, MemberUpdateInput, MembershipPlanCreateInput, MembershipPlanUpdateInput, PosPurchaseInput, StripeConnectOnboardingLinkInput, PublicSignupInput, RegisterInput, ResetPasswordInput, ResourceCreateInput, ResourceUpdateInput, RoleAssignmentInput, StaffAccessRemoveInput, StaffClockInInput, StaffClockOutInput, StaffInviteAcceptInput, StaffInviteCreateInput, StaffShiftCreateInput, StaffSelfClockInInput, StaffSelfClockOutInput, StaffManualBookingInput } from "@gym-platform/validation";
+import type { AccessDeviceCreateInput, AccessDeviceEventInput, AccessDeviceHeartbeatInput, AccessRuleCreateInput, ClassBookingCreateInput, ClassSessionResourceAllocationInput, CheckInCreateInput, ClassSessionCreateInput, ClassTypeCreateInput, ConsumerCreateInput, ConsumerProfileImageUploadInput, ConsumerUpdateInput, CustomRoleCreateInput, CustomRoleUpdateInput, FacilityReservationCancelInput, FacilityReservationCreateInput, GymCreateInput, GymUpdateInput, InteractionCreateInput, LeadCrmUpdateInput, LeadConvertInput, LeadImportInput, LocationCreateInput, LocationUpdateInput, LoginInput, MemberCreateInput, MemberMembershipAssignInput, MemberUpdateInput, MembershipPlanCreateInput, MembershipPlanUpdateInput, PosPurchaseInput, StripeConnectOnboardingLinkInput, PublicSignupInput, RegisterInput, ResetPasswordInput, ResourceCreateInput, ResourceUpdateInput, RoleAssignmentInput, StaffAccessRemoveInput, StaffClockInInput, StaffClockOutInput, StaffInviteAcceptInput, StaffInviteCreateInput, StaffShiftCreateInput, StaffSelfClockInInput, StaffSelfClockOutInput, StaffManualBookingInput } from "@gym-platform/validation";
 export interface ApiClientOptions {
     baseUrl: string;
     accessToken?: string;
@@ -37,6 +37,8 @@ export declare class GymApiClient {
     logout(refreshToken: string): Promise<unknown>;
     forgotPassword(email: string): Promise<unknown>;
     resetPassword(input: ResetPasswordInput): Promise<unknown>;
+    verifyEmail(token: string): Promise<unknown>;
+    resendVerification(email: string): Promise<unknown>;
     setupTwoFactor(): Promise<unknown>;
     verifyTwoFactor(code: string): Promise<unknown>;
     regenerateTwoFactorRecoveryCodes(): Promise<unknown>;
@@ -134,6 +136,14 @@ export declare class GymApiClient {
     publicGym(gymSlug: string): Promise<unknown>;
     publicPlans(gymSlug: string): Promise<unknown>;
     publicSignup(gymSlug: string, input: PublicSignupInput): Promise<unknown>;
+    getGrowthSummary(gymId: string): Promise<unknown>;
+    getFollowUpInbox(gymId: string): Promise<unknown>;
+    getRetentionWatchlist(gymId: string): Promise<unknown>;
+    updateLeadCrmDetails(gymId: string, consumerId: string, input: LeadCrmUpdateInput): Promise<unknown>;
+    listInteractions(gymId: string, consumerId: string): Promise<unknown>;
+    logInteraction(gymId: string, consumerId: string, input: InteractionCreateInput): Promise<unknown>;
+    convertLeadToMember(gymId: string, consumerId: string, input: LeadConvertInput): Promise<unknown>;
+    importLeads(gymId: string, input: LeadImportInput): Promise<unknown>;
     private request;
     private send;
     private refreshStoredTokens;

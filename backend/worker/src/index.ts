@@ -1,34 +1,35 @@
 import { loadWorkerConfig } from "./config.js";
-import { InMemoryJobQueue } from "./jobQueue.js";
+import { PgBossJobQueue } from "./jobQueue.js";
 import { WorkerRuntime, type JobHandler } from "./workerRuntime.js";
 
 const config = loadWorkerConfig();
-const queue = new InMemoryJobQueue();
+const queue = new PgBossJobQueue({
+  databaseUrl: config.databaseUrl,
+  ...(config.pgBossSchema ? { schema: config.pgBossSchema } : {})
+});
 const handlers = new Map<string, JobHandler>();
 
-handlers.set("health.check", () => {
-  console.log("Worker health check completed.");
+handlers.set("health.check", (job) => {
+  console.log("Worker health check completed.", job.payload);
 });
-
-if (config.enqueueBootJob) {
-  queue.enqueue({
-    type: "health.check",
-    payload: {
-      workerName: config.workerName,
-      redisConfigured: Boolean(config.redisUrl)
-    }
-  });
-}
 
 const runtime = new WorkerRuntime(queue, handlers, {
   pollIntervalMs: config.pollIntervalMs
 });
 
-runtime.start();
+await runtime.start();
+
+if (config.enqueueBootJob) {
+  await queue.enqueue({
+    type: "health.check",
+    payload: {
+      workerName: config.workerName
+    }
+  });
+}
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
-    runtime.stop();
-    process.exit(0);
+    void runtime.stop().finally(() => process.exit(0));
   });
 }

@@ -1,13 +1,18 @@
 import { fileURLToPath, URL } from "node:url";
+import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 export default defineConfig({
+  plugins: [react()],
   resolve: {
     alias: {
       "@gym-platform/constants": fileURLToPath(
         new URL("../../packages/constants/src/index.ts", import.meta.url)
       ),
       "@gym-platform/ui": fileURLToPath(new URL("../../packages/ui/src/index.ts", import.meta.url)),
+      "@gym-platform/ui-react": fileURLToPath(
+        new URL("../../packages/ui-react/src/index.ts", import.meta.url)
+      ),
       "@gym-platform/validation": fileURLToPath(
         new URL("../../packages/validation/src/index.ts", import.meta.url)
       ),

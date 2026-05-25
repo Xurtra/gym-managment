@@ -10,6 +10,7 @@
     "paths": {
       "@gym-platform/constants": ["packages/constants/src/index.ts"],
       "@gym-platform/ui": ["packages/ui/src/index.ts"],
+      "@gym-platform/ui-react": ["packages/ui-react/src/index.ts"],
       "@gym-platform/validation": ["packages/validation/src/index.ts"],
       "@gym-platform/api-client": ["packages/api-client/src/index.ts"],
       "@gym-platform/dashboard": ["frontend/dashboard/src/index.ts"],

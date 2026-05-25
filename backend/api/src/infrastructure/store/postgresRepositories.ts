@@ -5,6 +5,7 @@ import type {
   AccessRule,
   Address,
   Gym,
+  GrowthInteraction,
   GymUser,
   ClassBooking,
   CheckIn,
@@ -190,9 +191,29 @@ interface MemberRow extends QueryResultRow {
   emergency_contact: unknown;
   notes: string | null;
   tag_names: unknown;
+  lead_source: Member["leadSource"] | null;
+  interest_level: Member["interestLevel"] | null;
+  assigned_staff_id: string | null;
+  next_follow_up_at: Date | null;
+  consent_email: boolean | null;
+  consent_sms: boolean | null;
+  consent_phone: boolean | null;
+  contact_preference: Member["contactPreference"] | null;
+  retention_flag: Member["retentionFlag"] | null;
   archived_at: Date | null;
   created_at: Date;
   updated_at: Date;
+}
+
+interface GrowthInteractionRow extends QueryResultRow {
+  id: string;
+  gym_id: string;
+  consumer_id: string;
+  staff_id: string | null;
+  type: GrowthInteraction["type"];
+  notes: string | null;
+  occurred_at: Date;
+  created_at: Date;
 }
 
 interface MembershipPlanRow extends QueryResultRow {
@@ -615,6 +636,14 @@ export class PostgresRepositories implements Repositories {
     findPurposeTokenByHash: (tokenHash: string, purpose: PurposeToken["purpose"]) =>
       this.findPurposeTokenByHash(tokenHash, purpose),
     updatePurposeToken: (purposeToken: PurposeToken) => this.updatePurposeToken(purposeToken)
+  };
+
+  readonly growth = {
+    createInteraction: (interaction: GrowthInteraction) => this.createInteraction(interaction),
+    listInteractionsForConsumer: (consumerId: string) =>
+      this.listInteractionsForConsumer(consumerId),
+    listInteractionsForGym: (gymId: string, limit?: number) =>
+      this.listInteractionsForGym(gymId, limit)
   };
 
   constructor(
@@ -1235,8 +1264,12 @@ export class PostgresRepositories implements Repositories {
     const result = await this.executor.query<MemberRow>(
       `INSERT INTO members (
         id, gym_id, first_name, last_name, email, phone, barcode, profile_image_url, status,
-        record_status, lead_stage, emergency_contact, notes, tag_names, archived_at, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14::jsonb, $15, $16, $17)
+        record_status, lead_stage, emergency_contact, notes, tag_names,
+        lead_source, interest_level, assigned_staff_id, next_follow_up_at,
+        consent_email, consent_sms, consent_phone, contact_preference, retention_flag,
+        archived_at, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14::jsonb,
+                $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
       RETURNING *`,
       [
         member.id,
@@ -1253,6 +1286,15 @@ export class PostgresRepositories implements Repositories {
         member.emergencyContact ? JSON.stringify(member.emergencyContact) : null,
         member.notes ?? null,
         JSON.stringify(member.tagNames),
+        member.leadSource ?? null,
+        member.interestLevel ?? null,
+        member.assignedStaffId ?? null,
+        member.nextFollowUpAt ?? null,
+        member.consentEmail ?? true,
+        member.consentSms ?? false,
+        member.consentPhone ?? true,
+        member.contactPreference ?? null,
+        member.retentionFlag ?? null,
         member.archivedAt ?? null,
         member.createdAt,
         member.updatedAt
@@ -1291,8 +1333,17 @@ export class PostgresRepositories implements Repositories {
           emergency_contact = $11::jsonb,
           notes = $12,
           tag_names = $13::jsonb,
-          archived_at = $14,
-          updated_at = $15
+          lead_source = $14,
+          interest_level = $15,
+          assigned_staff_id = $16,
+          next_follow_up_at = $17,
+          consent_email = $18,
+          consent_sms = $19,
+          consent_phone = $20,
+          contact_preference = $21,
+          retention_flag = $22,
+          archived_at = $23,
+          updated_at = $24
       WHERE id = $1
       RETURNING *`,
       [
@@ -1309,6 +1360,15 @@ export class PostgresRepositories implements Repositories {
         member.emergencyContact ? JSON.stringify(member.emergencyContact) : null,
         member.notes ?? null,
         JSON.stringify(member.tagNames),
+        member.leadSource ?? null,
+        member.interestLevel ?? null,
+        member.assignedStaffId ?? null,
+        member.nextFollowUpAt ?? null,
+        member.consentEmail ?? true,
+        member.consentSms ?? false,
+        member.consentPhone ?? true,
+        member.contactPreference ?? null,
+        member.retentionFlag ?? null,
         member.archivedAt ?? null,
         member.updatedAt
       ]
@@ -2256,6 +2316,41 @@ export class PostgresRepositories implements Repositories {
     );
     return mapPurposeToken(one(result));
   }
+  async createInteraction(interaction: GrowthInteraction) {
+    const result = await this.executor.query<GrowthInteractionRow>(
+      `INSERT INTO growth_interactions (id, gym_id, consumer_id, staff_id, type, notes, occurred_at, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *`,
+      [
+        interaction.id,
+        interaction.gymId,
+        interaction.consumerId,
+        interaction.staffId ?? null,
+        interaction.type,
+        interaction.notes ?? null,
+        interaction.occurredAt,
+        interaction.createdAt
+      ]
+    );
+    return mapGrowthInteraction(one(result));
+  }
+
+  async listInteractionsForConsumer(consumerId: string) {
+    const result = await this.executor.query<GrowthInteractionRow>(
+      `SELECT * FROM growth_interactions WHERE consumer_id = $1 ORDER BY occurred_at DESC`,
+      [consumerId]
+    );
+    return result.rows.map(mapGrowthInteraction);
+  }
+
+  async listInteractionsForGym(gymId: string, limit?: number) {
+    const limitClause = limit !== undefined ? ` LIMIT ${limit}` : "";
+    const result = await this.executor.query<GrowthInteractionRow>(
+      `SELECT * FROM growth_interactions WHERE gym_id = $1 ORDER BY occurred_at DESC${limitClause}`,
+      [gymId]
+    );
+    return result.rows.map(mapGrowthInteraction);
+  }
 }
 
 export function createPostgresRepositories(pool: Pool) {
@@ -2479,6 +2574,9 @@ function mapMember(row: MemberRow): Member {
     recordStatus: row.record_status,
     leadStage: row.lead_stage,
     tagNames: stringArray(row.tag_names),
+    consentEmail: row.consent_email ?? true,
+    consentSms: row.consent_sms ?? false,
+    consentPhone: row.consent_phone ?? true,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -2500,10 +2598,46 @@ function mapMember(row: MemberRow): Member {
   if (row.notes) {
     member.notes = row.notes;
   }
+  if (row.lead_source) {
+    member.leadSource = row.lead_source;
+  }
+  if (row.interest_level) {
+    member.interestLevel = row.interest_level;
+  }
+  if (row.assigned_staff_id) {
+    member.assignedStaffId = row.assigned_staff_id;
+  }
+  if (row.next_follow_up_at) {
+    member.nextFollowUpAt = row.next_follow_up_at;
+  }
+  if (row.contact_preference) {
+    member.contactPreference = row.contact_preference;
+  }
+  if (row.retention_flag) {
+    member.retentionFlag = row.retention_flag;
+  }
   if (row.archived_at) {
     member.archivedAt = row.archived_at;
   }
   return member;
+}
+
+function mapGrowthInteraction(row: GrowthInteractionRow): GrowthInteraction {
+  const interaction: GrowthInteraction = {
+    id: row.id,
+    gymId: row.gym_id,
+    consumerId: row.consumer_id,
+    type: row.type,
+    occurredAt: row.occurred_at,
+    createdAt: row.created_at
+  };
+  if (row.staff_id) {
+    interaction.staffId = row.staff_id;
+  }
+  if (row.notes) {
+    interaction.notes = row.notes;
+  }
+  return interaction;
 }
 
 function mapMembershipPlan(row: MembershipPlanRow): MembershipPlan {

@@ -49,6 +49,41 @@ export declare const LeadStage: {
     readonly Closed: "closed";
 };
 export type LeadStage = (typeof LeadStage)[keyof typeof LeadStage];
+export declare const InteractionType: {
+    readonly Call: "call";
+    readonly Sms: "sms";
+    readonly Email: "email";
+    readonly Note: "note";
+};
+export type InteractionType = (typeof InteractionType)[keyof typeof InteractionType];
+export declare const LeadSource: {
+    readonly WalkIn: "walk_in";
+    readonly Referral: "referral";
+    readonly Website: "website";
+    readonly SocialMedia: "social_media";
+    readonly CsvImport: "csv_import";
+    readonly Other: "other";
+};
+export type LeadSource = (typeof LeadSource)[keyof typeof LeadSource];
+export declare const InterestLevel: {
+    readonly Low: "low";
+    readonly Medium: "medium";
+    readonly High: "high";
+};
+export type InterestLevel = (typeof InterestLevel)[keyof typeof InterestLevel];
+export declare const RetentionFlag: {
+    readonly AtRisk: "at_risk";
+    readonly Lapsed: "lapsed";
+    readonly Churned: "churned";
+};
+export type RetentionFlag = (typeof RetentionFlag)[keyof typeof RetentionFlag];
+export declare const ContactPreference: {
+    readonly Email: "email";
+    readonly Sms: "sms";
+    readonly Phone: "phone";
+    readonly Any: "any";
+};
+export type ContactPreference = (typeof ContactPreference)[keyof typeof ContactPreference];
 export declare const ConsumerSegment: {
     readonly Lead: "lead";
     readonly Customer: "customer";
@@ -200,6 +235,8 @@ export declare const Permission: {
     readonly PaymentRead: "payment:read";
     readonly PaymentWrite: "payment:write";
     readonly ReportRead: "report:read";
+    readonly GrowthRead: "growth:read";
+    readonly GrowthWrite: "growth:write";
     readonly PlatformAdmin: "platform:admin";
 };
 export type Permission = (typeof Permission)[keyof typeof Permission];

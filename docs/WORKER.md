@@ -2,8 +2,8 @@
 
 The worker app lives in `backend/worker`. It provides the foundation for background jobs:
 
-- `InMemoryJobQueue` stores queued jobs for local development and tests.
-- `WorkerRuntime` polls the queue and dispatches registered handlers.
+- `PgBossJobQueue` stores queued jobs durably in Postgres through pg-boss.
+- `WorkerRuntime` registers handlers with pg-boss. pg-boss owns polling, retries, and restart recovery.
 - The current boot handler runs a `health.check` job so the process proves it can start and process work.
 
 Run locally:
@@ -23,6 +23,7 @@ The worker accepts these environment variables:
 - `WORKER_NAME`
 - `WORKER_POLL_INTERVAL_MS`
 - `WORKER_ENQUEUE_BOOT_JOB`
-- `REDIS_URL`
+- `DATABASE_URL`
+- `PGBOSS_SCHEMA`
 
-Redis is wired into Docker now, but the durable Redis-backed queue is a future implementation step.
+`PGBOSS_SCHEMA` is optional. When omitted, pg-boss uses its default `pgboss` schema and self-manages its internal migrations during `PgBoss.start()`.

@@ -1,12 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { InMemoryJobQueue, JobStatus } from "./jobQueue.js";
+import { JobStatus, type EnqueueJobInput, type Job, type JobHandler, type JobQueue } from "./jobQueue.js";
 import { WorkerRuntime } from "./workerRuntime.js";
 
 describe("WorkerRuntime", () => {
-  it("processes queued jobs with registered handlers", async () => {
-    const queue = new InMemoryJobQueue();
+  it("starts the queue and registers handlers with pg-boss polling", async () => {
+    const queue = new FakeJobQueue();
+    const runtime = new WorkerRuntime(
+      queue,
+      new Map([["demo.job", () => undefined]]),
+      { pollIntervalMs: 1500, logger: silentLogger }
+    );
+
+    await runtime.start();
+
+    expect(queue.started).toBe(true);
+    expect(queue.handlers.has("demo.job")).toBe(true);
+    expect(queue.workOptions.get("demo.job")).toEqual({ pollingIntervalSeconds: 2 });
+  });
+
+  it("dispatches queued jobs through registered handlers", async () => {
+    const queue = new FakeJobQueue();
     const processed: string[] = [];
-    const job = queue.enqueue({ type: "demo.job", payload: { ok: true } });
     const runtime = new WorkerRuntime(
       queue,
       new Map([
@@ -17,30 +31,71 @@ describe("WorkerRuntime", () => {
           }
         ]
       ]),
-      { pollIntervalMs: 10, logger: silentLogger }
+      { pollIntervalMs: 1000, logger: silentLogger }
     );
 
-    const result = await runtime.tick();
+    await runtime.start();
+    const job = await queue.enqueue({ type: "demo.job", payload: { ok: true } });
+    await queue.run(job);
 
-    expect(result.processed).toBe(1);
     expect(processed).toEqual([job.id]);
-    expect(queue.get(job.id)?.status).toBe(JobStatus.Completed);
   });
 
-  it("marks jobs failed after max attempts when the handler is missing", async () => {
-    const queue = new InMemoryJobQueue();
-    const job = queue.enqueue({ type: "missing.job", maxAttempts: 1 });
+  it("stops the queue", async () => {
+    const queue = new FakeJobQueue();
     const runtime = new WorkerRuntime(queue, new Map(), {
-      pollIntervalMs: 10,
+      pollIntervalMs: 1000,
       logger: silentLogger
     });
 
-    await runtime.tick();
+    await runtime.start();
+    await runtime.stop();
 
-    expect(queue.get(job.id)?.status).toBe(JobStatus.Failed);
-    expect(queue.get(job.id)?.lastError).toMatch(/No handler registered/);
+    expect(queue.started).toBe(false);
   });
 });
+
+class FakeJobQueue implements JobQueue {
+  readonly handlers = new Map<string, JobHandler>();
+  readonly workOptions = new Map<string, { pollingIntervalSeconds?: number } | undefined>();
+  started = false;
+
+  async start() {
+    this.started = true;
+  }
+
+  async stop() {
+    this.started = false;
+  }
+
+  async enqueue(input: EnqueueJobInput) {
+    const now = new Date();
+    return {
+      id: "job-1",
+      type: input.type,
+      payload: input.payload ?? {},
+      attempts: 0,
+      maxAttempts: input.maxAttempts ?? 3,
+      status: JobStatus.Queued,
+      createdAt: now,
+      updatedAt: now,
+      runAt: input.runAt ?? now
+    };
+  }
+
+  async work(type: string, handler: JobHandler, options?: { pollingIntervalSeconds?: number }) {
+    this.handlers.set(type, handler);
+    this.workOptions.set(type, options);
+  }
+
+  async run(job: Job) {
+    const handler = this.handlers.get(job.type);
+    if (!handler) {
+      throw new Error(`No handler registered for ${job.type}.`);
+    }
+    await handler({ ...job, status: JobStatus.Processing });
+  }
+}
 
 const silentLogger = {
   log: () => undefined,

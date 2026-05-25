@@ -1,6 +1,6 @@
-import type { InMemoryJobQueue, Job } from "./jobQueue.js";
+import type { Job, JobHandler, JobQueue } from "./jobQueue.js";
 
-export type JobHandler = (job: Job) => Promise<void> | void;
+export type { JobHandler };
 
 export interface WorkerRuntimeOptions {
   pollIntervalMs: number;
@@ -8,55 +8,43 @@ export interface WorkerRuntimeOptions {
 }
 
 export class WorkerRuntime {
-  private timer: NodeJS.Timeout | undefined;
+  private started = false;
   private readonly logger: Pick<Console, "error" | "log">;
 
   constructor(
-    private readonly queue: InMemoryJobQueue,
+    private readonly queue: JobQueue,
     private readonly handlers: Map<string, JobHandler>,
     private readonly options: WorkerRuntimeOptions
   ) {
     this.logger = options.logger ?? console;
   }
 
-  start() {
-    if (this.timer) {
+  async start() {
+    if (this.started) {
       return;
     }
-    this.timer = setInterval(() => {
-      this.tick().catch((error: unknown) => {
-        this.logger.error(error);
+    await this.queue.start();
+    for (const [type, handler] of this.handlers) {
+      await this.queue.work(type, handler, {
+        pollingIntervalSeconds: Math.max(1, Math.ceil(this.options.pollIntervalMs / 1000))
       });
-    }, this.options.pollIntervalMs);
+    }
+    this.started = true;
     this.logger.log("Worker runtime started.");
   }
 
-  stop() {
-    if (!this.timer) {
+  async stop() {
+    if (!this.started) {
       return;
     }
-    clearInterval(this.timer);
-    this.timer = undefined;
+    await this.queue.stop();
+    this.started = false;
     this.logger.log("Worker runtime stopped.");
   }
+}
 
-  async tick() {
-    const job = this.queue.next();
-    if (!job) {
-      return { processed: 0 };
-    }
-    const handler = this.handlers.get(job.type);
-    const processingJob = this.queue.markProcessing(job);
-    if (!handler) {
-      this.queue.fail(processingJob, new Error(`No handler registered for ${job.type}.`));
-      return { processed: 1 };
-    }
-    try {
-      await handler(processingJob);
-      this.queue.complete(processingJob);
-    } catch (error) {
-      this.queue.fail(processingJob, error instanceof Error ? error : new Error("Job failed."));
-    }
-    return { processed: 1 };
-  }
+export function missingJobHandler(type: string): (job: Job) => Promise<void> {
+  return async () => {
+    throw new Error(`No handler registered for ${type}.`);
+  };
 }

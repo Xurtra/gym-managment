@@ -17,6 +17,10 @@ import {
   classTypeCreateSchema,
   customRoleCreateSchema,
   customRoleUpdateSchema,
+  interactionCreateSchema,
+  leadCrmUpdateSchema,
+  leadConvertSchema,
+  leadImportSchema,
   locationCreateSchema,
   locationUpdateSchema,
   facilityReservationCancelSchema,
@@ -77,6 +81,7 @@ import { MemberService } from "./modules/members/member.service.js";
 import { MembershipPlanService } from "./modules/membershipPlans/membershipPlan.service.js";
 import { PosService } from "./modules/pos/pos.service.js";
 import { PosStripeService } from "./modules/pos/posStripe.service.js";
+import { GrowthService } from "./modules/growth/growth.service.js";
 import { ReservationResourceService } from "./modules/reservations/reservationResource.service.js";
 import { RoleService } from "./modules/roles/role.service.js";
 import { StaffScheduleService } from "./modules/staffSchedule/staffSchedule.service.js";
@@ -133,6 +138,7 @@ export interface Services {
   bookingService: BookingService;
   checkInService: CheckInService;
   accessControlService: AccessControlService;
+  growthService: GrowthService;
 }
 
 export function createServices(
@@ -162,6 +168,7 @@ export function createServices(
   const bookingService = new BookingService(repositories, clock);
   const checkInService = new CheckInService(repositories, clock);
   const accessControlService = new AccessControlService(repositories, clock);
+  const growthService = new GrowthService(repositories, clock);
   const services: Services = {
     repositories,
     clock,
@@ -180,7 +187,8 @@ export function createServices(
     classScheduleService,
     bookingService,
     checkInService,
-    accessControlService
+    accessControlService,
+    growthService
   };
   bootstrapServices.repositories = services.repositories;
   bootstrapServices.clock = services.clock;
@@ -198,6 +206,7 @@ export function createServices(
   bootstrapServices.bookingService = services.bookingService;
   bootstrapServices.checkInService = services.checkInService;
   bootstrapServices.accessControlService = services.accessControlService;
+  bootstrapServices.growthService = services.growthService;
   services.posStripeService = new PosStripeService(config, services);
   if (repositories instanceof InMemoryStore) {
     services.store = repositories;
@@ -1382,6 +1391,79 @@ function createRoutes() {
       },
       plans
     };
+  });
+
+  // Growth / CRM routes
+  add("GET", "/gyms/:gymId/growth/summary", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GrowthRead);
+    return context.services.growthService.getGrowthSummary(gymId);
+  });
+
+  add("GET", "/gyms/:gymId/growth/inbox", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GrowthRead);
+    return { consumers: await context.services.growthService.listFollowUpInbox(gymId) };
+  });
+
+  add("GET", "/gyms/:gymId/growth/watchlist", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GrowthRead);
+    return { consumers: await context.services.growthService.listRetentionWatchlist(gymId) };
+  });
+
+  add("PATCH", "/gyms/:gymId/growth/leads/:consumerId", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    const consumerId = requiredParam(context, "consumerId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GrowthWrite);
+    const input = parseWith(leadCrmUpdateSchema, context.body);
+    return context.services.growthService.updateLeadCrmDetails(gymId, consumerId, input);
+  });
+
+  add("GET", "/gyms/:gymId/growth/leads/:consumerId/interactions", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    const consumerId = requiredParam(context, "consumerId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GrowthRead);
+    return { interactions: await context.services.growthService.listInteractions(gymId, consumerId) };
+  });
+
+  add("POST", "/gyms/:gymId/growth/leads/:consumerId/interactions", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    const consumerId = requiredParam(context, "consumerId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GrowthWrite);
+    const input = parseWith(interactionCreateSchema, context.body);
+    return context.services.growthService.logInteraction(gymId, consumerId, auth.sub, input);
+  });
+
+  add("POST", "/gyms/:gymId/growth/leads/:consumerId/convert", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    const consumerId = requiredParam(context, "consumerId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GrowthWrite);
+    const input = parseWith(leadConvertSchema, context.body);
+    return context.services.growthService.convertToMember(gymId, consumerId, auth.sub, input);
+  });
+
+  add("POST", "/gyms/:gymId/growth/import", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GrowthWrite);
+    const input = parseWith(leadImportSchema, context.body);
+    return context.services.growthService.importLeads(gymId, auth.sub, input.rows);
   });
 
   add("POST", "/public/gyms/:gymSlug/signup", async (context) => {

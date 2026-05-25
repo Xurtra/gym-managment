@@ -14,6 +14,7 @@ const members: MemberView[] = [
     barcode: "MEM-100",
     status: MemberStatus.Active,
     recordStatus: ConsumerRecordStatus.Active,
+    isMember: true,
     tagNames: ["Strength", "Founding"],
     createdAt: "2026-05-16T12:00:00.000Z",
     updatedAt: "2026-05-16T12:00:00.000Z"
@@ -28,6 +29,7 @@ const members: MemberView[] = [
     barcode: "MEM-200",
     status: MemberStatus.PastDue,
     recordStatus: ConsumerRecordStatus.Active,
+    isMember: true,
     tagNames: ["Yoga"],
     createdAt: "2026-05-15T12:00:00.000Z",
     updatedAt: "2026-05-16T12:00:00.000Z"

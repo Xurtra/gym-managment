@@ -7,7 +7,7 @@ test.describe("Member Management", () => {
     await loginViaUi(page, gym);
 
     await navigateToDashboardView(page, "consumers");
-    await expect(page.locator("h2, h3")).toContainText(/consumer|member/i);
+    await expect(page.getByRole("heading", { name: "Consumer Directory", level: 1 })).toBeVisible();
   });
 
   test("owner can see the check-in view", async ({ page, request }) => {
@@ -15,7 +15,7 @@ test.describe("Member Management", () => {
     await loginViaUi(page, gym);
 
     await navigateToDashboardView(page, "check_in");
-    await expect(page.locator("h2, h3")).toContainText(/check.in/i);
+    await expect(page.getByRole("heading", { name: "Club Check In" })).toBeVisible();
   });
 
   test("owner can navigate to the plans view", async ({ page, request }) => {
@@ -23,7 +23,7 @@ test.describe("Member Management", () => {
     await loginViaUi(page, gym);
 
     await navigateToDashboardView(page, "plans");
-    await expect(page.locator("h2, h3")).toContainText(/plan/i);
+    await expect(page.getByRole("heading", { name: "Plans and packages" })).toBeVisible();
   });
 
   test("dashboard home shows operational summary", async ({ page, request }) => {

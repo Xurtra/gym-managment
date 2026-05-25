@@ -1801,17 +1801,25 @@ describe("staff invite dashboard flow", () => {
       Permission.BookingRead,
       Permission.BookingWrite
     ]);
-    expect(trainerView.visibleRoutes).toEqual(["/", "/locations", "/consumers", "/classes"]);
-    expect(trainerView.visibleRouteCount).toBe(4);
+    expect(trainerView.visibleRoutes).toEqual([
+      "/",
+      "/locations",
+      "/consumers",
+      "/classes",
+      "/bookings"
+    ]);
+    expect(trainerView.visibleRouteCount).toBe(5);
     expect(trainerView.hiddenRoutes).toContain("/check-ins");
     expect(trainerView.hiddenRoutes).toContain("/settings");
-    expect(trainerView.hiddenRouteCount).toBe(4);
-    expect(trainerView.summaryLabel).toBe("4 dashboard routes available");
+    expect(trainerView.hiddenRoutes).toContain("/growth");
+    expect(trainerView.hiddenRouteCount).toBe(5);
+    expect(trainerView.summaryLabel).toBe("5 dashboard routes available");
     expect(trainerView.navItems.map((item) => item.label)).toEqual([
       "Dashboard",
       "Locations",
       "Consumers",
-      "Classes"
+      "Classes",
+      "Bookings"
     ]);
     expect(trainerView.navItems.find((item) => item.href === "/classes")?.active).toBe(true);
     expect(trainerView.navItems.find((item) => item.href === "/classes")?.requiredPermissions).toEqual([
@@ -1840,22 +1848,26 @@ describe("staff invite dashboard flow", () => {
       Permission.BookingWrite,
       Permission.AccessRead,
       Permission.PaymentRead,
-      Permission.PaymentWrite
+      Permission.PaymentWrite,
+      Permission.GrowthRead
     ]);
     expect(frontDeskView.visibleRoutes).toContain("/check-ins");
     expect(frontDeskView.visibleRoutes).toContain("/access-control");
-    expect(frontDeskView.visibleRouteCount).toBe(6);
+    expect(frontDeskView.visibleRoutes).toContain("/growth");
+    expect(frontDeskView.visibleRouteCount).toBe(8);
     expect(frontDeskView.hiddenRoutes).toContain("/reports");
     expect(frontDeskView.hiddenRoutes).toContain("/settings");
     expect(frontDeskView.hiddenRouteCount).toBe(2);
-    expect(frontDeskView.summaryLabel).toBe("6 dashboard routes available");
+    expect(frontDeskView.summaryLabel).toBe("8 dashboard routes available");
     expect(frontDeskView.navItems.map((item) => item.label)).toEqual([
       "Dashboard",
       "Locations",
       "Consumers",
       "Classes",
+      "Bookings",
       "Check-Ins",
-      "Access Control"
+      "Access Control",
+      "Growth"
     ]);
     expect(frontDeskView.navItems.find((item) => item.href === "/check-ins")?.active).toBe(true);
     expect(

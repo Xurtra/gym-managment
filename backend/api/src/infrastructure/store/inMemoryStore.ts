@@ -4,6 +4,7 @@ import type {
   AccessEvent,
   AccessRule,
   Gym,
+  GrowthInteraction,
   GymUser,
   ClassBooking,
   CheckIn,
@@ -28,6 +29,7 @@ import type {
   User
 } from "./entities.js";
 import type {
+  GrowthRepository,
   GymRepository,
   GymUserRepository,
   AccessControlRepository,
@@ -76,6 +78,7 @@ export class InMemoryStore implements Repositories {
   private readonly accessEventRecords = new Map<string, AccessEvent>();
   private readonly refreshTokenRecords = new Map<string, RefreshToken>();
   private readonly purposeTokenRecords = new Map<string, PurposeToken>();
+  private readonly growthInteractionRecords = new Map<string, GrowthInteraction>();
 
   readonly users: UserRepository = {
     createUser: (user) => this.createUser(user),
@@ -237,6 +240,12 @@ export class InMemoryStore implements Repositories {
     createPurposeToken: (purposeToken) => this.createPurposeToken(purposeToken),
     findPurposeTokenByHash: (tokenHash, purpose) => this.findPurposeTokenByHash(tokenHash, purpose),
     updatePurposeToken: (purposeToken) => this.updatePurposeToken(purposeToken)
+  };
+
+  readonly growth: GrowthRepository = {
+    createInteraction: (interaction) => this.createInteraction(interaction),
+    listInteractionsForConsumer: (consumerId) => this.listInteractionsForConsumer(consumerId),
+    listInteractionsForGym: (gymId, limit) => this.listInteractionsForGym(gymId, limit)
   };
 
   async transaction<T>(work: (repositories: Repositories) => Promise<T>): Promise<T> {
@@ -781,8 +790,27 @@ export class InMemoryStore implements Repositories {
       accessRules: [...this.accessRuleRecords.values()],
       accessEvents: [...this.accessEventRecords.values()],
       refreshTokens: [...this.refreshTokenRecords.values()],
-      purposeTokens: [...this.purposeTokenRecords.values()]
+      purposeTokens: [...this.purposeTokenRecords.values()],
+      growthInteractions: [...this.growthInteractionRecords.values()]
     };
+  }
+
+  async createInteraction(interaction: GrowthInteraction) {
+    this.growthInteractionRecords.set(interaction.id, interaction);
+    return interaction;
+  }
+
+  async listInteractionsForConsumer(consumerId: string) {
+    return [...this.growthInteractionRecords.values()]
+      .filter((i) => i.consumerId === consumerId)
+      .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
+  }
+
+  async listInteractionsForGym(gymId: string, limit?: number) {
+    const results = [...this.growthInteractionRecords.values()]
+      .filter((i) => i.gymId === gymId)
+      .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
+    return limit !== undefined ? results.slice(0, limit) : results;
   }
 }
 
