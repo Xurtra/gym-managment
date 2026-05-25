@@ -7,7 +7,7 @@ test.describe("Bookings", () => {
     await loginViaUi(page, gym);
 
     await navigateToDashboardView(page, "bookings");
-    await expect(page.locator("h2, h3")).toContainText(/booking/i);
+    await expect(page.locator('[data-dashboard-view="bookings"]')).toHaveClass(/active/);
   });
 
   test("owner can navigate to the classes view", async ({ page, request }) => {
@@ -15,7 +15,7 @@ test.describe("Bookings", () => {
     await loginViaUi(page, gym);
 
     await navigateToDashboardView(page, "classes");
-    await expect(page.locator("h2, h3")).toContainText(/class/i);
+    await expect(page.getByRole("heading", { level: 2, name: /class schedule/i })).toBeVisible();
   });
 
   test("full booking flow via API — book, check capacity, cancel, verify waitlist promotion", async ({
@@ -52,7 +52,8 @@ test.describe("Bookings", () => {
       }
     });
     expect(locationRes.status()).toBe(200);
-    const { location } = await locationRes.json() as { location: { id: string } };
+    const locationBody = await locationRes.json() as { location?: { id: string }; id?: string };
+    const location = locationBody.location ?? locationBody as { id: string };
 
     // Create a class type
     const classTypeRes = await request.post(`${API_URL}/gyms/${gymId}/class-types`, {
@@ -60,7 +61,8 @@ test.describe("Bookings", () => {
       data: { name: "Yoga", defaultDurationMinutes: 60, defaultCapacity: 1, defaultWaitlistCapacity: 1, isPublic: true }
     });
     expect(classTypeRes.status()).toBe(200);
-    const { classType } = await classTypeRes.json() as { classType: { id: string } };
+    const classTypeBody = await classTypeRes.json() as { classType?: { id: string }; id?: string };
+    const classType = classTypeBody.classType ?? classTypeBody as { id: string };
 
     // Create a class session with capacity 1
     const sessionRes = await request.post(`${API_URL}/gyms/${gymId}/class-sessions`, {
@@ -77,7 +79,8 @@ test.describe("Bookings", () => {
       }
     });
     expect(sessionRes.status()).toBe(200);
-    const { session } = await sessionRes.json() as { session: { id: string } };
+    const sessionBody = await sessionRes.json() as { session?: { id: string }; id?: string };
+    const session = sessionBody.session ?? sessionBody as { id: string };
 
     // Create a plan
     const planRes = await request.post(`${API_URL}/gyms/${gymId}/membership-plans`, {
@@ -85,7 +88,8 @@ test.describe("Bookings", () => {
       data: { name: "Monthly", billingInterval: "monthly", priceCents: 5000, signupFeeCents: 0, trialDays: 0, autoRenew: true, isPublic: true }
     });
     expect(planRes.status()).toBe(200);
-    const { plan } = await planRes.json() as { plan: { id: string } };
+    const planBody = await planRes.json() as { plan?: { id: string }; id?: string };
+    const plan = planBody.plan ?? planBody as { id: string };
 
     // Register two members and assign the plan
     async function createMemberWithPlan(email: string) {
@@ -94,7 +98,8 @@ test.describe("Bookings", () => {
         data: { firstName: "Test", lastName: "Member", email, status: "active" }
       });
       expect(memberRes.status()).toBe(200);
-      const { member } = await memberRes.json() as { member: { id: string } };
+      const memberBody = await memberRes.json() as { member?: { id: string }; id?: string };
+      const member = memberBody.member ?? memberBody as { id: string };
       const membershipRes = await request.post(`${API_URL}/gyms/${gymId}/members/${member.id}/memberships`, {
         headers: authHeader,
         data: { planId: plan.id, startsAt: new Date().toISOString() }
@@ -114,7 +119,8 @@ test.describe("Bookings", () => {
       data: { memberId: memberId1 }
     });
     expect(bookRes.status()).toBe(200);
-    const { booking } = await bookRes.json() as { booking: { id: string; status: string } };
+    const bookingBody = await bookRes.json() as { booking?: { id: string; status: string }; id?: string; status?: string };
+    const booking = bookingBody.booking ?? bookingBody as { id: string; status: string };
     expect(booking.status).toBe("booked");
 
     // Member 2 joins waitlist (capacity is full)
@@ -123,12 +129,15 @@ test.describe("Bookings", () => {
       data: { memberId: memberId2 }
     });
     expect(waitlistRes.status()).toBe(200);
-    const { booking: waitlisted } = await waitlistRes.json() as { booking: { status: string; waitlistPosition: number } };
+    const waitlistBody = await waitlistRes.json() as { booking?: { status: string; waitlistPosition: number }; status?: string; waitlistPosition?: number };
+    const waitlisted = waitlistBody.booking ?? waitlistBody as { status: string; waitlistPosition: number };
     expect(waitlisted.status).toBe("waitlisted");
     expect(waitlisted.waitlistPosition).toBe(1);
 
     // Cancel member 1's booking — should auto-promote member 2
-    const cancelRes = await request.delete(`${API_URL}/gyms/${gymId}/class-bookings/${booking.id}`);
+    const cancelRes = await request.delete(`${API_URL}/gyms/${gymId}/class-bookings/${booking.id}`, {
+      headers: authHeader
+    });
     expect(cancelRes.status()).toBe(200);
     const { promotedBooking } = await cancelRes.json() as { promotedBooking?: { status: string } };
     expect(promotedBooking?.status).toBe("booked");

@@ -34,6 +34,12 @@ export class GymApiClient {
     resetPassword(input) {
         return this.request("POST", "/auth/reset-password", input);
     }
+    verifyEmail(token) {
+        return this.request("POST", "/auth/verify-email", { token });
+    }
+    resendVerification(email) {
+        return this.request("POST", "/auth/resend-verification", { email });
+    }
     setupTwoFactor() {
         return this.request("POST", "/auth/2fa/setup");
     }
@@ -403,6 +409,30 @@ export class GymApiClient {
     }
     publicSignup(gymSlug, input) {
         return this.request("POST", `/public/gyms/${gymSlug}/signup`, input);
+    }
+    getGrowthSummary(gymId) {
+        return this.request("GET", `/gyms/${gymId}/growth/summary`);
+    }
+    getFollowUpInbox(gymId) {
+        return this.request("GET", `/gyms/${gymId}/growth/inbox`);
+    }
+    getRetentionWatchlist(gymId) {
+        return this.request("GET", `/gyms/${gymId}/growth/watchlist`);
+    }
+    updateLeadCrmDetails(gymId, consumerId, input) {
+        return this.request("PATCH", `/gyms/${gymId}/growth/leads/${consumerId}`, input);
+    }
+    listInteractions(gymId, consumerId) {
+        return this.request("GET", `/gyms/${gymId}/growth/leads/${consumerId}/interactions`);
+    }
+    logInteraction(gymId, consumerId, input) {
+        return this.request("POST", `/gyms/${gymId}/growth/leads/${consumerId}/interactions`, input);
+    }
+    convertLeadToMember(gymId, consumerId, input) {
+        return this.request("POST", `/gyms/${gymId}/growth/leads/${consumerId}/convert`, input);
+    }
+    importLeads(gymId, input) {
+        return this.request("POST", `/gyms/${gymId}/growth/import`, input);
     }
     async request(method, path, body, retryOnUnauthorized = true) {
         const response = await this.send(method, path, body);

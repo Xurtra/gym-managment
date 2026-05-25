@@ -1,4 +1,4 @@
-import { MemberStatus, MembershipStatus, Permission } from "@gym-platform/constants";
+import { ConsumerRecordStatus, MemberStatus, MembershipStatus, Permission } from "@gym-platform/constants";
 import { describe, expect, it } from "vitest";
 import { buildMemberListPage, buildMemberProfilePage } from "./index.js";
 import type { MemberProfileMembershipView, MemberView } from "./index.js";
@@ -13,6 +13,8 @@ const members: MemberView[] = [
     phone: "555-0101",
     barcode: "MEM-100",
     status: MemberStatus.Active,
+    recordStatus: ConsumerRecordStatus.Active,
+    isMember: true,
     tagNames: ["Strength", "Founding"],
     createdAt: "2026-05-16T12:00:00.000Z",
     updatedAt: "2026-05-16T12:00:00.000Z"
@@ -26,6 +28,8 @@ const members: MemberView[] = [
     phone: "555-0102",
     barcode: "MEM-200",
     status: MemberStatus.PastDue,
+    recordStatus: ConsumerRecordStatus.Active,
+    isMember: true,
     tagNames: ["Yoga"],
     createdAt: "2026-05-15T12:00:00.000Z",
     updatedAt: "2026-05-16T12:00:00.000Z"
@@ -37,6 +41,7 @@ const members: MemberView[] = [
     lastName: "Ng",
     phone: "555-0103",
     status: MemberStatus.Trial,
+    recordStatus: ConsumerRecordStatus.Active,
     tagNames: ["Strength"],
     createdAt: "2026-05-14T12:00:00.000Z",
     updatedAt: "2026-05-16T12:00:00.000Z"
@@ -48,6 +53,7 @@ const members: MemberView[] = [
     lastName: "Member",
     email: "archived@example.com",
     status: MemberStatus.Archived,
+    recordStatus: ConsumerRecordStatus.Archived,
     tagNames: [],
     createdAt: "2026-05-13T12:00:00.000Z",
     updatedAt: "2026-05-16T12:00:00.000Z",

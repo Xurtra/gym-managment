@@ -3,9 +3,11 @@
   "references": [
     { "path": "packages/constants" },
     { "path": "packages/ui" },
+    { "path": "packages/ui-react" },
     { "path": "packages/validation" },
     { "path": "packages/api-client" },
     { "path": "backend/api" },
+    { "path": "frontend/app" },
     { "path": "frontend/dashboard" },
     { "path": "frontend/member-portal" },
     { "path": "frontend/website-renderer" },

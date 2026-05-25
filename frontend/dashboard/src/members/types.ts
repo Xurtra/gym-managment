@@ -1,9 +1,13 @@
 import type {
+  ContactPreference,
   ConsumerRecordStatus,
   ConsumerSegment,
+  InterestLevel,
+  LeadSource,
   LeadStage,
   MemberStatus,
-  MembershipStatus
+  MembershipStatus,
+  RetentionFlag
 } from "@gym-platform/constants";
 
 export interface EmergencyContactView {
@@ -23,7 +27,7 @@ export interface MemberView {
   barcode?: string;
   profileImageUrl?: string;
   emergencyContact?: EmergencyContactView;
-  recordStatus?: ConsumerRecordStatus;
+  recordStatus: ConsumerRecordStatus;
   leadStage?: LeadStage;
   segments?: ConsumerSegment[];
   isLead?: boolean;
@@ -31,6 +35,16 @@ export interface MemberView {
   isMember?: boolean;
   notes?: string;
   tagNames: string[];
+  leadSource?: LeadSource;
+  interestLevel?: InterestLevel;
+  assignedStaffId?: string;
+  assignedStaffName?: string;
+  nextFollowUpAt?: string;
+  consentEmail?: boolean;
+  consentSms?: boolean;
+  consentPhone?: boolean;
+  contactPreference?: ContactPreference;
+  retentionFlag?: RetentionFlag;
   createdAt: string;
   updatedAt: string;
   archivedAt?: string;

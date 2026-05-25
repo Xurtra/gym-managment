@@ -127,7 +127,8 @@ test.describe("Reservations", () => {
     const fixture = await createReservationFixture(request);
     await loginViaUi(page, fixture.gym);
 
-    await navigateToDashboardView(page, "bookings");
+    await page.goto(`/?gymSlug=${fixture.gym.gymSlug}#/dashboard/reservations/new`);
+    await page.waitForSelector(".club-shell", { timeout: 10_000 });
     await expect(page.locator("#create-resource-reservation-form")).toBeVisible();
 
     const startsAt = toDatetimeLocal(new Date(Date.now() + 60 * 60 * 1000));

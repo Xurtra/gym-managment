@@ -1,4 +1,4 @@
-import { MemberStatus, Permission } from "@gym-platform/constants";
+import { ConsumerRecordStatus, MemberStatus, Permission } from "@gym-platform/constants";
 import { describe, expect, it } from "vitest";
 import {
   buildLeadConversionScreen,
@@ -18,6 +18,7 @@ const members: MemberView[] = [
     email: "jamie@example.com",
     phone: "555-0101",
     status: MemberStatus.Lead,
+    recordStatus: ConsumerRecordStatus.Active,
     tagNames: ["Website"],
     createdAt: "2026-05-16T12:00:00.000Z",
     updatedAt: "2026-05-16T12:00:00.000Z"
@@ -29,6 +30,7 @@ const members: MemberView[] = [
     lastName: "Lee",
     phone: "555-0102",
     status: MemberStatus.Lead,
+    recordStatus: ConsumerRecordStatus.Active,
     tagNames: ["Referral"],
     createdAt: "2026-05-15T12:00:00.000Z",
     updatedAt: "2026-05-16T12:00:00.000Z"
@@ -40,6 +42,7 @@ const members: MemberView[] = [
     lastName: "Ng",
     email: "casey@example.com",
     status: MemberStatus.Active,
+    recordStatus: ConsumerRecordStatus.Active,
     tagNames: ["Converted"],
     createdAt: "2026-05-14T12:00:00.000Z",
     updatedAt: "2026-05-16T12:00:00.000Z"

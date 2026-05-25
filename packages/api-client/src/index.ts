@@ -18,6 +18,10 @@ import type {
   FacilityReservationCreateInput,
   GymCreateInput,
   GymUpdateInput,
+  InteractionCreateInput,
+  LeadCrmUpdateInput,
+  LeadConvertInput,
+  LeadImportInput,
   LocationCreateInput,
   LocationUpdateInput,
   LoginInput,
@@ -114,6 +118,14 @@ export class GymApiClient {
 
   resetPassword(input: ResetPasswordInput) {
     return this.request("POST", "/auth/reset-password", input);
+  }
+
+  verifyEmail(token: string) {
+    return this.request("POST", "/auth/verify-email", { token });
+  }
+
+  resendVerification(email: string) {
+    return this.request("POST", "/auth/resend-verification", { email });
   }
 
   setupTwoFactor() {
@@ -634,6 +646,38 @@ export class GymApiClient {
 
   publicSignup(gymSlug: string, input: PublicSignupInput) {
     return this.request("POST", `/public/gyms/${gymSlug}/signup`, input);
+  }
+
+  getGrowthSummary(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/growth/summary`);
+  }
+
+  getFollowUpInbox(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/growth/inbox`);
+  }
+
+  getRetentionWatchlist(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/growth/watchlist`);
+  }
+
+  updateLeadCrmDetails(gymId: string, consumerId: string, input: LeadCrmUpdateInput) {
+    return this.request("PATCH", `/gyms/${gymId}/growth/leads/${consumerId}`, input);
+  }
+
+  listInteractions(gymId: string, consumerId: string) {
+    return this.request("GET", `/gyms/${gymId}/growth/leads/${consumerId}/interactions`);
+  }
+
+  logInteraction(gymId: string, consumerId: string, input: InteractionCreateInput) {
+    return this.request("POST", `/gyms/${gymId}/growth/leads/${consumerId}/interactions`, input);
+  }
+
+  convertLeadToMember(gymId: string, consumerId: string, input: LeadConvertInput) {
+    return this.request("POST", `/gyms/${gymId}/growth/leads/${consumerId}/convert`, input);
+  }
+
+  importLeads(gymId: string, input: LeadImportInput) {
+    return this.request("POST", `/gyms/${gymId}/growth/import`, input);
   }
 
   private async request(
