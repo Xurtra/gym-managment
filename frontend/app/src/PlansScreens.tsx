@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { BillingInterval, PlanStatus } from "@gym-platform/constants";
 import {
@@ -10,54 +11,38 @@ import {
   type MembershipPlanView
 } from "@gym-platform/dashboard";
 import { Button, EmptyState, Table } from "@gym-platform/ui-react";
-import { createDashboardClient, currentUserDisplayName, loadDashboardWorkspaceData, loadSession, type DashboardWorkspaceData } from "./dashboardData.js";
+import { currentUserDisplayName, loadPlansWorkspaceData, loadSession } from "./dashboardData.js";
+import { queryKeys } from "./queryKeys.js";
 import { Shell } from "./Shell.js";
 
-type LoadState =
-  | { status: "loading" }
-  | { status: "ready"; data: DashboardWorkspaceData; plans: MembershipPlanView[] }
-  | { status: "failed"; message: string };
-
 export function PlansDomainRoute() {
-  const [state, setState] = useState<LoadState>({ status: "loading" });
   const [searchParams, setSearchParams] = useSearchParams();
+  const session = loadSession();
+  const plansQuery = useQuery({
+    queryKey: queryKeys.plansWorkspace,
+    queryFn: () => loadPlansWorkspaceData(),
+    enabled: Boolean(session)
+  });
 
-  const reload = async () => {
-    setState({ status: "loading" });
-    try {
-      const data = await loadDashboardWorkspaceData();
-      const response = (await createDashboardClient().listMembershipPlans(data.gym.id)) as
-        | { plans?: unknown[] }
-        | unknown[];
-      const plans = normalizePlans(response);
-      setState({ status: "ready", data, plans });
-    } catch (error) {
-      setState({ status: "failed", message: describeError(error) });
-    }
-  };
-
-  useEffect(() => {
-    void reload();
-  }, []);
-
-  if (!loadSession()) {
+  if (!session) {
     return <Navigate to="/dashboard/login" replace />;
   }
-  if (state.status === "loading") {
+  if (plansQuery.isLoading) {
     return <div className="react-bootstrap-state">Loading plans...</div>;
   }
-  if (state.status === "failed") {
-    return <div className="empty-state"><h3>Plans unavailable</h3><p>{state.message}</p></div>;
+  if (plansQuery.isError || !plansQuery.data) {
+    return <div className="empty-state"><h3>Plans unavailable</h3><p>{describeError(plansQuery.error)}</p></div>;
   }
+  const plans = normalizePlans(plansQuery.data.plans);
 
   const shell = buildDashboardShellLayout({
     path: "/settings",
-    permissions: state.data.permissions,
-    platformAdmin: state.data.platformAdmin,
-    email: state.data.me.user.email,
-    firstName: state.data.me.user.firstName,
-    lastName: state.data.me.user.lastName,
-    gymName: state.data.gym.name,
+    permissions: plansQuery.data.data.permissions,
+    platformAdmin: plansQuery.data.data.platformAdmin,
+    email: plansQuery.data.data.me.user.email,
+    firstName: plansQuery.data.data.me.user.firstName,
+    lastName: plansQuery.data.data.me.user.lastName,
+    gymName: plansQuery.data.data.gym.name,
     pageHeader: buildPageHeader({
       title: "Plans and packages",
       eyebrow: "Membership",
@@ -65,7 +50,7 @@ export function PlansDomainRoute() {
         { label: "Dashboard", href: "/" },
         { label: "Plans and packages", href: "/settings" }
       ],
-      description: "Configure recurring memberships and packaged offerings."
+      description: `${currentUserDisplayName(plansQuery.data.data.me)} is configuring recurring memberships.`
     })
   });
 
@@ -75,8 +60,8 @@ export function PlansDomainRoute() {
   };
 
   const page = buildMembershipPlanListPage({
-    plans: state.plans,
-    permissions: state.data.permissions,
+    plans,
+    permissions: plansQuery.data.data.permissions,
     filters
   });
 

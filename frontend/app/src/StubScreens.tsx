@@ -1,48 +1,42 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Navigate } from "react-router-dom";
 import { buildDashboardShellLayout, buildPageHeader } from "@gym-platform/dashboard";
 import { EmptyState } from "@gym-platform/ui-react";
 import { loadDashboardWorkspaceData, loadSession, type DashboardWorkspaceData } from "./dashboardData.js";
+import { queryKeys } from "./queryKeys.js";
 import { Shell } from "./Shell.js";
 
-type LoadState =
-  | { status: "loading" }
-  | { status: "ready"; data: DashboardWorkspaceData }
-  | { status: "failed"; message: string };
-
 export function DashboardHomeRoute() {
-  const [state, setState] = useState<LoadState>({ status: "loading" });
+  const session = loadSession();
+  const workspaceQuery = useQuery({
+    queryKey: queryKeys.dashboardWorkspace,
+    queryFn: () => loadDashboardWorkspaceData(),
+    enabled: Boolean(session)
+  });
 
-  useEffect(() => {
-    setState({ status: "loading" });
-    loadDashboardWorkspaceData()
-      .then((data) => setState({ status: "ready", data }))
-      .catch((error) => setState({ status: "failed", message: describeError(error) }));
-  }, []);
-
-  if (!loadSession()) {
+  if (!session) {
     return <Navigate to="/dashboard/login" replace />;
   }
-  if (state.status === "loading") {
+  if (workspaceQuery.isLoading) {
     return <div className="react-bootstrap-state">Loading dashboard...</div>;
   }
-  if (state.status === "failed") {
-    return <div className="empty-state"><h3>Dashboard unavailable</h3><p>{state.message}</p></div>;
+  if (workspaceQuery.isError || !workspaceQuery.data) {
+    return <div className="empty-state"><h3>Dashboard unavailable</h3><p>{describeError(workspaceQuery.error)}</p></div>;
   }
 
   const shell = buildDashboardShellLayout({
     path: "/",
-    permissions: state.data.permissions,
-    platformAdmin: state.data.platformAdmin,
-    email: state.data.me.user.email,
-    firstName: state.data.me.user.firstName,
-    lastName: state.data.me.user.lastName,
-    gymName: state.data.gym.name,
+    permissions: workspaceQuery.data.permissions,
+    platformAdmin: workspaceQuery.data.platformAdmin,
+    email: workspaceQuery.data.me.user.email,
+    firstName: workspaceQuery.data.me.user.firstName,
+    lastName: workspaceQuery.data.me.user.lastName,
+    gymName: workspaceQuery.data.gym.name,
     pageHeader: buildPageHeader({
       title: "Dashboard",
       eyebrow: "Overview",
       breadcrumbs: [{ label: "Dashboard", href: "/" }],
-      description: `${state.data.members.length} consumers, ${state.data.classSessions.length} scheduled sessions.`
+      description: `${workspaceQuery.data.members.length} consumers, ${workspaceQuery.data.classSessions.length} scheduled sessions.`
     })
   });
 
@@ -50,9 +44,9 @@ export function DashboardHomeRoute() {
     <Shell model={shell}>
       <section className="club-panel">
         <div className="stat-grid compact">
-          <article className="mini-card"><span>Consumers</span><strong>{state.data.members.length}</strong></article>
-          <article className="mini-card"><span>Classes</span><strong>{state.data.classSessions.length}</strong></article>
-          <article className="mini-card"><span>Locations</span><strong>{state.data.locations.length}</strong></article>
+          <article className="mini-card"><span>Consumers</span><strong>{workspaceQuery.data.members.length}</strong></article>
+          <article className="mini-card"><span>Classes</span><strong>{workspaceQuery.data.classSessions.length}</strong></article>
+          <article className="mini-card"><span>Locations</span><strong>{workspaceQuery.data.locations.length}</strong></article>
         </div>
       </section>
     </Shell>
@@ -70,33 +64,31 @@ export function ShellPlaceholderRoute({
   body: string;
   emptyTitle?: string;
 }) {
-  const [state, setState] = useState<LoadState>({ status: "loading" });
+  const session = loadSession();
+  const workspaceQuery = useQuery({
+    queryKey: queryKeys.dashboardWorkspace,
+    queryFn: () => loadDashboardWorkspaceData(),
+    enabled: Boolean(session)
+  });
 
-  useEffect(() => {
-    setState({ status: "loading" });
-    loadDashboardWorkspaceData()
-      .then((data) => setState({ status: "ready", data }))
-      .catch((error) => setState({ status: "failed", message: describeError(error) }));
-  }, []);
-
-  if (!loadSession()) {
+  if (!session) {
     return <Navigate to="/dashboard/login" replace />;
   }
-  if (state.status === "loading") {
+  if (workspaceQuery.isLoading) {
     return <div className="react-bootstrap-state">Loading {title.toLowerCase()}...</div>;
   }
-  if (state.status === "failed") {
-    return <div className="empty-state"><h3>{title} unavailable</h3><p>{state.message}</p></div>;
+  if (workspaceQuery.isError || !workspaceQuery.data) {
+    return <div className="empty-state"><h3>{title} unavailable</h3><p>{describeError(workspaceQuery.error)}</p></div>;
   }
 
   const shell = buildDashboardShellLayout({
     path,
-    permissions: state.data.permissions,
-    platformAdmin: state.data.platformAdmin,
-    email: state.data.me.user.email,
-    firstName: state.data.me.user.firstName,
-    lastName: state.data.me.user.lastName,
-    gymName: state.data.gym.name,
+    permissions: workspaceQuery.data.permissions,
+    platformAdmin: workspaceQuery.data.platformAdmin,
+    email: workspaceQuery.data.me.user.email,
+    firstName: workspaceQuery.data.me.user.firstName,
+    lastName: workspaceQuery.data.me.user.lastName,
+    gymName: workspaceQuery.data.gym.name,
     pageHeader: buildPageHeader({
       title,
       eyebrow: "Dashboard",

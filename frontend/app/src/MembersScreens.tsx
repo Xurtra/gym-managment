@@ -1,6 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { MemberStatus } from "@gym-platform/constants";
+import { memberCreateSchema, memberUpdateSchema } from "@gym-platform/validation";
+import type { z } from "zod";
 import {
   buildDashboardShellLayout,
   buildMemberListPage,
@@ -25,47 +30,34 @@ import {
   type MemberCreateFormInput,
   type MemberUpdateFormInput
 } from "./dashboardData.js";
+import { queryKeys } from "./queryKeys.js";
 import { Shell } from "./Shell.js";
 
-type LoadState =
-  | { status: "loading" }
-  | { status: "ready"; data: DashboardWorkspaceData }
-  | { status: "failed"; message: string };
-
 export function MembersDomainRoute({ mode }: { mode: "list" | "detail" | "edit" }) {
-  const [state, setState] = useState<LoadState>({ status: "loading" });
   const navigate = useNavigate();
   const session = loadSession();
-
-  const reload = async () => {
-    setState({ status: "loading" });
-    try {
-      setState({ status: "ready", data: await loadDashboardWorkspaceData() });
-    } catch (error) {
-      setState({ status: "failed", message: describeError(error) });
-    }
-  };
-
-  useEffect(() => {
-    void reload();
-  }, []);
+  const workspaceQuery = useQuery({
+    queryKey: queryKeys.dashboardWorkspace,
+    queryFn: () => loadDashboardWorkspaceData(),
+    enabled: Boolean(session)
+  });
 
   if (!session) {
     return <Navigate to="/dashboard/home" replace />;
   }
-  if (state.status === "loading") {
+  if (workspaceQuery.isLoading) {
     return <div className="react-bootstrap-state">Loading members...</div>;
   }
-  if (state.status === "failed") {
+  if (workspaceQuery.isError || !workspaceQuery.data) {
     return (
       <div className="empty-state" role="alert">
         <h3>Unable to load members</h3>
-        <p>{state.message}</p>
+        <p>{describeError(workspaceQuery.error)}</p>
       </div>
     );
   }
 
-  const shell = buildShellModel(state.data, mode);
+  const shell = buildShellModel(workspaceQuery.data, mode);
 
   return (
     <Shell
@@ -81,26 +73,25 @@ export function MembersDomainRoute({ mode }: { mode: "list" | "detail" | "edit" 
       }}
     >
       {mode === "list" ? (
-        <MemberListRoute data={state.data} onReload={reload} />
+        <MemberListRoute data={workspaceQuery.data} />
       ) : mode === "edit" ? (
-        <MemberEditRoute data={state.data} onReload={reload} />
+        <MemberEditRoute data={workspaceQuery.data} />
       ) : (
-        <MemberDetailRoute data={state.data} />
+        <MemberDetailRoute data={workspaceQuery.data} />
       )}
     </Shell>
   );
 }
 
-function MemberListRoute({
-  data,
-  onReload
-}: {
-  data: DashboardWorkspaceData;
-  onReload: () => Promise<void>;
-}) {
+function MemberListRoute({ data }: { data: DashboardWorkspaceData }) {
   const [searchParams] = useSearchParams();
   const [error, setError] = useState<string | undefined>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const createMemberMutation = useMutation({
+    mutationFn: (input: MemberCreateFormInput) => createMember(data.gym.id, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.dashboardWorkspace })
+  });
   const page = useMemo(
     () =>
       buildMemberListPage({
@@ -120,8 +111,7 @@ function MemberListRoute({
   async function handleCreate(input: MemberCreateFormInput) {
     try {
       setError(undefined);
-      const created = (await createMember(data.gym.id, input)) as MemberView;
-      await onReload();
+      const created = (await createMemberMutation.mutateAsync(input)) as MemberView;
       navigate(`/dashboard/consumers/profile/${created.id}`);
     } catch (caught) {
       setError(describeError(caught));
@@ -140,29 +130,12 @@ function MemberListRoute({
 function MemberDetailRoute({ data }: { data: DashboardWorkspaceData }) {
   const { memberId } = useParams();
   const member = data.members.find((candidate) => candidate.id === memberId) ?? data.members[0];
-  const [memberships, setMemberships] = useState<MemberProfilePage["memberships"] | undefined>();
-
-  useEffect(() => {
-    if (!member) {
-      setMemberships(undefined);
-      return;
-    }
-    let cancelled = false;
-    loadMemberMemberships(data.gym.id, member.id)
-      .then((rows) => {
-        if (!cancelled) {
-          setMemberships(rows as MemberProfilePage["memberships"]);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setMemberships([]);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [data.gym.id, member?.id]);
+  const membershipsQuery = useQuery({
+    queryKey: member ? queryKeys.memberMemberships(data.gym.id, member.id) : ["member-memberships", data.gym.id, "none"],
+    queryFn: () => loadMemberMemberships(data.gym.id, member?.id ?? ""),
+    enabled: Boolean(member),
+    retry: false
+  });
 
   if (!member) {
     return (
@@ -175,24 +148,28 @@ function MemberDetailRoute({ data }: { data: DashboardWorkspaceData }) {
 
   const page = buildMemberProfilePage({
     member,
-    memberships,
+    memberships: (membershipsQuery.data ?? []) as MemberProfilePage["memberships"],
     permissions: data.permissions
   });
 
   return <MemberDetailScreen model={page} />;
 }
 
-function MemberEditRoute({
-  data,
-  onReload
-}: {
-  data: DashboardWorkspaceData;
-  onReload: () => Promise<void>;
-}) {
+function MemberEditRoute({ data }: { data: DashboardWorkspaceData }) {
   const { memberId } = useParams();
   const navigate = useNavigate();
   const member = data.members.find((candidate) => candidate.id === memberId);
   const [error, setError] = useState<string | undefined>();
+  const queryClient = useQueryClient();
+  const updateMemberMutation = useMutation({
+    mutationFn: (input: MemberUpdateFormInput) => updateMember(data.gym.id, member?.id ?? "", input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboardWorkspace });
+      if (member) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.memberMemberships(data.gym.id, member.id) });
+      }
+    }
+  });
 
   if (!member) {
     return (
@@ -206,8 +183,7 @@ function MemberEditRoute({
   async function handleUpdate(input: MemberUpdateFormInput) {
     try {
       setError(undefined);
-      await updateMember(data.gym.id, member.id, input);
-      await onReload();
+      await updateMemberMutation.mutateAsync(input);
       navigate(`/dashboard/consumers/profile/${member.id}`);
     } catch (caught) {
       setError(describeError(caught));
@@ -257,6 +233,8 @@ function MemberListScreen({
   );
 }
 
+type MemberCreateFields = z.infer<typeof memberCreateSchema>;
+
 function MemberCreateCard({
   model,
   error,
@@ -266,23 +244,23 @@ function MemberCreateCard({
   error?: string;
   onCreate: (input: MemberCreateFormInput) => Promise<void>;
 }) {
-  const [submitting, setSubmitting] = useState(false);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting }
+  } = useForm<MemberCreateFields>({
+    resolver: zodResolver(memberCreateSchema),
+    defaultValues: { status: MemberStatus.Active, tagNames: [] }
+  });
+
+  const disabled = model.createMemberAction.disabled || isSubmitting;
 
   return (
     <form
       className="form-card compact-form"
-      onSubmit={(event) => {
-        event.preventDefault();
-        const form = new FormData(event.currentTarget);
-        setSubmitting(true);
-        void onCreate({
-          firstName: String(form.get("firstName") ?? ""),
-          lastName: String(form.get("lastName") ?? ""),
-          email: optionalString(form.get("email")),
-          phone: optionalString(form.get("phone")),
-          status: (String(form.get("status") ?? MemberStatus.Active) as MemberStatus)
-        }).finally(() => setSubmitting(false));
-      }}
+      onSubmit={handleSubmit(async (data) => {
+        await onCreate(data as MemberCreateFormInput);
+      })}
     >
       <div className="card-head">
         <h3>{model.createMemberAction.label}</h3>
@@ -291,29 +269,42 @@ function MemberCreateCard({
       {error ? <div className="banner error">{error}</div> : null}
       <label className="field">
         <span>First name</span>
-        <input name="firstName" required disabled={model.createMemberAction.disabled || submitting} />
+        <input {...register("firstName")} disabled={disabled} />
+        {errors.firstName && <small className="field-error">{errors.firstName.message}</small>}
       </label>
       <label className="field">
         <span>Last name</span>
-        <input name="lastName" required disabled={model.createMemberAction.disabled || submitting} />
+        <input {...register("lastName")} disabled={disabled} />
+        {errors.lastName && <small className="field-error">{errors.lastName.message}</small>}
       </label>
       <label className="field">
         <span>Email</span>
-        <input name="email" type="email" disabled={model.createMemberAction.disabled || submitting} />
+        <input
+          {...register("email", { setValueAs: (v: string) => v.trim() || undefined })}
+          type="email"
+          disabled={disabled}
+        />
+        {errors.email && <small className="field-error">{errors.email.message}</small>}
       </label>
       <label className="field">
         <span>Phone</span>
-        <input name="phone" type="tel" disabled={model.createMemberAction.disabled || submitting} />
+        <input
+          {...register("phone", { setValueAs: (v: string) => v.trim() || undefined })}
+          type="tel"
+          disabled={disabled}
+        />
+        {errors.phone && <small className="field-error">{errors.phone.message}</small>}
       </label>
       <label className="field">
         <span>Status</span>
-        <select name="status" defaultValue={MemberStatus.Active} disabled={model.createMemberAction.disabled || submitting}>
+        <select {...register("status")} disabled={disabled}>
           {model.statusOptions.map((option) => (
             <option key={option.value} value={option.value}>{option.label}</option>
           ))}
         </select>
+        {errors.status && <small className="field-error">{errors.status.message}</small>}
       </label>
-      <Button model={{ ...model.createMemberAction, disabled: model.createMemberAction.disabled || submitting }} type="submit" />
+      <Button model={{ ...model.createMemberAction, disabled }} type="submit" />
     </form>
   );
 }
@@ -402,6 +393,8 @@ function MemberDetailScreen({ model }: { model: MemberProfilePage }) {
   );
 }
 
+type MemberUpdateFields = z.infer<typeof memberUpdateSchema>;
+
 function MemberEditScreen({
   member,
   error,
@@ -411,7 +404,22 @@ function MemberEditScreen({
   error?: string;
   onUpdate: (input: MemberUpdateFormInput) => Promise<void>;
 }) {
-  const [submitting, setSubmitting] = useState(false);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting }
+  } = useForm<MemberUpdateFields>({
+    resolver: zodResolver(memberUpdateSchema),
+    defaultValues: {
+      firstName: member.firstName,
+      lastName: member.lastName,
+      email: member.email ?? "",
+      phone: member.phone ?? "",
+      status: member.status,
+      tagNames: member.tagNames,
+      notes: member.notes ?? ""
+    }
+  });
 
   return (
     <section className="data-card customer-edit-shell">
@@ -425,54 +433,83 @@ function MemberEditScreen({
       {error ? <div className="banner error">{error}</div> : null}
       <form
         className="form-card customer-edit-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          const form = new FormData(event.currentTarget);
-          setSubmitting(true);
-          void onUpdate({
-            firstName: String(form.get("firstName") ?? ""),
-            lastName: String(form.get("lastName") ?? ""),
-            email: optionalString(form.get("email")),
-            phone: optionalString(form.get("phone")),
-            status: String(form.get("status") ?? member.status) as MemberStatus,
-            tagNames: String(form.get("tagNames") ?? "")
-              .split(",")
-              .map((tag) => tag.trim())
-              .filter(Boolean),
-            notes: optionalString(form.get("notes"))
-          }).finally(() => setSubmitting(false));
-        }}
+        onSubmit={handleSubmit(async (data) => {
+          await onUpdate(data as unknown as MemberUpdateFormInput);
+        })}
       >
         <div className="customer-edit-grid">
           <section className="customer-edit-card">
             <h4>Identity</h4>
-            <label className="field"><span>First name</span><input name="firstName" defaultValue={member.firstName} required disabled={submitting} /></label>
-            <label className="field"><span>Last name</span><input name="lastName" defaultValue={member.lastName} required disabled={submitting} /></label>
+            <label className="field">
+              <span>First name</span>
+              <input {...register("firstName")} disabled={isSubmitting} />
+              {errors.firstName && <small className="field-error">{errors.firstName.message}</small>}
+            </label>
+            <label className="field">
+              <span>Last name</span>
+              <input {...register("lastName")} disabled={isSubmitting} />
+              {errors.lastName && <small className="field-error">{errors.lastName.message}</small>}
+            </label>
             <label className="field">
               <span>Status</span>
-              <select name="status" defaultValue={member.status} disabled={submitting}>
+              <select {...register("status")} disabled={isSubmitting}>
                 {Object.values(MemberStatus).map((status) => (
                   <option key={status} value={status}>{status}</option>
                 ))}
               </select>
+              {errors.status && <small className="field-error">{errors.status.message}</small>}
             </label>
           </section>
           <section className="customer-edit-card">
             <h4>Contact</h4>
-            <label className="field"><span>Email</span><input name="email" type="email" defaultValue={member.email ?? ""} disabled={submitting} /></label>
-            <label className="field"><span>Phone</span><input name="phone" type="tel" defaultValue={member.phone ?? ""} disabled={submitting} /></label>
+            <label className="field">
+              <span>Email</span>
+              <input
+                {...register("email", { setValueAs: (v: string) => v.trim() || undefined })}
+                type="email"
+                disabled={isSubmitting}
+              />
+              {errors.email && <small className="field-error">{errors.email.message}</small>}
+            </label>
+            <label className="field">
+              <span>Phone</span>
+              <input
+                {...register("phone", { setValueAs: (v: string) => v.trim() || undefined })}
+                type="tel"
+                disabled={isSubmitting}
+              />
+              {errors.phone && <small className="field-error">{errors.phone.message}</small>}
+            </label>
           </section>
           <section className="customer-edit-card">
             <h4>Tags</h4>
-            <label className="field"><span>Tags, comma separated</span><input name="tagNames" defaultValue={member.tagNames.join(", ")} disabled={submitting} /></label>
+            <label className="field">
+              <span>Tags, comma separated</span>
+              <input
+                {...register("tagNames", {
+                  setValueAs: (v: string) => v.split(",").map((t) => t.trim()).filter(Boolean)
+                })}
+                defaultValue={member.tagNames.join(", ")}
+                disabled={isSubmitting}
+              />
+              {errors.tagNames && <small className="field-error">{errors.tagNames.message}</small>}
+            </label>
           </section>
           <section className="customer-edit-card customer-edit-card-wide">
             <h4>Notes</h4>
-            <label className="field"><span>Notes</span><textarea name="notes" rows={5} defaultValue={member.notes ?? ""} disabled={submitting} /></label>
+            <label className="field">
+              <span>Notes</span>
+              <textarea
+                {...register("notes", { setValueAs: (v: string) => v.trim() || undefined })}
+                rows={5}
+                disabled={isSubmitting}
+              />
+              {errors.notes && <small className="field-error">{errors.notes.message}</small>}
+            </label>
           </section>
         </div>
         <div className="customer-edit-footer">
-          <button type="submit" className="save-button" disabled={submitting}>Save consumer</button>
+          <button type="submit" className="save-button" disabled={isSubmitting}>Save consumer</button>
           <Link className="ghost-button" to={`/dashboard/consumers/profile/${member.id}`}>Cancel</Link>
         </div>
       </form>
@@ -527,11 +564,6 @@ function buildShellModel(data: DashboardWorkspaceData, mode: "list" | "detail" |
       description: `${currentUserDisplayName(data.me)} is working in ${data.gym.name}.`
     })
   });
-}
-
-function optionalString(value: FormDataEntryValue | null) {
-  const normalized = String(value ?? "").trim();
-  return normalized || undefined;
 }
 
 function toDashboardRoute(href: string) {

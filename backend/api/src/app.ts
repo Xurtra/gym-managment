@@ -60,6 +60,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { Pool } from "pg";
 import { ZodError, type ZodSchema } from "zod";
 import type { z } from "zod";
+import logger from "./logger.js";
 import type { ApiConfig } from "./config/env.js";
 import { AppError, badRequest, forbidden, notFound, unauthorized } from "./http/errors.js";
 import { verifyAccessToken, type AccessTokenPayload } from "./infrastructure/security/tokens.js";
@@ -248,6 +249,11 @@ export function createApp(config: ApiConfig, services = createServices(config)) 
         throw notFound("Route was not found.");
       }
       const bodyResult = await readBody(req);
+      const gymId = match.params.gymId;
+      logger.info(
+        { method, path: url.pathname, ...(gymId ? { gymId } : {}) },
+        `${method} ${url.pathname}`
+      );
       const result = await match.route.handler({
         req,
         params: match.params,
@@ -1689,7 +1695,7 @@ function sendError(res: ServerResponse, error: unknown) {
     sendJson(res, error.status, { error: { code: error.code, message: error.message } });
     return;
   }
-  console.error("Unhandled API error", error);
+  logger.error({ err: error }, "Unhandled API error");
   sendJson(res, 500, {
     error: {
       code: "internal_server_error",

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { BookingStatus } from "@gym-platform/constants";
 import {
@@ -19,61 +20,42 @@ import {
   cancelBooking,
   createDashboardClient,
   currentUserDisplayName,
-  loadBookingsForSessions,
-  loadDashboardWorkspaceData,
+  loadClassBookingsWorkspaceData,
   loadSession,
   toBookingMembers,
   toBookingSession,
   type DashboardWorkspaceData
 } from "./dashboardData.js";
+import { queryKeys } from "./queryKeys.js";
 import { Shell } from "./Shell.js";
 
-type LoadState =
-  | { status: "loading" }
-  | { status: "ready"; data: DashboardWorkspaceData; bookingsBySession: Record<string, ClassBookingView[]> }
-  | { status: "failed"; message: string };
-
 export function BookingsDomainRoute({ mode }: { mode: "list" | "detail" | "cancel" }) {
-  const [state, setState] = useState<LoadState>({ status: "loading" });
   const navigate = useNavigate();
   const session = loadSession();
-
-  const reload = async () => {
-    setState({ status: "loading" });
-    try {
-      const data = await loadDashboardWorkspaceData();
-      const bookingsBySession = await loadBookingsForSessions(
-        data.gym.id,
-        data.classSessions.map((classSession) => classSession.id)
-      );
-      setState({ status: "ready", data, bookingsBySession });
-    } catch (error) {
-      setState({ status: "failed", message: describeError(error) });
-    }
-  };
-
-  useEffect(() => {
-    void reload();
-  }, []);
+  const workspaceQuery = useQuery({
+    queryKey: queryKeys.classBookingsWorkspace,
+    queryFn: () => loadClassBookingsWorkspaceData(),
+    enabled: Boolean(session)
+  });
 
   if (!session) {
     return <Navigate to="/dashboard/home" replace />;
   }
-  if (state.status === "loading") {
+  if (workspaceQuery.isLoading) {
     return <div className="react-bootstrap-state">Loading bookings...</div>;
   }
-  if (state.status === "failed") {
-    return <ErrorState title="Unable to load bookings" message={state.message} />;
+  if (workspaceQuery.isError || !workspaceQuery.data) {
+    return <ErrorState title="Unable to load bookings" message={describeError(workspaceQuery.error)} />;
   }
 
   return (
-    <Shell model={buildShellModel(state.data, mode)} onLogout={() => logout(navigate)}>
+    <Shell model={buildShellModel(workspaceQuery.data.data, mode)} onLogout={() => logout(navigate)}>
       {mode === "detail" ? (
-        <BookingDetailRoute data={state.data} bookingsBySession={state.bookingsBySession} />
+        <BookingDetailRoute data={workspaceQuery.data.data} bookingsBySession={workspaceQuery.data.bookingsBySession} />
       ) : mode === "cancel" ? (
-        <BookingCancelRoute data={state.data} bookingsBySession={state.bookingsBySession} onReload={reload} />
+        <BookingCancelRoute data={workspaceQuery.data.data} bookingsBySession={workspaceQuery.data.bookingsBySession} />
       ) : (
-        <BookingListRoute data={state.data} bookingsBySession={state.bookingsBySession} />
+        <BookingListRoute data={workspaceQuery.data.data} bookingsBySession={workspaceQuery.data.bookingsBySession} />
       )}
     </Shell>
   );
@@ -231,16 +213,19 @@ function BookingDetailRoute({
 
 function BookingCancelRoute({
   data,
-  bookingsBySession,
-  onReload
+  bookingsBySession
 }: {
   data: DashboardWorkspaceData;
   bookingsBySession: Record<string, ClassBookingView[]>;
-  onReload: () => Promise<void>;
 }) {
   const { bookingId } = useParams();
   const navigate = useNavigate();
   const [error, setError] = useState<string | undefined>();
+  const queryClient = useQueryClient();
+  const cancelBookingMutation = useMutation({
+    mutationFn: (bookingIdToCancel: string) => cancelBooking(data.gym.id, bookingIdToCancel),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.classBookingsWorkspace })
+  });
   const resolved = findBooking(data, bookingsBySession, bookingId);
   if (!resolved) {
     return <EmptyPanel title="Booking not found" body="The selected booking could not be found." />;
@@ -255,8 +240,7 @@ function BookingCancelRoute({
   async function handleCancel() {
     try {
       setError(undefined);
-      await cancelBooking(data.gym.id, resolved.booking.id);
-      await onReload();
+      await cancelBookingMutation.mutateAsync(resolved.booking.id);
       navigate(`/dashboard/classes/${resolved.session.id}`);
     } catch (caught) {
       setError(describeError(caught));

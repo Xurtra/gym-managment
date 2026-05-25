@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ClassSessionStatus } from "@gym-platform/constants";
 import {
@@ -22,76 +23,57 @@ import {
   createClassSession,
   createDashboardClient,
   currentUserDisplayName,
-  loadBookingsForSessions,
-  loadDashboardWorkspaceData,
+  loadClassBookingsWorkspaceData,
   loadSession,
   toBookingMembers,
   toBookingSession,
   type DashboardWorkspaceData
 } from "./dashboardData.js";
 import { ScheduleCalendar } from "./components/ScheduleCalendar.js";
+import { queryKeys } from "./queryKeys.js";
 import { Shell } from "./Shell.js";
 
-type LoadState =
-  | { status: "loading" }
-  | { status: "ready"; data: DashboardWorkspaceData; bookingsBySession: Record<string, ClassBookingView[]> }
-  | { status: "failed"; message: string };
-
 export function ClassesDomainRoute({ mode }: { mode: "list" | "detail" }) {
-  const [state, setState] = useState<LoadState>({ status: "loading" });
   const navigate = useNavigate();
   const session = loadSession();
-
-  const reload = async () => {
-    setState({ status: "loading" });
-    try {
-      const data = await loadDashboardWorkspaceData();
-      const bookingsBySession = await loadBookingsForSessions(
-        data.gym.id,
-        data.classSessions.map((classSession) => classSession.id)
-      );
-      setState({ status: "ready", data, bookingsBySession });
-    } catch (error) {
-      setState({ status: "failed", message: describeError(error) });
-    }
-  };
-
-  useEffect(() => {
-    void reload();
-  }, []);
+  const workspaceQuery = useQuery({
+    queryKey: queryKeys.classBookingsWorkspace,
+    queryFn: () => loadClassBookingsWorkspaceData(),
+    enabled: Boolean(session)
+  });
 
   if (!session) {
     return <Navigate to="/dashboard/home" replace />;
   }
-  if (state.status === "loading") {
+  if (workspaceQuery.isLoading) {
     return <div className="react-bootstrap-state">Loading classes...</div>;
   }
-  if (state.status === "failed") {
-    return <ErrorState title="Unable to load classes" message={state.message} />;
+  if (workspaceQuery.isError || !workspaceQuery.data) {
+    return <ErrorState title="Unable to load classes" message={describeError(workspaceQuery.error)} />;
   }
 
   return (
-    <Shell model={buildShellModel(state.data, mode)} onLogout={() => logout(navigate)}>
+    <Shell model={buildShellModel(workspaceQuery.data.data, mode)} onLogout={() => logout(navigate)}>
       {mode === "detail" ? (
-        <ClassDetailRoute data={state.data} bookingsBySession={state.bookingsBySession} />
+        <ClassDetailRoute data={workspaceQuery.data.data} bookingsBySession={workspaceQuery.data.bookingsBySession} />
       ) : (
-        <ClassListRoute data={state.data} onReload={reload} />
+        <ClassListRoute data={workspaceQuery.data.data} />
       )}
     </Shell>
   );
 }
 
-function ClassListRoute({
-  data,
-  onReload
-}: {
-  data: DashboardWorkspaceData;
-  onReload: () => Promise<void>;
-}) {
+function ClassListRoute({ data }: { data: DashboardWorkspaceData }) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [slot, setSlot] = useState<{ startsAt: string; endsAt: string } | undefined>();
   const [error, setError] = useState<string | undefined>();
+  const queryClient = useQueryClient();
+  const createClassSessionMutation = useMutation({
+    mutationFn: (input: ClassCreateFormInput) =>
+      createClassSession(data.gym.id, createClassSessionSubmission(input)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.classBookingsWorkspace })
+  });
   const page = useMemo(
     () =>
       buildClassSessionListPage({
@@ -112,9 +94,8 @@ function ClassListRoute({
   async function handleCreate(input: ClassCreateFormInput) {
     try {
       setError(undefined);
-      await createClassSession(data.gym.id, createClassSessionSubmission(input));
+      await createClassSessionMutation.mutateAsync(input);
       setSlot(undefined);
-      await onReload();
     } catch (caught) {
       setError(describeError(caught));
     }

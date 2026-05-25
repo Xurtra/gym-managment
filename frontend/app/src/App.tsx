@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AccessControlDomainRoute, PaymentsDomainRoute } from "./AccessPaymentsScreens.js";
 import { AuthDomainRoute } from "./AuthScreens.js";
@@ -13,11 +14,15 @@ import { StaffDomainRoute } from "./StaffScreens.js";
 import { DashboardHomeRoute, NotFound, ShellPlaceholderRoute } from "./StubScreens.js";
 import { loadSession } from "./dashboardData.js";
 
+const queryClient = new QueryClient();
+
 export function App() {
   return (
-    <HashRouter>
-      <AppRoutes />
-    </HashRouter>
+    <QueryClientProvider client={queryClient}>
+      <HashRouter>
+        <AppRoutes />
+      </HashRouter>
+    </QueryClientProvider>
   );
 }
 

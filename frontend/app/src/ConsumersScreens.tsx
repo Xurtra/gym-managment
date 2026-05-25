@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   buildConsumerDashboardPage,
@@ -16,45 +17,32 @@ import {
   loadSession,
   type DashboardWorkspaceData
 } from "./dashboardData.js";
+import { queryKeys } from "./queryKeys.js";
 import { Shell } from "./Shell.js";
 
 type Mode = "list" | "lead-detail" | "lead-convert";
 
-type LoadState =
-  | { status: "loading" }
-  | { status: "ready"; data: DashboardWorkspaceData }
-  | { status: "failed"; message: string };
-
 export function ConsumersDomainRoute({ mode }: { mode: Mode }) {
-  const [state, setState] = useState<LoadState>({ status: "loading" });
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const session = loadSession();
+  const workspaceQuery = useQuery({
+    queryKey: queryKeys.dashboardWorkspace,
+    queryFn: () => loadDashboardWorkspaceData(),
+    enabled: Boolean(session)
+  });
 
-  const reload = async () => {
-    setState({ status: "loading" });
-    try {
-      setState({ status: "ready", data: await loadDashboardWorkspaceData() });
-    } catch (error) {
-      setState({ status: "failed", message: describeError(error) });
-    }
-  };
-
-  useEffect(() => {
-    void reload();
-  }, []);
-
-  if (!loadSession()) {
+  if (!session) {
     return <Navigate to="/dashboard/login" replace />;
   }
 
-  if (state.status === "loading") {
+  if (workspaceQuery.isLoading) {
     return <div className="react-bootstrap-state">Loading consumers...</div>;
   }
-  if (state.status === "failed") {
+  if (workspaceQuery.isError || !workspaceQuery.data) {
     return (
       <div className="empty-state" role="alert">
         <h3>Unable to load consumers</h3>
-        <p>{state.message}</p>
+        <p>{describeError(workspaceQuery.error)}</p>
       </div>
     );
   }
@@ -62,19 +50,19 @@ export function ConsumersDomainRoute({ mode }: { mode: Mode }) {
   const tabQuery = (searchParams.get("segment") ?? "all").toLowerCase();
   const activeTabKey = tabQuery === "members" || tabQuery === "customers" || tabQuery === "leads" ? tabQuery : "all";
   const page = buildConsumerDashboardPage({
-    consumers: state.data.members,
-    permissions: state.data.permissions,
+    consumers: workspaceQuery.data.members,
+    permissions: workspaceQuery.data.permissions,
     activeTabKey: activeTabKey as "all" | "members" | "customers" | "leads"
   });
 
   const shell = buildDashboardShellLayout({
     path: "/consumers",
-    permissions: state.data.permissions,
-    platformAdmin: state.data.platformAdmin,
-    email: state.data.me.user.email,
-    firstName: state.data.me.user.firstName,
-    lastName: state.data.me.user.lastName,
-    gymName: state.data.gym.name,
+    permissions: workspaceQuery.data.permissions,
+    platformAdmin: workspaceQuery.data.platformAdmin,
+    email: workspaceQuery.data.me.user.email,
+    firstName: workspaceQuery.data.me.user.firstName,
+    lastName: workspaceQuery.data.me.user.lastName,
+    gymName: workspaceQuery.data.gym.name,
     pageHeader: buildPageHeader({
       title:
         mode === "lead-detail"
@@ -87,16 +75,16 @@ export function ConsumersDomainRoute({ mode }: { mode: Mode }) {
         { label: "Dashboard", href: "/" },
         { label: "Consumers", href: "/consumers" }
       ],
-      description: `${currentUserDisplayName(state.data.me)} is working in ${state.data.gym.name}.`
+      description: `${currentUserDisplayName(workspaceQuery.data.me)} is working in ${workspaceQuery.data.gym.name}.`
     })
   });
 
   return (
     <Shell model={shell}>
       {mode === "lead-detail" ? (
-        <LeadDetailScreen data={state.data} />
+        <LeadDetailScreen data={workspaceQuery.data} />
       ) : mode === "lead-convert" ? (
-        <LeadConversionScreen data={state.data} onConverted={reload} />
+        <LeadConversionScreen data={workspaceQuery.data} />
       ) : (
         <ConsumerListScreen page={page} />
       )}
@@ -219,18 +207,23 @@ function LeadDetailScreen({ data }: { data: DashboardWorkspaceData }) {
 }
 
 function LeadConversionScreen({
-  data,
-  onConverted
+  data
 }: {
   data: DashboardWorkspaceData;
-  onConverted: () => Promise<void>;
 }) {
   const { consumerId } = useParams();
   const navigate = useNavigate();
   const lead = data.members.find((member) => member.id === consumerId) ?? data.members[0];
   const [selectedStatus, setSelectedStatus] = useState<"trial" | "active" | undefined>("trial");
   const [error, setError] = useState<string | undefined>();
-  const [pending, setPending] = useState(false);
+  const queryClient = useQueryClient();
+  const convertLeadMutation = useMutation({
+    mutationFn: () => convertGrowthLead(data.gym.id, lead?.id ?? "", {}),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboardWorkspace });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.growthWorkspace });
+    }
+  });
 
   if (!lead) {
     return (
@@ -254,7 +247,7 @@ function LeadConversionScreen({
         <select
           value={selectedStatus}
           onChange={(event) => setSelectedStatus(event.currentTarget.value as "trial" | "active")}
-          disabled={pending}
+          disabled={convertLeadMutation.isPending}
         >
           {screen.targetStatusOptions.map((option) => (
             <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>
@@ -264,18 +257,14 @@ function LeadConversionScreen({
       <button
         className="save-button"
         type="button"
-        disabled={!screen.canSubmit || pending}
+        disabled={!screen.canSubmit || convertLeadMutation.isPending}
         onClick={async () => {
           try {
-            setPending(true);
             setError(undefined);
-            await convertGrowthLead(data.gym.id, lead.id, {});
-            await onConverted();
+            await convertLeadMutation.mutateAsync();
             navigate(`/dashboard/leads/${lead.id}`, { replace: true });
           } catch (caught) {
             setError(describeError(caught));
-          } finally {
-            setPending(false);
           }
         }}
       >

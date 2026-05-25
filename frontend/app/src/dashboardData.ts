@@ -84,6 +84,10 @@ interface PlanRecord {
   name: string;
 }
 
+interface MembershipPlanListResponse {
+  plans?: unknown[];
+}
+
 interface ClassTypeListResponse {
   classTypes?: ClassTypeView[];
 }
@@ -211,6 +215,12 @@ export async function loadDashboardWorkspaceData(client = createDashboardClient(
   };
 }
 
+export async function loadPublicGymName(gymSlug: string) {
+  const client = new GymApiClient({ baseUrl: API_BASE_URL });
+  const response = (await client.publicGym(gymSlug)) as { gym?: { name?: string }; name?: string };
+  return response.gym?.name ?? response.name ?? "Gym Platform";
+}
+
 export async function loadMemberMemberships(
   gymId: string,
   memberId: string,
@@ -286,6 +296,16 @@ export async function loadBookingsForSessions(
     sessionIds.map(async (sessionId) => [sessionId, await loadClassBookings(gymId, sessionId, client)] as const)
   );
   return Object.fromEntries(entries);
+}
+
+export async function loadClassBookingsWorkspaceData(client = createDashboardClient()) {
+  const data = await loadDashboardWorkspaceData(client);
+  const bookingsBySession = await loadBookingsForSessions(
+    data.gym.id,
+    data.classSessions.map((classSession) => classSession.id),
+    client
+  );
+  return { data, bookingsBySession };
 }
 
 export async function cancelBooking(gymId: string, bookingId: string, client = createDashboardClient()) {
@@ -730,6 +750,15 @@ export async function loadOperationsWorkspace(client = createDashboardClient()) 
     timeEntries: normalizeArray(timeEntries, "timeEntries"),
     stripeAccount,
     posTransactions: [] as PosTransactionRecord[]
+  };
+}
+
+export async function loadPlansWorkspaceData(client = createDashboardClient()) {
+  const data = await loadDashboardWorkspaceData(client);
+  const response = (await client.listMembershipPlans(data.gym.id)) as MembershipPlanListResponse | unknown[];
+  return {
+    data,
+    plans: Array.isArray(response) ? response : response.plans ?? []
   };
 }
 

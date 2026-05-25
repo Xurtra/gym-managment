@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate } from "react-router-dom";
 import { AccessDeviceType } from "@gym-platform/constants";
 import { table } from "@gym-platform/ui";
@@ -20,6 +21,7 @@ import {
   type DashboardWorkspaceData,
   type ResourceRecord
 } from "./dashboardData.js";
+import { queryKeys } from "./queryKeys.js";
 import { Shell } from "./Shell.js";
 
 type AccessMode = "devices" | "register" | "rules";
@@ -42,46 +44,33 @@ type ReadyData = DashboardWorkspaceData & {
   };
 };
 
-type LoadState =
-  | { status: "loading" }
-  | { status: "ready"; data: ReadyData }
-  | { status: "failed"; message: string };
-
 export function AccessControlDomainRoute({ mode }: { mode: AccessMode }) {
-  const [state, setState] = useState<LoadState>({ status: "loading" });
+  const session = loadSession();
+  const workspaceQuery = useQuery({
+    queryKey: queryKeys.operationsWorkspace,
+    queryFn: () => loadOperationsWorkspace(),
+    enabled: Boolean(session)
+  });
 
-  const reload = async () => {
-    setState({ status: "loading" });
-    try {
-      const loaded = await loadOperationsWorkspace();
-      setState({ status: "ready", data: loaded as ReadyData });
-    } catch (error) {
-      setState({ status: "failed", message: describeError(error) });
-    }
-  };
-
-  useEffect(() => {
-    void reload();
-  }, []);
-
-  if (!loadSession()) {
+  if (!session) {
     return <Navigate to="/dashboard/login" replace />;
   }
-  if (state.status === "loading") {
+  if (workspaceQuery.isLoading) {
     return <div className="react-bootstrap-state">Loading access control...</div>;
   }
-  if (state.status === "failed") {
-    return <div className="empty-state"><h3>Access control unavailable</h3><p>{state.message}</p></div>;
+  if (workspaceQuery.isError || !workspaceQuery.data) {
+    return <div className="empty-state"><h3>Access control unavailable</h3><p>{describeError(workspaceQuery.error)}</p></div>;
   }
+  const data = workspaceQuery.data as ReadyData;
 
   const shell = buildDashboardShellLayout({
     path: "/access-control",
-    permissions: state.data.permissions,
-    platformAdmin: state.data.platformAdmin,
-    email: state.data.me.user.email,
-    firstName: state.data.me.user.firstName,
-    lastName: state.data.me.user.lastName,
-    gymName: state.data.gym.name,
+    permissions: data.permissions,
+    platformAdmin: data.platformAdmin,
+    email: data.me.user.email,
+    firstName: data.me.user.firstName,
+    lastName: data.me.user.lastName,
+    gymName: data.gym.name,
     pageHeader: buildPageHeader({
       title: mode === "register" ? "Register Access Device" : mode === "rules" ? "Access Rules" : "Access Devices",
       eyebrow: "Security",
@@ -95,44 +84,43 @@ export function AccessControlDomainRoute({ mode }: { mode: AccessMode }) {
   return (
     <Shell model={shell}>
       {mode === "register" ? (
-        <AccessDeviceRegistrationView data={state.data} onSaved={reload} />
+        <AccessDeviceRegistrationView data={data} />
       ) : mode === "rules" ? (
         <ComingSoon title="Access rule editor" body="Rule authoring is wired to React but remains a placeholder for the dedicated integration pass." />
       ) : (
-        <AccessDeviceListView data={state.data} />
+        <AccessDeviceListView data={data} />
       )}
     </Shell>
   );
 }
 
 export function PaymentsDomainRoute({ mode }: { mode: PaymentsMode }) {
-  const [state, setState] = useState<LoadState>({ status: "loading" });
+  const session = loadSession();
+  const workspaceQuery = useQuery({
+    queryKey: queryKeys.operationsWorkspace,
+    queryFn: () => loadOperationsWorkspace(),
+    enabled: Boolean(session)
+  });
 
-  useEffect(() => {
-    setState({ status: "loading" });
-    loadOperationsWorkspace()
-      .then((loaded) => setState({ status: "ready", data: loaded as ReadyData }))
-      .catch((error) => setState({ status: "failed", message: describeError(error) }));
-  }, []);
-
-  if (!loadSession()) {
+  if (!session) {
     return <Navigate to="/dashboard/login" replace />;
   }
-  if (state.status === "loading") {
+  if (workspaceQuery.isLoading) {
     return <div className="react-bootstrap-state">Loading payments...</div>;
   }
-  if (state.status === "failed") {
-    return <div className="empty-state"><h3>Payments unavailable</h3><p>{state.message}</p></div>;
+  if (workspaceQuery.isError || !workspaceQuery.data) {
+    return <div className="empty-state"><h3>Payments unavailable</h3><p>{describeError(workspaceQuery.error)}</p></div>;
   }
+  const data = workspaceQuery.data as ReadyData;
 
   const shell = buildDashboardShellLayout({
     path: "/reports",
-    permissions: state.data.permissions,
-    platformAdmin: state.data.platformAdmin,
-    email: state.data.me.user.email,
-    firstName: state.data.me.user.firstName,
-    lastName: state.data.me.user.lastName,
-    gymName: state.data.gym.name,
+    permissions: data.permissions,
+    platformAdmin: data.platformAdmin,
+    email: data.me.user.email,
+    firstName: data.me.user.firstName,
+    lastName: data.me.user.lastName,
+    gymName: data.gym.name,
     pageHeader: buildPageHeader({
       title: mode === "catalog" ? "POS Catalog" : mode === "terminal" ? "Stripe Terminal" : mode === "connect" ? "Stripe Connect" : "Payment History",
       eyebrow: "Payments",
@@ -146,13 +134,13 @@ export function PaymentsDomainRoute({ mode }: { mode: PaymentsMode }) {
   return (
     <Shell model={shell}>
       {mode === "catalog" ? (
-        <PosCatalogView resources={state.data.resources} />
+        <PosCatalogView resources={data.resources} />
       ) : mode === "terminal" ? (
         <ComingSoon title="Stripe Terminal reader flow" body="Reader connection and payment capture UI will land in the Stripe integration pass." />
       ) : mode === "connect" ? (
         <ComingSoon title="Stripe Connect onboarding" body="Hosted onboarding components are stubbed while embedded Stripe setup is implemented." />
       ) : (
-        <PaymentHistoryView data={state.data} />
+        <PaymentHistoryView data={data} />
       )}
     </Shell>
   );
@@ -194,9 +182,13 @@ function AccessDeviceListView({ data }: { data: ReadyData }) {
   );
 }
 
-function AccessDeviceRegistrationView({ data, onSaved }: { data: ReadyData; onSaved: () => Promise<void> }) {
+function AccessDeviceRegistrationView({ data }: { data: ReadyData }) {
   const [error, setError] = useState<string | undefined>();
-  const [pending, setPending] = useState(false);
+  const queryClient = useQueryClient();
+  const createDeviceMutation = useMutation({
+    mutationFn: (input: Parameters<typeof createAccessDevice>[1]) => createAccessDevice(data.gym.id, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.operationsWorkspace })
+  });
 
   const model = buildAccessDeviceRegistrationScreen({
     deviceType: AccessDeviceType.DoorController,
@@ -211,27 +203,23 @@ function AccessDeviceRegistrationView({ data, onSaved }: { data: ReadyData; onSa
         onSubmit={(event) => {
           event.preventDefault();
           const form = new FormData(event.currentTarget);
-          setPending(true);
           setError(undefined);
           void (async () => {
             try {
-              await createAccessDevice(data.gym.id, {
+              await createDeviceMutation.mutateAsync({
                 name: String(form.get("name") ?? ""),
                 locationId: String(form.get("locationId") ?? ""),
                 deviceType: String(form.get("deviceType") ?? AccessDeviceType.DoorController) as AccessDeviceType
               });
-              await onSaved();
             } catch (caught) {
               setError(describeError(caught));
-            } finally {
-              setPending(false);
             }
           })();
         }}
       >
         <label className="field">
           <span>Name</span>
-          <input name="name" defaultValue={model.name} required disabled={pending} />
+          <input name="name" defaultValue={model.name} required disabled={createDeviceMutation.isPending} />
         </label>
         <SelectField
           model={{
@@ -244,7 +232,7 @@ function AccessDeviceRegistrationView({ data, onSaved }: { data: ReadyData; onSa
               selected: location.id === model.locationId
             }))
           }}
-          disabled={pending}
+          disabled={createDeviceMutation.isPending}
         />
         <SelectField
           model={{
@@ -257,9 +245,9 @@ function AccessDeviceRegistrationView({ data, onSaved }: { data: ReadyData; onSa
               selected: type === model.deviceType
             }))
           }}
-          disabled={pending}
+          disabled={createDeviceMutation.isPending}
         />
-        <button className="save-button" type="submit" disabled={pending || !model.canSubmit}>Register device</button>
+        <button className="save-button" type="submit" disabled={createDeviceMutation.isPending || !model.canSubmit}>Register device</button>
       </form>
     </FormLayout>
   );

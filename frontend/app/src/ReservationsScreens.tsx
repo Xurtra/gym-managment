@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { calendarEvent } from "@gym-platform/ui";
 import {
@@ -19,6 +20,7 @@ import {
   type FacilityReservationRecord,
   type ResourceRecord
 } from "./dashboardData.js";
+import { queryKeys } from "./queryKeys.js";
 import { Shell } from "./Shell.js";
 import { ScheduleCalendar } from "./components/ScheduleCalendar.js";
 
@@ -29,53 +31,40 @@ type ReadyData = DashboardWorkspaceData & {
   reservations: FacilityReservationRecord[];
 };
 
-type LoadState =
-  | { status: "loading" }
-  | { status: "ready"; data: ReadyData }
-  | { status: "failed"; message: string };
-
 export function ReservationsDomainRoute({ mode }: { mode: Mode }) {
-  const [state, setState] = useState<LoadState>({ status: "loading" });
   const navigate = useNavigate();
+  const session = loadSession();
+  const workspaceQuery = useQuery({
+    queryKey: queryKeys.operationsWorkspace,
+    queryFn: () => loadOperationsWorkspace(),
+    enabled: Boolean(session)
+  });
 
-  const reload = async () => {
-    setState({ status: "loading" });
-    try {
-      const loaded = await loadOperationsWorkspace();
-      setState({ status: "ready", data: loaded as ReadyData });
-    } catch (error) {
-      setState({ status: "failed", message: describeError(error) });
-    }
-  };
-
-  useEffect(() => {
-    void reload();
-  }, []);
-
-  if (!loadSession()) {
+  if (!session) {
     return <Navigate to="/dashboard/login" replace />;
   }
 
-  if (state.status === "loading") {
+  if (workspaceQuery.isLoading) {
     return <div className="react-bootstrap-state">Loading reservations...</div>;
   }
-  if (state.status === "failed") {
+  if (workspaceQuery.isError || !workspaceQuery.data) {
     return (
       <div className="empty-state" role="alert">
         <h3>Unable to load reservations</h3>
-        <p>{state.message}</p>
+        <p>{describeError(workspaceQuery.error)}</p>
       </div>
     );
   }
+  const data = workspaceQuery.data as ReadyData;
 
   const shell = buildDashboardShellLayout({
     path: "/reports",
-    permissions: state.data.permissions,
-    platformAdmin: state.data.platformAdmin,
-    email: state.data.me.user.email,
-    firstName: state.data.me.user.firstName,
-    lastName: state.data.me.user.lastName,
-    gymName: state.data.gym.name,
+    permissions: data.permissions,
+    platformAdmin: data.platformAdmin,
+    email: data.me.user.email,
+    firstName: data.me.user.firstName,
+    lastName: data.me.user.lastName,
+    gymName: data.gym.name,
     pageHeader: buildPageHeader({
       title: mode === "calendar" ? "Reservation Calendar" : mode === "create" ? "Create Reservation" : mode === "edit" ? "Edit Reservation" : "Reservations",
       eyebrow: "Operations",
@@ -89,11 +78,11 @@ export function ReservationsDomainRoute({ mode }: { mode: Mode }) {
   return (
     <Shell model={shell}>
       {mode === "calendar" ? (
-        <ReservationCalendarView data={state.data} />
+        <ReservationCalendarView data={data} />
       ) : mode === "create" || mode === "edit" ? (
-        <ReservationFormView data={state.data} mode={mode} onSaved={reload} />
+        <ReservationFormView data={data} mode={mode} />
       ) : (
-        <ReservationListView data={state.data} onCreate={() => navigate("/dashboard/reservations/new")} onCalendar={() => navigate("/dashboard/reservations/calendar")} />
+        <ReservationListView data={data} onCreate={() => navigate("/dashboard/reservations/new")} onCalendar={() => navigate("/dashboard/reservations/calendar")} />
       )}
     </Shell>
   );
@@ -162,18 +151,20 @@ function ReservationCalendarView({ data }: { data: ReadyData }) {
 
 function ReservationFormView({
   data,
-  mode,
-  onSaved
+  mode
 }: {
   data: ReadyData;
   mode: "create" | "edit";
-  onSaved: () => Promise<void>;
 }) {
   const { reservationId } = useParams();
   const navigate = useNavigate();
   const reservation = data.reservations.find((item) => item.id === reservationId);
   const [error, setError] = useState<string | undefined>();
-  const [pending, setPending] = useState(false);
+  const queryClient = useQueryClient();
+  const createReservationMutation = useMutation({
+    mutationFn: (input: Parameters<typeof createReservation>[1]) => createReservation(data.gym.id, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.operationsWorkspace })
+  });
 
   const model = buildFacilityReservationCreateScreen({
     resources: data.resources as unknown as ResourceView[],
@@ -209,14 +200,13 @@ function ReservationFormView({
           const startsAt = String(form.get("startsAt") ?? "");
           const endsAt = String(form.get("endsAt") ?? "");
           const note = optional(form.get("note"));
-          setPending(true);
           setError(undefined);
           void (async () => {
             try {
               if (mode === "edit") {
                 throw new Error("Edit flow is wired as a placeholder until reservation update API is available.");
               }
-              await createReservation(data.gym.id, {
+              await createReservationMutation.mutateAsync({
                 resourceId,
                 memberId,
                 startsAt,
@@ -224,12 +214,9 @@ function ReservationFormView({
                 overrideConflict: false,
                 ...(note ? { note } : {})
               });
-              await onSaved();
               navigate("/dashboard/reservations");
             } catch (caught) {
               setError(describeError(caught));
-            } finally {
-              setPending(false);
             }
           })();
         }}
@@ -245,7 +232,7 @@ function ReservationFormView({
               selected: option.selected
             }))
           }}
-          disabled={pending}
+          disabled={createReservationMutation.isPending}
         />
         <SelectField
           model={{
@@ -258,19 +245,19 @@ function ReservationFormView({
               selected: option.selected
             }))
           }}
-          disabled={pending}
+          disabled={createReservationMutation.isPending}
         />
         <label className="field">
           <span>{model.fields.startsAt.label}</span>
-          <input name="startsAt" type="datetime-local" defaultValue={model.fields.startsAt.value.slice(0, 16)} required disabled={pending} />
+          <input name="startsAt" type="datetime-local" defaultValue={model.fields.startsAt.value.slice(0, 16)} required disabled={createReservationMutation.isPending} />
         </label>
         <label className="field">
           <span>{model.fields.endsAt.label}</span>
-          <input name="endsAt" type="datetime-local" defaultValue={model.fields.endsAt.value.slice(0, 16)} required disabled={pending} />
+          <input name="endsAt" type="datetime-local" defaultValue={model.fields.endsAt.value.slice(0, 16)} required disabled={createReservationMutation.isPending} />
         </label>
-        <TextareaField model={{ name: "note", label: model.fields.note.label, value: model.fields.note.value, rows: 3 }} disabled={pending} />
+        <TextareaField model={{ name: "note", label: model.fields.note.label, value: model.fields.note.value, rows: 3 }} disabled={createReservationMutation.isPending} />
         <div className="customer-edit-footer">
-          <button className="save-button" type="submit" disabled={!model.canSubmit || pending}>
+          <button className="save-button" type="submit" disabled={!model.canSubmit || createReservationMutation.isPending}>
             {mode === "edit" ? "Save changes" : model.action.label}
           </button>
           <button className="ghost-button" type="button" onClick={() => navigate("/dashboard/reservations")}>Cancel</button>

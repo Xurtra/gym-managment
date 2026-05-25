@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import {
   buildForgotPasswordScreen,
@@ -11,12 +14,19 @@ import {
   buildTwoFactorVerifyScreen,
   type AuthScreenModel
 } from "@gym-platform/dashboard";
-import { Button, InputField } from "@gym-platform/ui-react";
-import { GymApiClient } from "@gym-platform/api-client";
+import { Button } from "@gym-platform/ui-react";
 import {
-  API_BASE_URL,
+  loginSchema,
+  registerSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+  twoFactorVerifySchema
+} from "@gym-platform/validation";
+import type { ZodSchema } from "zod";
+import {
   clearSessionTokens,
   forgotPassword,
+  loadPublicGymName,
   loadSession,
   loginUser,
   regenerateRecoveryCodes,
@@ -28,6 +38,7 @@ import {
   verifyEmail,
   verifyTwoFactor
 } from "./dashboardData.js";
+import { queryKeys } from "./queryKeys.js";
 
 type AuthMode =
   | "login"
@@ -53,42 +64,26 @@ export function AuthDomainRoute({ mode }: { mode: AuthMode }) {
   const [state, setState] = useState<AuthState>({ pending: false });
   const [twoFactorEmail, setTwoFactorEmail] = useState<string>(() => loadTwoFactorChallenge().email);
   const [twoFactorPassword, setTwoFactorPassword] = useState<string>(() => loadTwoFactorChallenge().password);
-  const [gymName, setGymName] = useState<string>("Gym Platform");
-  const [setupSecret, setSetupSecret] = useState<string | undefined>();
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
 
   const session = loadSession();
   const isAuthEntry = mode === "login" || mode === "register" || mode === "forgot" || mode === "reset";
-
-  useEffect(() => {
-    const gymSlug = new URLSearchParams(window.location.search).get("gymSlug")?.trim();
-    if (!gymSlug) {
-      return;
-    }
-    const client = new GymApiClient({ baseUrl: API_BASE_URL });
-    client
-      .publicGym(gymSlug)
-      .then((response) => {
-        const record = response as { gym?: { name?: string }; name?: string };
-        setGymName(record.gym?.name ?? record.name ?? "Gym Platform");
-      })
-      .catch(() => undefined);
-  }, []);
-
-  useEffect(() => {
-    if (mode !== "two-factor-setup") {
-      return;
-    }
-    setState({ pending: true });
-    setupTwoFactor()
-      .then((result) => {
-        setSetupSecret(result.secret);
-        setState({ pending: false });
-      })
-      .catch((error) => {
-        setState({ pending: false, error: describeError(error) });
-      });
-  }, [mode]);
+  const gymSlug = new URLSearchParams(window.location.search).get("gymSlug")?.trim();
+  const publicGymQuery = useQuery({
+    queryKey: gymSlug ? queryKeys.publicGym(gymSlug) : ["public-gym", "none"],
+    queryFn: () => loadPublicGymName(gymSlug ?? ""),
+    enabled: Boolean(gymSlug),
+    retry: false
+  });
+  const twoFactorSetupQuery = useQuery({
+    queryKey: ["two-factor-setup"],
+    queryFn: setupTwoFactor,
+    enabled: mode === "two-factor-setup",
+    retry: false
+  });
+  const setupSecret = twoFactorSetupQuery.data?.secret;
+  const authError = state.error ?? (twoFactorSetupQuery.isError ? describeError(twoFactorSetupQuery.error) : undefined);
+  const pending = state.pending || twoFactorSetupQuery.isLoading;
 
   if (session && isAuthEntry) {
     return <Navigate to="/dashboard/home" replace />;
@@ -124,27 +119,28 @@ export function AuthDomainRoute({ mode }: { mode: AuthMode }) {
         <header className="card-head">
           <div>
             <p className="eyebrow">Staff Dashboard</p>
-            <h2>{mode === "login" ? `Log in to ${gymName}` : model.title}</h2>
+            <h2>{mode === "login" ? `Log in to ${publicGymQuery.data ?? "Gym Platform"}` : model.title}</h2>
           </div>
         </header>
 
-        {state.error ? <div className="banner error">{state.error}</div> : null}
+        {authError ? <div className="banner error">{authError}</div> : null}
         {state.message ? <div className="banner success">{state.message}</div> : null}
 
         <AuthForm
+          key={mode}
           mode={mode}
           model={model}
-          pending={state.pending}
-          onSubmit={async (formData) => {
+          pending={pending}
+          onSubmit={async (fields) => {
             setState({ pending: true });
             try {
               if (mode === "register") {
                 const response = await registerUser({
-                  email: String(formData.get("email") ?? ""),
-                  password: String(formData.get("password") ?? ""),
-                  firstName: String(formData.get("firstName") ?? ""),
-                  lastName: String(formData.get("lastName") ?? ""),
-                  gymName: optional(formData.get("gymName")),
+                  email: String(fields.email ?? ""),
+                  password: String(fields.password ?? ""),
+                  firstName: String(fields.firstName ?? ""),
+                  lastName: String(fields.lastName ?? ""),
+                  gymName: strOrUndefined(fields.gymName),
                   timezone: "America/New_York",
                   locale: "en-US"
                 });
@@ -157,28 +153,28 @@ export function AuthDomainRoute({ mode }: { mode: AuthMode }) {
               }
 
               if (mode === "forgot") {
-                await forgotPassword(String(formData.get("email") ?? ""));
+                await forgotPassword(String(fields.email ?? ""));
                 setState({ pending: false, message: "Reset instructions have been sent." });
                 return;
               }
 
               if (mode === "reset") {
                 await resetPassword(
-                  String(formData.get("token") ?? ""),
-                  String(formData.get("password") ?? "")
+                  String(fields.token ?? ""),
+                  String(fields.password ?? "")
                 );
                 setState({ pending: false, message: "Password updated. Log in with your new password." });
                 return;
               }
 
               if (mode === "verify-email") {
-                await verifyEmail(String(formData.get("token") ?? ""));
+                await verifyEmail(String(fields.token ?? ""));
                 setState({ pending: false, message: "Email verified." });
                 return;
               }
 
               if (mode === "two-factor-setup") {
-                const response = await verifyTwoFactor(String(formData.get("code") ?? ""));
+                const response = await verifyTwoFactor(String(fields.code ?? ""));
                 setRecoveryCodes(response.recoveryCodes ?? []);
                 navigate("/dashboard/recovery-codes", { replace: true });
                 return;
@@ -191,7 +187,7 @@ export function AuthDomainRoute({ mode }: { mode: AuthMode }) {
                 const response = await loginUser({
                   email: twoFactorEmail,
                   password: twoFactorPassword,
-                  twoFactorCode: optional(formData.get("twoFactorCode"))
+                  twoFactorCode: strOrUndefined(fields.twoFactorCode)
                 });
                 if (!response.accessToken || !response.refreshToken) {
                   throw new Error("Two-factor login did not return a session.");
@@ -204,9 +200,9 @@ export function AuthDomainRoute({ mode }: { mode: AuthMode }) {
 
               if (mode === "recovery-login") {
                 const response = await loginUser({
-                  email: String(formData.get("email") ?? ""),
-                  password: String(formData.get("password") ?? ""),
-                  recoveryCode: optional(formData.get("recoveryCode"))
+                  email: String(fields.email ?? ""),
+                  password: String(fields.password ?? ""),
+                  recoveryCode: strOrUndefined(fields.recoveryCode)
                 });
                 if (!response.accessToken || !response.refreshToken) {
                   throw new Error("Recovery login did not return a session.");
@@ -223,8 +219,8 @@ export function AuthDomainRoute({ mode }: { mode: AuthMode }) {
                 return;
               }
 
-              const email = String(formData.get("email") ?? "");
-              const password = String(formData.get("password") ?? "");
+              const email = String(fields.email ?? "");
+              const password = String(fields.password ?? "");
               const response = await loginUser({ email, password });
               if (response.twoFactorRequired) {
                 setTwoFactorEmail(email);
@@ -288,6 +284,18 @@ export function AuthDomainRoute({ mode }: { mode: AuthMode }) {
   );
 }
 
+function schemaForMode(mode: AuthMode): ZodSchema | null {
+  switch (mode) {
+    case "login": return loginSchema;
+    case "register": return registerSchema;
+    case "forgot": return forgotPasswordSchema;
+    case "reset": return resetPasswordSchema;
+    case "two-factor-setup": return twoFactorVerifySchema;
+    case "recovery-login": return loginSchema;
+    default: return null;
+  }
+}
+
 function AuthForm({
   mode,
   model,
@@ -297,28 +305,54 @@ function AuthForm({
   mode: AuthMode;
   model: AuthScreenModel;
   pending: boolean;
-  onSubmit: (formData: FormData) => Promise<void>;
+  onSubmit: (fields: Record<string, unknown>) => Promise<void>;
 }) {
+  const schema = schemaForMode(mode);
+  const submitMutation = useMutation({
+    mutationFn: onSubmit
+  });
+  const isPending = pending || submitMutation.isPending;
+  const {
+    register,
+    handleSubmit,
+    formState: { errors }
+  } = useForm({
+    resolver: schema ? zodResolver(schema as never) : undefined
+  });
+
   const formId = mode === "login" ? "login-form" : `auth-${mode}-form`;
 
   return (
     <form
       id={formId}
       className="form-card compact-form"
-      onSubmit={(event) => {
-        event.preventDefault();
-        void onSubmit(new FormData(event.currentTarget));
-      }}
+      onSubmit={handleSubmit((fields) => void submitMutation.mutateAsync(fields as Record<string, unknown>))}
     >
       {model.fields.map((field) => (
-        <InputField key={field.name} model={field} disabled={pending} />
+        <div key={field.name}>
+          <label className="field">
+            <span>{field.label}</span>
+            <input
+              {...register(field.name)}
+              type={field.type}
+              required={field.required}
+              disabled={isPending}
+              defaultValue={field.value}
+            />
+          </label>
+          {errors[field.name] && (
+            <small className="field-error">
+              {String(errors[field.name]?.message ?? "")}
+            </small>
+          )}
+        </div>
       ))}
-      <Button model={{ ...model.submit, disabled: pending || model.submit.disabled }} type="submit" />
+      <Button model={{ ...model.submit, disabled: isPending || model.submit.disabled }} type="submit" />
     </form>
   );
 }
 
-function optional(value: FormDataEntryValue | null) {
+function strOrUndefined(value: unknown): string | undefined {
   const text = String(value ?? "").trim();
   return text || undefined;
 }

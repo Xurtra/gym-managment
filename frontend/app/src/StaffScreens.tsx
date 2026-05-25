@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Navigate, useNavigate } from "react-router-dom";
 import { calendarEvent } from "@gym-platform/ui";
 import {
@@ -12,7 +15,9 @@ import {
   type StaffShiftView,
   type StaffInviteView
 } from "@gym-platform/dashboard";
-import { FormLayout, LogList, SelectField, Table } from "@gym-platform/ui-react";
+import { FormLayout, LogList, Table } from "@gym-platform/ui-react";
+import { staffInviteCreateSchema } from "@gym-platform/validation";
+import type { z } from "zod";
 import {
   createStaffInvite,
   loadOperationsWorkspace,
@@ -23,6 +28,7 @@ import {
   type StaffShiftRecord,
   type StaffTimeEntryRecord
 } from "./dashboardData.js";
+import { queryKeys } from "./queryKeys.js";
 import { Shell } from "./Shell.js";
 import { ScheduleCalendar } from "./components/ScheduleCalendar.js";
 
@@ -36,52 +42,39 @@ type ReadyData = DashboardWorkspaceData & {
   timeEntries: StaffTimeEntryRecord[];
 };
 
-type LoadState =
-  | { status: "loading" }
-  | { status: "ready"; data: ReadyData }
-  | { status: "failed"; message: string };
-
 export function StaffDomainRoute({ mode }: { mode: Mode }) {
-  const [state, setState] = useState<LoadState>({ status: "loading" });
+  const session = loadSession();
+  const workspaceQuery = useQuery({
+    queryKey: queryKeys.operationsWorkspace,
+    queryFn: () => loadOperationsWorkspace(),
+    enabled: Boolean(session)
+  });
 
-  const reload = async () => {
-    setState({ status: "loading" });
-    try {
-      const loaded = await loadOperationsWorkspace();
-      setState({ status: "ready", data: loaded as ReadyData });
-    } catch (error) {
-      setState({ status: "failed", message: describeError(error) });
-    }
-  };
-
-  useEffect(() => {
-    void reload();
-  }, []);
-
-  if (!loadSession()) {
+  if (!session) {
     return <Navigate to="/dashboard/login" replace />;
   }
 
-  if (state.status === "loading") {
+  if (workspaceQuery.isLoading) {
     return <div className="react-bootstrap-state">Loading staff...</div>;
   }
-  if (state.status === "failed") {
+  if (workspaceQuery.isError || !workspaceQuery.data) {
     return (
       <div className="empty-state" role="alert">
         <h3>Unable to load staff</h3>
-        <p>{state.message}</p>
+        <p>{describeError(workspaceQuery.error)}</p>
       </div>
     );
   }
+  const data = workspaceQuery.data as ReadyData;
 
   const shell = buildDashboardShellLayout({
     path: "/settings",
-    permissions: state.data.permissions,
-    platformAdmin: state.data.platformAdmin,
-    email: state.data.me.user.email,
-    firstName: state.data.me.user.firstName,
-    lastName: state.data.me.user.lastName,
-    gymName: state.data.gym.name,
+    permissions: data.permissions,
+    platformAdmin: data.platformAdmin,
+    email: data.me.user.email,
+    firstName: data.me.user.firstName,
+    lastName: data.me.user.lastName,
+    gymName: data.gym.name,
     pageHeader: buildPageHeader({
       title:
         mode === "invites"
@@ -102,13 +95,13 @@ export function StaffDomainRoute({ mode }: { mode: Mode }) {
   return (
     <Shell model={shell}>
       {mode === "invites" ? (
-        <StaffInviteViewScreen data={state.data} onSaved={reload} />
+        <StaffInviteViewScreen data={data} />
       ) : mode === "shifts" ? (
-        <StaffShiftScheduleScreen data={state.data} />
+        <StaffShiftScheduleScreen data={data} />
       ) : mode === "time-clock" ? (
-        <StaffTimeClockScreen data={state.data} />
+        <StaffTimeClockScreen data={data} />
       ) : (
-        <StaffDirectoryScreen data={state.data} />
+        <StaffDirectoryScreen data={data} />
       )}
     </Shell>
   );
@@ -146,9 +139,24 @@ function StaffDirectoryScreen({ data }: { data: ReadyData }) {
   );
 }
 
-function StaffInviteViewScreen({ data, onSaved }: { data: ReadyData; onSaved: () => Promise<void> }) {
+type StaffInviteFields = z.infer<typeof staffInviteCreateSchema>;
+
+function StaffInviteViewScreen({ data }: { data: ReadyData }) {
   const [error, setError] = useState<string | undefined>();
-  const [pending, setPending] = useState(false);
+  const queryClient = useQueryClient();
+  const createInviteMutation = useMutation({
+    mutationFn: (input: Parameters<typeof createStaffInvite>[1]) => createStaffInvite(data.gym.id, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.operationsWorkspace })
+  });
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting }
+  } = useForm<StaffInviteFields>({
+    resolver: zodResolver(staffInviteCreateSchema)
+  });
 
   const screen = buildStaffInviteFlow({
     roles: data.roles.map((role) => ({
@@ -166,50 +174,51 @@ function StaffInviteViewScreen({ data, onSaved }: { data: ReadyData; onSaved: ()
       {error ? <div className="banner error">{error}</div> : null}
       <form
         className="compact-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          const form = new FormData(event.currentTarget);
-          setPending(true);
+        onSubmit={handleSubmit(async (fields) => {
           setError(undefined);
-          void (async () => {
-            try {
-              await createStaffInvite(data.gym.id, {
-                email: String(form.get("email") ?? ""),
-                roleId: String(form.get("roleId") ?? ""),
-                message: optional(form.get("message"))
-              });
-              await onSaved();
-            } catch (caught) {
-              setError(describeError(caught));
-            } finally {
-              setPending(false);
-            }
-          })();
-        }}
+          try {
+            await createInviteMutation.mutateAsync({
+              email: fields.email,
+              roleId: fields.roleId,
+              message: fields.message
+            });
+            reset();
+          } catch (caught) {
+            setError(describeError(caught));
+          }
+        })}
       >
         <label className="field">
           <span>{screen.emailField.label}</span>
-          <input name={screen.emailField.name} type="email" required disabled={pending} />
+          <input
+            {...register("email")}
+            type="email"
+            disabled={isSubmitting}
+          />
+          {errors.email && <small className="field-error">{errors.email.message}</small>}
         </label>
-        <SelectField
-          model={{
-            name: "roleId",
-            label: "Role",
-            required: true,
-            options: screen.roleOptions.map((option) => ({
-              value: option.id,
-              label: option.label,
-              selected: option.selected,
-              disabled: option.disabled
-            }))
-          }}
-          disabled={pending}
-        />
+        <label className="field">
+          <span>Role</span>
+          <select {...register("roleId")} required disabled={isSubmitting}>
+            <option value="">Select a role…</option>
+            {screen.roleOptions.map((option) => (
+              <option key={option.id} value={option.id} disabled={option.disabled}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {errors.roleId && <small className="field-error">{errors.roleId.message}</small>}
+        </label>
         <label className="field">
           <span>{screen.messageField.label}</span>
-          <textarea name={screen.messageField.name} rows={3} disabled={pending} />
+          <textarea
+            {...register("message", { setValueAs: (v: string) => v.trim() || undefined })}
+            rows={3}
+            disabled={isSubmitting}
+          />
+          {errors.message && <small className="field-error">{errors.message.message}</small>}
         </label>
-        <button className="save-button" type="submit" disabled={!screen.canSubmit || pending}>
+        <button className="save-button" type="submit" disabled={!screen.canSubmit || isSubmitting}>
           {screen.action.label}
         </button>
       </form>
@@ -286,11 +295,6 @@ function StaffTimeClockScreen({ data }: { data: ReadyData }) {
       />
     </section>
   );
-}
-
-function optional(value: FormDataEntryValue | null) {
-  const text = String(value ?? "").trim();
-  return text || undefined;
 }
 
 function describeError(error: unknown) {

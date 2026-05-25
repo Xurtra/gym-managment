@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckInMethod, CheckInStatus } from "@gym-platform/constants";
 import { input } from "@gym-platform/ui";
 import {
@@ -20,6 +21,7 @@ import {
   type DashboardWorkspaceData
 } from "./dashboardData.js";
 import { buildDashboardShellLayout, buildPageHeader } from "@gym-platform/dashboard";
+import { queryKeys } from "./queryKeys.js";
 import { Shell } from "./Shell.js";
 
 type Mode = "desk" | "kiosk" | "history";
@@ -29,50 +31,44 @@ type ReadyData = DashboardWorkspaceData & {
   locations: Array<{ id: string; name: string }>;
 };
 
-type LoadState =
-  | { status: "loading" }
-  | { status: "ready"; data: ReadyData }
-  | { status: "failed"; message: string };
-
 export function CheckInsDomainRoute({ mode }: { mode: Mode }) {
-  const [state, setState] = useState<LoadState>({ status: "loading" });
   const [query, setQuery] = useState("");
   const [selectedMemberId, setSelectedMemberId] = useState<string | undefined>();
   const [selectedLocationId, setSelectedLocationId] = useState<string | undefined>();
   const [selectedClassSessionId, setSelectedClassSessionId] = useState<string | undefined>();
   const [lastResult, setLastResult] = useState<CheckInModelRecord | undefined>();
   const [kioskMode, setKioskMode] = useState<"qr" | "barcode">("barcode");
-
-  const reload = async () => {
-    setState({ status: "loading" });
-    try {
-      const loaded = await loadOperationsWorkspace();
-      setState({ status: "ready", data: loaded as ReadyData });
-      if (!selectedLocationId && loaded.locations[0]) {
-        setSelectedLocationId(loaded.locations[0].id);
-      }
-    } catch (error) {
-      setState({ status: "failed", message: describeError(error) });
-    }
-  };
+  const queryClient = useQueryClient();
+  const workspaceQuery = useQuery({
+    queryKey: queryKeys.operationsWorkspace,
+    queryFn: () => loadOperationsWorkspace()
+  });
+  const checkInMutation = useMutation({
+    mutationFn: (submission: Parameters<typeof createManualCheckIn>[1]) =>
+      createManualCheckIn((workspaceQuery.data as ReadyData).gym.id, submission),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.operationsWorkspace })
+  });
 
   useEffect(() => {
-    void reload();
-  }, []);
+    if (!selectedLocationId && workspaceQuery.data?.locations[0]) {
+      setSelectedLocationId(workspaceQuery.data.locations[0].id);
+    }
+  }, [selectedLocationId, workspaceQuery.data]);
 
-  if (state.status === "loading") {
+  if (workspaceQuery.isLoading) {
     return <div className="react-bootstrap-state">Loading check-ins...</div>;
   }
-  if (state.status === "failed") {
+  if (workspaceQuery.isError || !workspaceQuery.data) {
     return (
       <div className="empty-state" role="alert">
         <h3>Unable to load check-ins</h3>
-        <p>{state.message}</p>
+        <p>{describeError(workspaceQuery.error)}</p>
       </div>
     );
   }
+  const data = workspaceQuery.data as ReadyData;
 
-  const members = state.data.members.map((member) => ({
+  const members = data.members.map((member) => ({
     id: member.id,
     firstName: member.firstName,
     lastName: member.lastName,
@@ -84,14 +80,14 @@ export function CheckInsDomainRoute({ mode }: { mode: Mode }) {
   const memberSearch = buildMemberSearchScreen(members, query, selectedMemberId);
   const checkInScreen = buildFrontDeskCheckInScreen({
     members: memberSearch.results,
-    locations: toLocationOptions(state.data.locations),
-    classes: state.data.classSessions
+    locations: toLocationOptions(data.locations),
+    classes: data.classSessions
       .filter((session) => !selectedLocationId || session.locationId === selectedLocationId)
       .map((session) => ({ id: session.id, name: session.id, startsAt: session.startsAt })),
     selectedLocationId,
     selectedClassSessionId
   });
-  const history = buildCheckInHistoryScreen(state.data.checkIns as CheckInModelRecord[]);
+  const history = buildCheckInHistoryScreen(data.checkIns as CheckInModelRecord[]);
   const kiosk = buildCheckInKioskScreen({
     mode: kioskMode,
     barcodeValue: query,
@@ -101,12 +97,12 @@ export function CheckInsDomainRoute({ mode }: { mode: Mode }) {
 
   const shell = buildDashboardShellLayout({
     path: "/check-ins",
-    permissions: state.data.permissions,
-    platformAdmin: state.data.platformAdmin,
-    email: state.data.me.user.email,
-    firstName: state.data.me.user.firstName,
-    lastName: state.data.me.user.lastName,
-    gymName: state.data.gym.name,
+    permissions: data.permissions,
+    platformAdmin: data.platformAdmin,
+    email: data.me.user.email,
+    firstName: data.me.user.firstName,
+    lastName: data.me.user.lastName,
+    gymName: data.gym.name,
     pageHeader: buildPageHeader({
       title: mode === "history" ? "Check-In History" : mode === "kiosk" ? "Kiosk Check-In" : "Club Check In",
       eyebrow: "Operations",
@@ -133,7 +129,7 @@ export function CheckInsDomainRoute({ mode }: { mode: Mode }) {
         <FrontDeskCheckInScreenView
           search={memberSearch}
           screen={checkInScreen}
-          locations={state.data.locations}
+          locations={data.locations}
           selectedLocationId={selectedLocationId}
           selectedClassSessionId={selectedClassSessionId}
           onSelectLocation={setSelectedLocationId}
@@ -150,9 +146,8 @@ export function CheckInsDomainRoute({ mode }: { mode: Mode }) {
               locationId: selectedLocationId,
               classSessionId: selectedClassSessionId
             });
-            const response = (await createManualCheckIn(state.data.gym.id, submission)) as CheckInRecord;
+            const response = (await checkInMutation.mutateAsync(submission)) as CheckInRecord;
             setLastResult(response as unknown as CheckInModelRecord);
-            await reload();
           }}
         />
       )}

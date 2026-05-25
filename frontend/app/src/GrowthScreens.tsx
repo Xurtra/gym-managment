@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import {
   buildDashboardShellLayout,
@@ -22,12 +23,8 @@ import {
   type GrowthWorkspaceData,
   type InteractionRecord
 } from "./dashboardData.js";
+import { queryKeys } from "./queryKeys.js";
 import { Shell } from "./Shell.js";
-
-type LoadState =
-  | { status: "loading" }
-  | { status: "ready"; data: GrowthWorkspaceData }
-  | { status: "failed"; message: string };
 type InteractionType = "call" | "sms" | "email" | "note";
 
 export function GrowthDomainRoute({
@@ -35,46 +32,37 @@ export function GrowthDomainRoute({
 }: {
   mode: "dashboard" | "inbox" | "watchlist" | "lead";
 }) {
-  const [state, setState] = useState<LoadState>({ status: "loading" });
   const navigate = useNavigate();
   const session = loadSession();
-
-  const reload = async () => {
-    setState({ status: "loading" });
-    try {
-      setState({ status: "ready", data: await loadGrowthWorkspaceData() });
-    } catch (error) {
-      setState({ status: "failed", message: describeError(error) });
-    }
-  };
-
-  useEffect(() => {
-    void reload();
-  }, []);
+  const workspaceQuery = useQuery({
+    queryKey: queryKeys.growthWorkspace,
+    queryFn: () => loadGrowthWorkspaceData(),
+    enabled: Boolean(session)
+  });
 
   if (!session) {
     return <Navigate to="/dashboard/home" replace />;
   }
-  if (state.status === "loading") {
+  if (workspaceQuery.isLoading) {
     return <div className="react-bootstrap-state">Loading growth data...</div>;
   }
-  if (state.status === "failed") {
+  if (workspaceQuery.isError || !workspaceQuery.data) {
     return (
       <div className="empty-state" role="alert">
         <h3>Unable to load growth data</h3>
-        <p>{state.message}</p>
+        <p>{describeError(workspaceQuery.error)}</p>
       </div>
     );
   }
 
   const shell = buildDashboardShellLayout({
     path: "/growth",
-    permissions: state.data.permissions,
-    platformAdmin: state.data.platformAdmin,
-    email: state.data.me.user.email,
-    firstName: state.data.me.user.firstName,
-    lastName: state.data.me.user.lastName,
-    gymName: state.data.gym.name,
+    permissions: workspaceQuery.data.permissions,
+    platformAdmin: workspaceQuery.data.platformAdmin,
+    email: workspaceQuery.data.me.user.email,
+    firstName: workspaceQuery.data.me.user.firstName,
+    lastName: workspaceQuery.data.me.user.lastName,
+    gymName: workspaceQuery.data.gym.name,
     pageHeader: buildPageHeader({
       title: pageTitleFor(mode),
       eyebrow: "Growth",
@@ -83,7 +71,7 @@ export function GrowthDomainRoute({
         { label: "Growth", href: "/growth" },
         { label: pageTitleFor(mode), href: "/growth" }
       ],
-      description: `${currentUserDisplayName(state.data.me)} · ${state.data.gym.name}`
+      description: `${currentUserDisplayName(workspaceQuery.data.me)} · ${workspaceQuery.data.gym.name}`
     })
   });
 
@@ -101,13 +89,13 @@ export function GrowthDomainRoute({
       }}
     >
       {mode === "inbox" ? (
-        <GrowthInboxRoute data={state.data} />
+        <GrowthInboxRoute data={workspaceQuery.data} />
       ) : mode === "watchlist" ? (
-        <GrowthWatchlistRoute data={state.data} />
+        <GrowthWatchlistRoute data={workspaceQuery.data} />
       ) : mode === "lead" ? (
-        <GrowthLeadRoute data={state.data} onReload={reload} />
+        <GrowthLeadRoute data={workspaceQuery.data} />
       ) : (
-        <GrowthDashboardRoute data={state.data} />
+        <GrowthDashboardRoute data={workspaceQuery.data} />
       )}
     </Shell>
   );
@@ -159,46 +147,41 @@ function GrowthWatchlistRoute({ data }: { data: GrowthWorkspaceData }) {
 }
 
 function GrowthLeadRoute({
-  data,
-  onReload
+  data
 }: {
   data: GrowthWorkspaceData;
-  onReload: () => Promise<void>;
 }) {
   const { consumerId } = useParams();
-  const [interactions, setInteractions] = useState<InteractionRecord[]>([]);
-  const [interactionsLoading, setInteractionsLoading] = useState(true);
   const [error, setError] = useState<string | undefined>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const consumer = data.members.find((member) => member.id === consumerId);
-
-  useEffect(() => {
-    if (!consumer) {
-      return;
+  const interactionsQuery = useQuery({
+    queryKey: consumer
+      ? queryKeys.growthInteractions(data.gym.id, consumer.id)
+      : ["growth-interactions", data.gym.id, "none"],
+    queryFn: () => loadGrowthInteractions(data.gym.id, consumer?.id ?? ""),
+    enabled: Boolean(consumer),
+    retry: false
+  });
+  const logInteractionMutation = useMutation({
+    mutationFn: ({ type, notes }: { type: InteractionType; notes: string }) =>
+      logGrowthInteraction(data.gym.id, consumer?.id ?? "", { type, notes: notes || undefined }),
+    onSuccess: () => {
+      if (consumer) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.growthInteractions(data.gym.id, consumer.id) });
+      }
+      void queryClient.invalidateQueries({ queryKey: queryKeys.growthWorkspace });
     }
-    let cancelled = false;
-    setInteractionsLoading(true);
-    loadGrowthInteractions(data.gym.id, consumer.id)
-      .then((rows) => {
-        if (!cancelled) {
-          setInteractions(rows);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setInteractions([]);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setInteractionsLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [data.gym.id, consumer?.id]);
+  });
+  const convertLeadMutation = useMutation({
+    mutationFn: () => convertGrowthLead(data.gym.id, consumer?.id ?? "", {}),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.growthWorkspace });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboardWorkspace });
+    }
+  });
 
   if (!consumer) {
     return (
@@ -209,6 +192,7 @@ function GrowthLeadRoute({
     );
   }
 
+  const interactions = interactionsQuery.data ?? [];
   const interactionViews: InteractionView[] = interactions.map((interaction) => ({
     id: interaction.id,
     type: interaction.type as InteractionView["type"],
@@ -227,9 +211,7 @@ function GrowthLeadRoute({
   async function handleLogInteraction(type: InteractionType, notes: string) {
     try {
       setError(undefined);
-      await logGrowthInteraction(data.gym.id, consumer.id, { type, notes: notes || undefined });
-      const updated = await loadGrowthInteractions(data.gym.id, consumer.id);
-      setInteractions(updated);
+      await logInteractionMutation.mutateAsync({ type, notes });
     } catch (caught) {
       setError(describeError(caught));
     }
@@ -238,8 +220,7 @@ function GrowthLeadRoute({
   async function handleConvert() {
     try {
       setError(undefined);
-      await convertGrowthLead(data.gym.id, consumer.id, {});
-      await onReload();
+      await convertLeadMutation.mutateAsync();
       navigate("/dashboard/growth");
     } catch (caught) {
       setError(describeError(caught));
@@ -249,7 +230,7 @@ function GrowthLeadRoute({
   return (
     <GrowthLeadScreen
       model={page}
-      interactionsLoading={interactionsLoading}
+      interactionsLoading={interactionsQuery.isLoading}
       error={error}
       onLogInteraction={handleLogInteraction}
       onConvert={handleConvert}
