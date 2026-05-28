@@ -1,6 +1,5 @@
 export type UiIntent = "primary" | "secondary" | "danger";
 export type UiSize = "sm" | "md" | "lg";
-export type BadgeTone = "neutral" | "success" | "warning" | "danger" | "info";
 
 export interface ButtonModel {
   kind: "button";
@@ -9,19 +8,6 @@ export interface ButtonModel {
   size: UiSize;
   disabled: boolean;
   icon?: string;
-}
-
-export interface BadgeModel {
-  kind: "badge";
-  label: string;
-  tone: BadgeTone;
-}
-
-export interface AvatarModel {
-  kind: "avatar";
-  label: string;
-  initials: string;
-  imageUrl?: string;
 }
 
 export interface InputModel {
@@ -74,17 +60,6 @@ export interface EmptyStateModel {
   action?: ButtonModel;
 }
 
-export interface CalendarEventModel {
-  kind: "calendar_event";
-  id: string;
-  title: string;
-  startsAt: string;
-  endsAt: string;
-  subtitle?: string;
-  status?: string;
-  href?: string;
-}
-
 export interface ErrorStateModel {
   kind: "error";
   title: string;
@@ -106,18 +81,6 @@ export function button(input: Partial<ButtonModel> & Pick<ButtonModel, "label">)
     disabled: input.disabled ?? false,
     ...(input.icon ? { icon: input.icon } : {})
   };
-}
-
-export function badge(input: Partial<BadgeModel> & Pick<BadgeModel, "label">): BadgeModel {
-  return {
-    kind: "badge",
-    label: input.label,
-    tone: input.tone ?? "neutral"
-  };
-}
-
-export function avatar(input: Omit<AvatarModel, "kind">): AvatarModel {
-  return { kind: "avatar", ...input };
 }
 
 export function input(inputModel: Omit<InputModel, "kind">): InputModel {
@@ -146,10 +109,6 @@ export function loadingState(label = "Loading"): LoadingStateModel {
 
 export function emptyState(inputModel: Omit<EmptyStateModel, "kind">): EmptyStateModel {
   return { kind: "empty", ...inputModel };
-}
-
-export function calendarEvent(inputModel: Omit<CalendarEventModel, "kind">): CalendarEventModel {
-  return { kind: "calendar_event", ...inputModel };
 }
 
 export function errorState(inputModel: Omit<ErrorStateModel, "kind">): ErrorStateModel {

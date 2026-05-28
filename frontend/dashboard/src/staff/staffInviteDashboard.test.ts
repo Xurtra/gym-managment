@@ -1709,7 +1709,7 @@ describe("staff invite dashboard flow", () => {
     expect(createScreen.nameField.required).toBe(true);
     expect(createScreen.selectedPermissions).toEqual([Permission.GymRead, Permission.MemberRead]);
     expect(createScreen.selectedPermissionCount).toBe(2);
-    expect(createScreen.availablePermissionCount).toBe(31);
+    expect(createScreen.availablePermissionCount).toBe(23);
     expect(createScreen.disabledPermissionCount).toBe(1);
     expect(createScreen.summaryLabel).toBe("2 permissions selected");
     expect(createScreen.action.label).toBe("Create role");
@@ -1720,8 +1720,6 @@ describe("staff invite dashboard flow", () => {
       "staff",
       "members",
       "classes",
-      "scheduler",
-      "growth",
       "operations"
     ]);
     expect(createScreen.permissionGroups.map((group) => group.label)).toEqual([
@@ -1730,8 +1728,6 @@ describe("staff invite dashboard flow", () => {
       "Staff",
       "Members",
       "Classes",
-      "Scheduler",
-      "Growth",
       "Operations"
     ]);
     expect(createScreen.permissionGroups.find((group) => group.key === "gym")?.availableCount).toBe(2);
@@ -1771,7 +1767,7 @@ describe("staff invite dashboard flow", () => {
     expect(lockedSystemRole.action.disabled).toBe(true);
     expect(lockedSystemRole.nameField.error).toContain("System");
     expect(lockedSystemRole.lockedReason).toContain("System");
-    expect(lockedSystemRole.disabledPermissionCount).toBe(32);
+    expect(lockedSystemRole.disabledPermissionCount).toBe(24);
     expect(
       lockedSystemRole.permissionGroups.every((group) => group.toggles.every((toggle) => toggle.disabled))
     ).toBe(true);
@@ -1799,40 +1795,23 @@ describe("staff invite dashboard flow", () => {
     expect(trainerView.permissions).toEqual([
       Permission.GymRead,
       Permission.LocationRead,
-      Permission.StaffDirectoryView,
       Permission.MemberRead,
       Permission.ClassRead,
       Permission.ClassWrite,
       Permission.BookingRead,
       Permission.BookingWrite
     ]);
-    expect(trainerView.visibleRoutes).toEqual([
-      "/",
-      "/consumers",
-      "/locations",
-      "/classes",
-      "/bookings",
-      "/training",
-      "/contracts",
-      "/portal",
-      "/marketing"
-    ]);
-    expect(trainerView.visibleRouteCount).toBe(9);
+    expect(trainerView.visibleRoutes).toEqual(["/", "/locations", "/consumers", "/classes"]);
+    expect(trainerView.visibleRouteCount).toBe(4);
     expect(trainerView.hiddenRoutes).toContain("/check-ins");
     expect(trainerView.hiddenRoutes).toContain("/settings");
-    expect(trainerView.hiddenRoutes).not.toContain("/growth");
-    expect(trainerView.hiddenRouteCount).toBe(7);
-    expect(trainerView.summaryLabel).toBe("9 dashboard routes available");
+    expect(trainerView.hiddenRouteCount).toBe(4);
+    expect(trainerView.summaryLabel).toBe("4 dashboard routes available");
     expect(trainerView.navItems.map((item) => item.label)).toEqual([
-      "Club Home",
-      "Consumers",
+      "Dashboard",
       "Locations",
-      "Classes",
-      "Bookings",
-      "Training",
-      "Forms",
-      "Portal",
-      "Marketing"
+      "Consumers",
+      "Classes"
     ]);
     expect(trainerView.navItems.find((item) => item.href === "/classes")?.active).toBe(true);
     expect(trainerView.navItems.find((item) => item.href === "/classes")?.requiredPermissions).toEqual([
@@ -1854,7 +1833,6 @@ describe("staff invite dashboard flow", () => {
     expect(frontDeskView.permissions).toEqual([
       Permission.GymRead,
       Permission.LocationRead,
-      Permission.StaffDirectoryView,
       Permission.MemberRead,
       Permission.MemberWrite,
       Permission.ClassRead,
@@ -1862,30 +1840,22 @@ describe("staff invite dashboard flow", () => {
       Permission.BookingWrite,
       Permission.AccessRead,
       Permission.PaymentRead,
-      Permission.PaymentWrite,
-      Permission.GrowthRead
+      Permission.PaymentWrite
     ]);
     expect(frontDeskView.visibleRoutes).toContain("/check-ins");
     expect(frontDeskView.visibleRoutes).toContain("/access-control");
-    expect(frontDeskView.visibleRoutes).not.toContain("/growth");
-    expect(frontDeskView.visibleRouteCount).toBe(12);
+    expect(frontDeskView.visibleRouteCount).toBe(6);
     expect(frontDeskView.hiddenRoutes).toContain("/reports");
     expect(frontDeskView.hiddenRoutes).toContain("/settings");
-    expect(frontDeskView.hiddenRouteCount).toBe(4);
-    expect(frontDeskView.summaryLabel).toBe("12 dashboard routes available");
+    expect(frontDeskView.hiddenRouteCount).toBe(2);
+    expect(frontDeskView.summaryLabel).toBe("6 dashboard routes available");
     expect(frontDeskView.navItems.map((item) => item.label)).toEqual([
-      "Club Home",
-      "Consumers",
-      "Point Of Sale",
+      "Dashboard",
       "Locations",
+      "Consumers",
       "Classes",
-      "Bookings",
-      "Training",
-      "Access",
-      "Forms",
-      "Portal",
-      "Marketing",
-      "Check In"
+      "Check-Ins",
+      "Access Control"
     ]);
     expect(frontDeskView.navItems.find((item) => item.href === "/check-ins")?.active).toBe(true);
     expect(

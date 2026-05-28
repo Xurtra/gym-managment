@@ -13,7 +13,6 @@ export default defineConfig({
             "packages/**/*.test.ts"
           ],
           exclude: ["**/*.integration.test.ts", "e2e/**", "**/*.spec.ts"],
-          testTimeout: 10000,
           reporters: process.env.CI ? ["verbose", "json"] : ["verbose"],
           outputFile: process.env.CI ? { json: "test-results/unit.json" } : undefined,
           coverage: {

@@ -1,12 +1,6 @@
 import { ClassSessionStatus, Permission } from "@gym-platform/constants";
-import { button, calendarEvent, emptyState, input, table } from "@gym-platform/ui";
-import type {
-  ButtonModel,
-  CalendarEventModel,
-  EmptyStateModel,
-  InputModel,
-  TableModel
-} from "@gym-platform/ui";
+import { button, emptyState, input, table } from "@gym-platform/ui";
+import type { ButtonModel, EmptyStateModel, InputModel, TableModel } from "@gym-platform/ui";
 
 export interface ClassTypeView {
   id: string;
@@ -95,7 +89,6 @@ export interface ClassSessionListPage {
   statusOptionCount: number;
   rows: ClassSessionListRow[];
   table: TableModel<ClassSessionListRow>;
-  calendarEvents: CalendarEventModel[];
   empty?: EmptyStateModel;
   createSessionAction: ButtonModel;
 }
@@ -181,17 +174,6 @@ export function buildClassSessionListPage(inputModel: {
       rows,
       ...(empty ? { empty } : {})
     }),
-    calendarEvents: rows.map((row) =>
-      calendarEvent({
-        id: row.id,
-        title: row.className,
-        startsAt: row.startsAt,
-        endsAt: row.endsAt,
-        subtitle: `${row.locationName} · ${row.capacityLabel}`,
-        status: classSessionStatusLabel(row.status),
-        href: row.detailHref
-      })
-    ),
     ...(empty ? { empty } : {}),
     createSessionAction: button({
       label: "Schedule class",

@@ -27,26 +27,18 @@ export const dashboardRoutes: DashboardRoute[] = [
   { path: "/register", title: "Register", protected: false },
   { path: "/forgot-password", title: "Forgot Password", protected: false },
   { path: "/reset-password", title: "Reset Password", protected: false },
-  { path: "/", title: "Club Home", protected: true, requiredPermissions: [Permission.GymRead] },
-  {
-    path: "/consumers",
-    title: "Consumers",
-    protected: true,
-    requiredPermissions: [Permission.MemberRead]
-  },
-  { path: "/staff", title: "Staff", protected: true, requiredPermissions: [Permission.StaffRead] },
-  {
-    path: "/payments",
-    title: "Point Of Sale",
-    protected: true,
-    requiredPermissions: [Permission.PaymentRead]
-  },
-  { path: "/plans", title: "Plans", protected: true, requiredPermissions: [Permission.PlanRead] },
+  { path: "/", title: "Dashboard", protected: true, requiredPermissions: [Permission.GymRead] },
   {
     path: "/locations",
     title: "Locations",
     protected: true,
     requiredPermissions: [Permission.LocationRead]
+  },
+  {
+    path: "/consumers",
+    title: "Consumers",
+    protected: true,
+    requiredPermissions: [Permission.MemberRead]
   },
   {
     path: "/members",
@@ -62,31 +54,20 @@ export const dashboardRoutes: DashboardRoute[] = [
     requiredPermissions: [Permission.ClassRead]
   },
   {
-    path: "/bookings",
-    title: "Bookings",
+    path: "/check-ins",
+    title: "Check-Ins",
     protected: true,
-    requiredPermissions: [Permission.BookingRead]
+    requiredPermissions: [Permission.MemberWrite]
   },
-  { path: "/training", title: "Training", protected: true, requiredPermissions: [Permission.ClassRead] },
   {
     path: "/access-control",
-    title: "Access",
+    title: "Access Control",
     protected: true,
     requiredPermissions: [Permission.AccessRead]
   },
-  { path: "/contracts", title: "Forms", protected: true, requiredPermissions: [Permission.GymRead] },
-  { path: "/portal", title: "Portal", protected: true, requiredPermissions: [Permission.GymRead] },
-  { path: "/marketing", title: "Marketing", protected: true, requiredPermissions: [Permission.GymRead] },
-  {
-    path: "/growth",
-    title: "Growth",
-    protected: true,
-    requiredPermissions: [Permission.GrowthRead],
-    navigation: false
-  },
   {
     path: "/reports",
-    title: "Reporting",
+    title: "Reports",
     protected: true,
     requiredPermissions: [Permission.ReportRead]
   },
@@ -95,12 +76,6 @@ export const dashboardRoutes: DashboardRoute[] = [
     title: "Settings",
     protected: true,
     requiredPermissions: [Permission.GymUpdate]
-  },
-  {
-    path: "/check-ins",
-    title: "Check In",
-    protected: true,
-    requiredPermissions: [Permission.MemberWrite]
   }
 ];
 

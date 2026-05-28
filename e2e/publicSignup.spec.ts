@@ -47,8 +47,7 @@ test.describe("Public Signup", () => {
       }
     });
     expect(planRes.status()).toBe(200);
-    const planBody = await planRes.json() as { plan?: { id: string }; id?: string };
-    const plan = planBody.plan ?? planBody as { id: string };
+    const { plan } = await planRes.json() as { plan: { id: string } };
 
     // Perform public signup
     const suffix = Date.now().toString();

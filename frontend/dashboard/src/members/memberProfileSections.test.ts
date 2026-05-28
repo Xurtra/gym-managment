@@ -1,4 +1,4 @@
-import { ConsumerRecordStatus, MemberStatus } from "@gym-platform/constants";
+import { MemberStatus } from "@gym-platform/constants";
 import { describe, expect, it } from "vitest";
 import {
   buildMemberContactInformationSection,
@@ -15,7 +15,6 @@ const completeMember: MemberView = {
   email: "jamie@example.com",
   phone: "555-0101",
   status: MemberStatus.Active,
-  recordStatus: ConsumerRecordStatus.Active,
   emergencyContact: {
     name: "Avery Rivera",
     phone: "555-0199",

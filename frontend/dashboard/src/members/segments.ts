@@ -12,7 +12,7 @@ export function consumerSegments(member: MemberView): ConsumerSegment[] {
   if (member.isCustomer) {
     segments.push(ConsumerSegment.Customer);
   }
-  if (member.isMember) {
+  if (member.isMember || member.status === MemberStatus.Active || member.status === MemberStatus.Trial) {
     segments.push(ConsumerSegment.Member);
   }
   return segments;

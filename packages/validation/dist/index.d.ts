@@ -1577,19 +1577,17 @@ export declare const customRoleCreateSchema: z.ZodObject<{
         readonly SchedulePublish: "schedule:publish";
         readonly ScheduleRequestsManage: "schedule:requests_manage";
         readonly ScheduleAutoResolve: "schedule:auto_resolve";
-        readonly GrowthRead: "growth:read";
-        readonly GrowthWrite: "growth:write";
         readonly PlatformAdmin: "platform:admin";
     }>, "many">;
     createsReservableResource: z.ZodDefault<z.ZodBoolean>;
 }, "strip", z.ZodTypeAny, {
     name: string;
-    permissions: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:directory_view" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "growth:read" | "growth:write" | "platform:admin")[];
+    permissions: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:directory_view" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "platform:admin")[];
     createsReservableResource: boolean;
     parentRoleId?: string | undefined;
 }, {
     name: string;
-    permissions: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:directory_view" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "growth:read" | "growth:write" | "platform:admin")[];
+    permissions: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:directory_view" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "platform:admin")[];
     parentRoleId?: string | undefined;
     createsReservableResource?: boolean | undefined;
 }>;
@@ -1626,30 +1624,28 @@ export declare const customRoleUpdateSchema: z.ZodEffects<z.ZodObject<{
         readonly SchedulePublish: "schedule:publish";
         readonly ScheduleRequestsManage: "schedule:requests_manage";
         readonly ScheduleAutoResolve: "schedule:auto_resolve";
-        readonly GrowthRead: "growth:read";
-        readonly GrowthWrite: "growth:write";
         readonly PlatformAdmin: "platform:admin";
     }>, "many">>;
     createsReservableResource: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
 }, "strip", z.ZodTypeAny, {
     name?: string | undefined;
     parentRoleId?: string | undefined;
-    permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:directory_view" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "growth:read" | "growth:write" | "platform:admin")[] | undefined;
+    permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:directory_view" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "platform:admin")[] | undefined;
     createsReservableResource?: boolean | undefined;
 }, {
     name?: string | undefined;
     parentRoleId?: string | undefined;
-    permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:directory_view" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "growth:read" | "growth:write" | "platform:admin")[] | undefined;
+    permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:directory_view" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "platform:admin")[] | undefined;
     createsReservableResource?: boolean | undefined;
 }>, {
     name?: string | undefined;
     parentRoleId?: string | undefined;
-    permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:directory_view" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "growth:read" | "growth:write" | "platform:admin")[] | undefined;
+    permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:directory_view" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "platform:admin")[] | undefined;
     createsReservableResource?: boolean | undefined;
 }, {
     name?: string | undefined;
     parentRoleId?: string | undefined;
-    permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:directory_view" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "growth:read" | "growth:write" | "platform:admin")[] | undefined;
+    permissions?: ("gym:read" | "gym:update" | "location:read" | "location:create" | "location:update" | "location:archive" | "staff:directory_view" | "staff:read" | "staff:invite" | "staff:role_assign" | "staff:remove" | "member:read" | "member:write" | "plan:read" | "plan:write" | "class:read" | "class:write" | "booking:read" | "booking:write" | "access:read" | "access:write" | "payment:read" | "payment:write" | "report:read" | "schedule:read" | "schedule:create" | "schedule:publish" | "schedule:requests_manage" | "schedule:auto_resolve" | "platform:admin")[] | undefined;
     createsReservableResource?: boolean | undefined;
 }>;
 export declare const staffAccessRemoveSchema: z.ZodObject<{
@@ -3691,8 +3687,6 @@ export declare const permissionSchema: z.ZodNativeEnum<{
     readonly SchedulePublish: "schedule:publish";
     readonly ScheduleRequestsManage: "schedule:requests_manage";
     readonly ScheduleAutoResolve: "schedule:auto_resolve";
-    readonly GrowthRead: "growth:read";
-    readonly GrowthWrite: "growth:write";
     readonly PlatformAdmin: "platform:admin";
 }>;
 export declare const roleNameSchema: z.ZodNativeEnum<{
@@ -3703,188 +3697,6 @@ export declare const roleNameSchema: z.ZodNativeEnum<{
     readonly Sales: "sales";
     readonly Accountant: "accountant";
     readonly Member: "member";
-}>;
-export declare const leadCrmUpdateSchema: z.ZodEffects<z.ZodObject<{
-    leadSource: z.ZodOptional<z.ZodNativeEnum<{
-        readonly WalkIn: "walk_in";
-        readonly Referral: "referral";
-        readonly Website: "website";
-        readonly SocialMedia: "social_media";
-        readonly CsvImport: "csv_import";
-        readonly Other: "other";
-    }>>;
-    interestLevel: z.ZodOptional<z.ZodNativeEnum<{
-        readonly Low: "low";
-        readonly Medium: "medium";
-        readonly High: "high";
-    }>>;
-    assignedStaffId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-    nextFollowUpAt: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-    consentEmail: z.ZodOptional<z.ZodBoolean>;
-    consentSms: z.ZodOptional<z.ZodBoolean>;
-    consentPhone: z.ZodOptional<z.ZodBoolean>;
-    contactPreference: z.ZodOptional<z.ZodNullable<z.ZodNativeEnum<{
-        readonly Email: "email";
-        readonly Sms: "sms";
-        readonly Phone: "phone";
-        readonly Any: "any";
-    }>>>;
-    retentionFlag: z.ZodOptional<z.ZodNullable<z.ZodNativeEnum<{
-        readonly AtRisk: "at_risk";
-        readonly Lapsed: "lapsed";
-        readonly Churned: "churned";
-    }>>>;
-}, "strip", z.ZodTypeAny, {
-    leadSource?: "website" | "walk_in" | "referral" | "social_media" | "csv_import" | "other" | undefined;
-    interestLevel?: "low" | "medium" | "high" | undefined;
-    assignedStaffId?: string | null | undefined;
-    nextFollowUpAt?: string | null | undefined;
-    consentEmail?: boolean | undefined;
-    consentSms?: boolean | undefined;
-    consentPhone?: boolean | undefined;
-    contactPreference?: "email" | "phone" | "sms" | "any" | null | undefined;
-    retentionFlag?: "at_risk" | "lapsed" | "churned" | null | undefined;
-}, {
-    leadSource?: "website" | "walk_in" | "referral" | "social_media" | "csv_import" | "other" | undefined;
-    interestLevel?: "low" | "medium" | "high" | undefined;
-    assignedStaffId?: string | null | undefined;
-    nextFollowUpAt?: string | null | undefined;
-    consentEmail?: boolean | undefined;
-    consentSms?: boolean | undefined;
-    consentPhone?: boolean | undefined;
-    contactPreference?: "email" | "phone" | "sms" | "any" | null | undefined;
-    retentionFlag?: "at_risk" | "lapsed" | "churned" | null | undefined;
-}>, {
-    leadSource?: "website" | "walk_in" | "referral" | "social_media" | "csv_import" | "other" | undefined;
-    interestLevel?: "low" | "medium" | "high" | undefined;
-    assignedStaffId?: string | null | undefined;
-    nextFollowUpAt?: string | null | undefined;
-    consentEmail?: boolean | undefined;
-    consentSms?: boolean | undefined;
-    consentPhone?: boolean | undefined;
-    contactPreference?: "email" | "phone" | "sms" | "any" | null | undefined;
-    retentionFlag?: "at_risk" | "lapsed" | "churned" | null | undefined;
-}, {
-    leadSource?: "website" | "walk_in" | "referral" | "social_media" | "csv_import" | "other" | undefined;
-    interestLevel?: "low" | "medium" | "high" | undefined;
-    assignedStaffId?: string | null | undefined;
-    nextFollowUpAt?: string | null | undefined;
-    consentEmail?: boolean | undefined;
-    consentSms?: boolean | undefined;
-    consentPhone?: boolean | undefined;
-    contactPreference?: "email" | "phone" | "sms" | "any" | null | undefined;
-    retentionFlag?: "at_risk" | "lapsed" | "churned" | null | undefined;
-}>;
-export declare const interactionCreateSchema: z.ZodObject<{
-    type: z.ZodNativeEnum<{
-        readonly Call: "call";
-        readonly Sms: "sms";
-        readonly Email: "email";
-        readonly Note: "note";
-    }>;
-    notes: z.ZodOptional<z.ZodString>;
-    occurredAt: z.ZodOptional<z.ZodString>;
-}, "strip", z.ZodTypeAny, {
-    type: "email" | "note" | "call" | "sms";
-    notes?: string | undefined;
-    occurredAt?: string | undefined;
-}, {
-    type: "email" | "note" | "call" | "sms";
-    notes?: string | undefined;
-    occurredAt?: string | undefined;
-}>;
-export declare const leadImportRowSchema: z.ZodObject<{
-    firstName: z.ZodString;
-    lastName: z.ZodString;
-    email: z.ZodOptional<z.ZodEffects<z.ZodString, string, string>>;
-    phone: z.ZodOptional<z.ZodString>;
-    leadSource: z.ZodOptional<z.ZodNativeEnum<{
-        readonly WalkIn: "walk_in";
-        readonly Referral: "referral";
-        readonly Website: "website";
-        readonly SocialMedia: "social_media";
-        readonly CsvImport: "csv_import";
-        readonly Other: "other";
-    }>>;
-    notes: z.ZodOptional<z.ZodString>;
-    tagNames: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
-}, "strip", z.ZodTypeAny, {
-    firstName: string;
-    lastName: string;
-    tagNames: string[];
-    notes?: string | undefined;
-    email?: string | undefined;
-    phone?: string | undefined;
-    leadSource?: "website" | "walk_in" | "referral" | "social_media" | "csv_import" | "other" | undefined;
-}, {
-    firstName: string;
-    lastName: string;
-    notes?: string | undefined;
-    email?: string | undefined;
-    phone?: string | undefined;
-    tagNames?: string[] | undefined;
-    leadSource?: "website" | "walk_in" | "referral" | "social_media" | "csv_import" | "other" | undefined;
-}>;
-export declare const leadImportSchema: z.ZodObject<{
-    rows: z.ZodArray<z.ZodObject<{
-        firstName: z.ZodString;
-        lastName: z.ZodString;
-        email: z.ZodOptional<z.ZodEffects<z.ZodString, string, string>>;
-        phone: z.ZodOptional<z.ZodString>;
-        leadSource: z.ZodOptional<z.ZodNativeEnum<{
-            readonly WalkIn: "walk_in";
-            readonly Referral: "referral";
-            readonly Website: "website";
-            readonly SocialMedia: "social_media";
-            readonly CsvImport: "csv_import";
-            readonly Other: "other";
-        }>>;
-        notes: z.ZodOptional<z.ZodString>;
-        tagNames: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
-    }, "strip", z.ZodTypeAny, {
-        firstName: string;
-        lastName: string;
-        tagNames: string[];
-        notes?: string | undefined;
-        email?: string | undefined;
-        phone?: string | undefined;
-        leadSource?: "website" | "walk_in" | "referral" | "social_media" | "csv_import" | "other" | undefined;
-    }, {
-        firstName: string;
-        lastName: string;
-        notes?: string | undefined;
-        email?: string | undefined;
-        phone?: string | undefined;
-        tagNames?: string[] | undefined;
-        leadSource?: "website" | "walk_in" | "referral" | "social_media" | "csv_import" | "other" | undefined;
-    }>, "many">;
-}, "strip", z.ZodTypeAny, {
-    rows: {
-        firstName: string;
-        lastName: string;
-        tagNames: string[];
-        notes?: string | undefined;
-        email?: string | undefined;
-        phone?: string | undefined;
-        leadSource?: "website" | "walk_in" | "referral" | "social_media" | "csv_import" | "other" | undefined;
-    }[];
-}, {
-    rows: {
-        firstName: string;
-        lastName: string;
-        notes?: string | undefined;
-        email?: string | undefined;
-        phone?: string | undefined;
-        tagNames?: string[] | undefined;
-        leadSource?: "website" | "walk_in" | "referral" | "social_media" | "csv_import" | "other" | undefined;
-    }[];
-}>;
-export declare const leadConvertSchema: z.ZodObject<{
-    planId: z.ZodOptional<z.ZodString>;
-}, "strip", z.ZodTypeAny, {
-    planId?: string | undefined;
-}, {
-    planId?: string | undefined;
 }>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
@@ -3949,9 +3761,4 @@ export type AccessDeviceCreateInput = z.input<typeof accessDeviceCreateSchema>;
 export type AccessRuleCreateInput = z.input<typeof accessRuleCreateSchema>;
 export type AccessDeviceEventInput = z.input<typeof accessDeviceEventSchema>;
 export type AccessDeviceHeartbeatInput = z.input<typeof accessDeviceHeartbeatSchema>;
-export type LeadCrmUpdateInput = z.infer<typeof leadCrmUpdateSchema>;
-export type InteractionCreateInput = z.infer<typeof interactionCreateSchema>;
-export type LeadImportRowInput = z.infer<typeof leadImportRowSchema>;
-export type LeadImportInput = z.infer<typeof leadImportSchema>;
-export type LeadConvertInput = z.infer<typeof leadConvertSchema>;
 //# sourceMappingURL=index.d.ts.map

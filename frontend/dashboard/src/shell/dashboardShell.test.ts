@@ -31,21 +31,22 @@ describe("dashboard shell", () => {
       ]
     });
 
-    expect(groups.map((group) => group.key)).toEqual(["tabs"]);
-    expect(groups.map((group) => group.itemCount)).toEqual([10]);
-    expect(groups.find((group) => group.key === "tabs")?.active).toBe(true);
-    expect(groups.find((group) => group.key === "tabs")?.items.map((item) => item.href)).toEqual([
-      "/",
+    expect(groups.map((group) => group.key)).toEqual([
+      "workspace",
+      "people",
+      "classes",
+      "operations"
+    ]);
+    expect(groups.map((group) => group.itemCount)).toEqual([2, 2, 1, 1]);
+    expect(groups.find((group) => group.key === "people")?.active).toBe(true);
+    expect(groups.find((group) => group.key === "workspace")?.active).toBe(false);
+    expect(groups.find((group) => group.key === "people")?.items.map((item) => item.href)).toEqual([
       "/consumers",
-      "/locations",
-      "/classes",
-      "/training",
-      "/access-control",
-      "/contracts",
-      "/portal",
-      "/marketing",
       "/check-ins"
     ]);
+    expect(
+      groups.find((group) => group.key === "operations")?.items.map((item) => item.href)
+    ).toEqual(["/access-control"]);
   });
 
   it("builds shell layout with sidebar, top bar, content region, and account menu", () => {
@@ -74,15 +75,12 @@ describe("dashboard shell", () => {
 
     expect(shell.screen).toBe("dashboard_shell");
     expect(shell.sidebar.collapsed).toBe(true);
-    expect(shell.sidebar.groupCount).toBe(1);
-    expect(shell.sidebar.itemCount).toBe(5);
-    expect(shell.sidebar.activeGroupKey).toBe("tabs");
+    expect(shell.sidebar.groupCount).toBe(2);
+    expect(shell.sidebar.itemCount).toBe(2);
+    expect(shell.sidebar.activeGroupKey).toBe("people");
     expect(shell.sidebar.groups.flatMap((group) => group.items).map((item) => item.href)).toEqual([
       "/",
-      "/consumers",
-      "/contracts",
-      "/portal",
-      "/marketing"
+      "/consumers"
     ]);
     expect(shell.topBar.title).toBe("Consumers");
     expect(shell.topBar.searchResultCount).toBe(1);
@@ -99,7 +97,7 @@ describe("dashboard shell", () => {
       "Dashboard",
       "Consumers"
     ]);
-    expect(shell.mobileNavigation.itemCount).toBe(5);
+    expect(shell.mobileNavigation.itemCount).toBe(2);
     expect(shell.mobileMenuAction.icon).toBe("menu");
   });
 
@@ -303,20 +301,20 @@ describe("dashboard shell", () => {
 
     expect(mobileNavigation.open).toBe(true);
     expect(mobileNavigation.activePath).toBe("/check-ins");
-    expect(mobileNavigation.groupCount).toBe(1);
-    expect(mobileNavigation.activeGroupKey).toBe("tabs");
-    expect(mobileNavigation.summaryLabel).toBe("7 mobile navigation items");
+    expect(mobileNavigation.groupCount).toBe(2);
+    expect(mobileNavigation.activeGroupKey).toBe("people");
+    expect(mobileNavigation.summaryLabel).toBe("4 mobile navigation items");
     expect(mobileNavigation.toggleAction.icon).toBe("menu");
     expect(mobileNavigation.toggleAction.label).toBe("Menu");
     expect(mobileNavigation.closeAction.icon).toBe("x");
     expect(mobileNavigation.closeAction.label).toBe("Close");
-    expect(mobileNavigation.groups.map((group) => group.key)).toEqual(["tabs"]);
+    expect(mobileNavigation.groups.map((group) => group.key)).toEqual(["workspace", "people"]);
     expect(
       mobileNavigation.groups
-        .find((group) => group.key === "tabs")
+        .find((group) => group.key === "people")
       ?.items.map((item) => item.href)
-    ).toEqual(["/", "/consumers", "/locations", "/contracts", "/portal", "/marketing", "/check-ins"]);
-    expect(mobileNavigation.itemCount).toBe(7);
+    ).toEqual(["/consumers", "/check-ins"]);
+    expect(mobileNavigation.itemCount).toBe(4);
   });
 
   it("builds reusable data table sorting and pagination state", () => {

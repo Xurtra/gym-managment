@@ -39,8 +39,6 @@ export interface DashboardSidebarModel {
 export interface DashboardTopBarModel {
   title: string;
   gymName?: string;
-  gymSlug?: string;
-  gymLogoUrl?: string;
   searchResultCount: number;
   globalSearch: GlobalGymSearchModel;
   accountMenu: AccountMenuModel;

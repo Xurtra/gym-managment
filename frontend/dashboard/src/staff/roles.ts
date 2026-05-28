@@ -199,8 +199,6 @@ const permissionLabels: Record<PermissionValue, string> = {
   [Permission.SchedulePublish]: "Publish schedules",
   [Permission.ScheduleRequestsManage]: "Manage schedule requests",
   [Permission.ScheduleAutoResolve]: "Auto-resolve requests",
-  [Permission.GrowthRead]: "View growth",
-  [Permission.GrowthWrite]: "Manage growth",
   [Permission.PlatformAdmin]: "Platform admin"
 };
 
@@ -265,11 +263,6 @@ const permissionGroups: Array<{
       Permission.ScheduleRequestsManage,
       Permission.ScheduleAutoResolve
     ]
-  },
-  {
-    key: "growth",
-    label: "Growth",
-    permissions: [Permission.GrowthRead, Permission.GrowthWrite]
   },
   {
     key: "operations",

@@ -1,8 +1,3 @@
-@import "tailwindcss";
-@config "../tailwind.config.ts";
-@source ".";
-@source "../../../packages/ui-react/src";
-
 :root {
   color-scheme: light;
   --ink: #0f172a;
@@ -57,22 +52,6 @@ button,
 input,
 select {
   font: inherit;
-}
-
-[hidden] {
-  display: none !important;
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
 }
 
 .shell {
@@ -522,7 +501,6 @@ button,
   align-items: center;
   justify-content: center;
   text-align: center;
-  text-decoration: none;
 }
 
 button:disabled {
@@ -2409,7 +2387,6 @@ html[data-theme="dark"] .empty-state {
   gap: 10px 12px;
   align-items: center;
   text-align: left;
-  text-decoration: none;
 }
 
 .club-customer-card strong {
