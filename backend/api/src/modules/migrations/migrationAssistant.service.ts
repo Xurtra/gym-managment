@@ -1140,7 +1140,7 @@ async function parseXlsxMigrationRows(fileName: string, bytes: Buffer): Promise<
     throw badRequest(`${fileName} does not contain a worksheet.`, "migration_xlsx_empty");
   }
   const rows: string[][] = [];
-  worksheet.eachRow({ includeEmpty: false }, (row) => {
+  worksheet.eachRow({ includeEmpty: false }, (row: ExcelJS.Row) => {
     const values = Array.isArray(row.values) ? row.values.slice(1).map(cellToString) : [];
     if (values.some(Boolean)) {
       rows.push(values);

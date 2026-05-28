@@ -18,6 +18,8 @@ import type {
   MigrationBatch,
   MigrationColumnMapping,
   MigrationFile,
+  MigrationPlanMapping,
+  MigrationStagedMembershipPlan,
   MigrationStagedMember,
   MigrationValidationError,
   NotificationEvent,
@@ -150,6 +152,43 @@ export interface MembershipPlanRepository {
   getMembershipPlan(planId: string): RepositoryResult<MembershipPlan | undefined>;
   listMembershipPlansForGym(gymId: string): RepositoryResult<MembershipPlan[]>;
   updateMembershipPlan(plan: MembershipPlan): RepositoryResult<MembershipPlan>;
+}
+
+export interface MigrationRepository {
+  createBatch(batch: MigrationBatch): RepositoryResult<MigrationBatch>;
+  getBatch(batchId: string): RepositoryResult<MigrationBatch | undefined>;
+  listBatchesForGym(gymId: string): RepositoryResult<MigrationBatch[]>;
+  updateBatch(batch: MigrationBatch): RepositoryResult<MigrationBatch>;
+  createFile(file: MigrationFile): RepositoryResult<MigrationFile>;
+  getFile(fileId: string): RepositoryResult<MigrationFile | undefined>;
+  listFilesForBatch(batchId: string): RepositoryResult<MigrationFile[]>;
+  updateFile(file: MigrationFile): RepositoryResult<MigrationFile>;
+  replaceColumnMappings(
+    batchId: string,
+    fileId: string,
+    mappings: MigrationColumnMapping[]
+  ): RepositoryResult<MigrationColumnMapping[]>;
+  listColumnMappingsForFile(fileId: string): RepositoryResult<MigrationColumnMapping[]>;
+  replaceStagedMembershipPlans(
+    batchId: string,
+    fileId: string,
+    plans: MigrationStagedMembershipPlan[]
+  ): RepositoryResult<MigrationStagedMembershipPlan[]>;
+  listStagedMembershipPlansForBatch(batchId: string): RepositoryResult<MigrationStagedMembershipPlan[]>;
+  updateStagedMembershipPlan(plan: MigrationStagedMembershipPlan): RepositoryResult<MigrationStagedMembershipPlan>;
+  replacePlanMappings(
+    batchId: string,
+    mappings: MigrationPlanMapping[]
+  ): RepositoryResult<MigrationPlanMapping[]>;
+  listPlanMappingsForBatch(batchId: string): RepositoryResult<MigrationPlanMapping[]>;
+  updatePlanMapping(mapping: MigrationPlanMapping): RepositoryResult<MigrationPlanMapping>;
+  replaceValidationErrorsForBatch(
+    batchId: string,
+    errors: MigrationValidationError[]
+  ): RepositoryResult<MigrationValidationError[]>;
+  listValidationErrorsForBatch(batchId: string): RepositoryResult<MigrationValidationError[]>;
+  createAuditLog(entry: MigrationAuditLog): RepositoryResult<MigrationAuditLog>;
+  listAuditLogsForBatch(batchId: string): RepositoryResult<MigrationAuditLog[]>;
 }
 
 export interface MemberMembershipRepository {
@@ -306,6 +345,7 @@ export interface Repositories {
   members: MemberRepository;
   crmActivities: CrmActivityRepository;
   membershipPlans: MembershipPlanRepository;
+  migrations: MigrationRepository;
   memberMemberships: MemberMembershipRepository;
   migrationBatches: MigrationBatchRepository;
   migrationFiles: MigrationFileRepository;

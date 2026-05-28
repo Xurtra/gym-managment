@@ -1808,7 +1808,7 @@ describe("staff invite dashboard flow", () => {
     expect(trainerView.visibleRouteCount).toBe(4);
     expect(trainerView.hiddenRoutes).toContain("/check-ins");
     expect(trainerView.hiddenRoutes).toContain("/settings");
-    expect(trainerView.hiddenRouteCount).toBe(4);
+    expect(trainerView.hiddenRouteCount).toBe(5);
     expect(trainerView.summaryLabel).toBe("4 dashboard routes available");
     expect(trainerView.navItems.map((item) => item.label)).toEqual([
       "Dashboard",
@@ -1851,7 +1851,7 @@ describe("staff invite dashboard flow", () => {
     expect(frontDeskView.visibleRouteCount).toBe(6);
     expect(frontDeskView.hiddenRoutes).toContain("/reports");
     expect(frontDeskView.hiddenRoutes).toContain("/settings");
-    expect(frontDeskView.hiddenRouteCount).toBe(2);
+    expect(frontDeskView.hiddenRouteCount).toBe(3);
     expect(frontDeskView.summaryLabel).toBe("6 dashboard routes available");
     expect(frontDeskView.navItems.map((item) => item.label)).toEqual([
       "Dashboard",

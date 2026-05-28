@@ -24,12 +24,16 @@ import type {
   MemberCreateInput,
   MemberMembershipAssignInput,
   MemberUpdateInput,
+  MigrationColumnMappingSaveInput,
+  MigrationFileUploadInput,
+  MigrationPlanMappingApproveInput,
+  MigrationStagedPlansApproveInput,
+  MigrationStagedPlanUpdateInput,
   MembershipPlanCreateInput,
   MembershipPlanUpdateInput,
   MigrationBatchCreateInput,
   MigrationColumnMappingsUpdateInput,
   MigrationFileTypeOverrideInput,
-  MigrationFileUploadInput,
   MigrationStagedMemberBulkApproveInput,
   MigrationStagedMemberUpdateInput,
   MigrationMemberCsvAiMapInput,
@@ -571,6 +575,92 @@ export class GymApiClient {
 
   archiveMembershipPlan(gymId: string, planId: string) {
     return this.request("DELETE", `/gyms/${gymId}/membership-plans/${planId}`);
+  }
+
+  createMigrationPlanBatch(gymId: string) {
+    return this.request("POST", `/gyms/${gymId}/migrations/batches`, {});
+  }
+
+  listMigrationPlanBatches(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/migrations/batches`);
+  }
+
+  getMigrationPlanBatch(gymId: string, batchId: string) {
+    return this.request("GET", `/gyms/${gymId}/migrations/batches/${batchId}`);
+  }
+
+  uploadMigrationPlanFile(gymId: string, batchId: string, input: MigrationFileUploadInput) {
+    return this.request("POST", `/gyms/${gymId}/migrations/batches/${batchId}/files`, input);
+  }
+
+  deleteMigrationPlanFile(gymId: string, batchId: string, fileId: string) {
+    return this.request("DELETE", `/gyms/${gymId}/migrations/batches/${batchId}/files/${fileId}`);
+  }
+
+  generateMigrationColumnMappings(gymId: string, batchId: string, fileId: string) {
+    return this.request(
+      "POST",
+      `/gyms/${gymId}/migrations/batches/${batchId}/files/${fileId}/column-mappings/generate`,
+      {}
+    );
+  }
+
+  approveMigrationColumnMappings(
+    gymId: string,
+    batchId: string,
+    fileId: string,
+    input: MigrationColumnMappingSaveInput
+  ) {
+    return this.request(
+      "POST",
+      `/gyms/${gymId}/migrations/batches/${batchId}/files/${fileId}/column-mappings`,
+      input
+    );
+  }
+
+  stageMigrationMembershipPlans(gymId: string, batchId: string, fileId: string) {
+    return this.request(
+      "POST",
+      `/gyms/${gymId}/migrations/batches/${batchId}/files/${fileId}/stage-membership-plans`,
+      {}
+    );
+  }
+
+  generateMigrationPlanMappings(gymId: string, batchId: string) {
+    return this.request("POST", `/gyms/${gymId}/migrations/batches/${batchId}/plan-mappings/generate`, {});
+  }
+
+  approveMigrationPlanMappings(
+    gymId: string,
+    batchId: string,
+    input: MigrationPlanMappingApproveInput
+  ) {
+    return this.request("POST", `/gyms/${gymId}/migrations/batches/${batchId}/plan-mappings/approve`, input);
+  }
+
+  updateMigrationStagedPlan(
+    gymId: string,
+    batchId: string,
+    stagedPlanId: string,
+    input: MigrationStagedPlanUpdateInput
+  ) {
+    return this.request(
+      "PATCH",
+      `/gyms/${gymId}/migrations/batches/${batchId}/staged-membership-plans/${stagedPlanId}`,
+      input
+    );
+  }
+
+  approveMigrationStagedPlans(
+    gymId: string,
+    batchId: string,
+    input: MigrationStagedPlansApproveInput
+  ) {
+    return this.request(
+      "POST",
+      `/gyms/${gymId}/migrations/batches/${batchId}/staged-membership-plans/approve`,
+      input
+    );
   }
 
   listClassTypes(gymId: string) {

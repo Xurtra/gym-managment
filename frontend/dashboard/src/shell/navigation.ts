@@ -44,6 +44,6 @@ const navigationGroups = [
   {
     key: "operations",
     label: "Operations",
-    paths: ["/access-control", "/reports", "/settings"]
+    paths: ["/access-control", "/migration", "/reports", "/settings"]
   }
 ] as const;

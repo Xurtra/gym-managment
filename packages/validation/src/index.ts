@@ -588,6 +588,75 @@ export const memberMembershipAssignSchema = z
     "Membership end date must be after start date."
   );
 
+export const migrationPlanTypeSchema = z.enum([
+  "Monthly Membership",
+  "Annual Membership",
+  "Class Pack",
+  "Personal Training Package",
+  "Drop-In",
+  "Trial",
+  "Family Add-On",
+  "Student/Discounted Plan",
+  "Legacy Plan",
+  "Free/Comped Plan",
+  "Unknown"
+]);
+
+export const migrationColumnMappingSaveSchema = z.object({
+  mappings: z
+    .array(
+      z.object({
+        sourceColumn: trimmed.min(1).max(180),
+        targetField: z.enum([
+          "ignore",
+          "plan_name",
+          "plan_type",
+          "price",
+          "billing_frequency",
+          "contract_length",
+          "class_limit",
+          "session_limit",
+          "active",
+          "notes"
+        ]),
+        confidence: z.number().min(0).max(1).default(1)
+      })
+    )
+    .min(1)
+    .max(200)
+});
+
+export const migrationPlanMappingApproveSchema = z.object({
+  mappings: z
+    .array(
+      z.object({
+        mappingId: id.optional(),
+        oldPlanName: trimmed.min(1).max(180),
+        finalPlanType: migrationPlanTypeSchema
+      })
+    )
+    .min(1)
+    .max(500)
+});
+
+export const migrationStagedPlanUpdateSchema = z.object({
+  planName: trimmed.max(180).optional(),
+  planType: migrationPlanTypeSchema.optional(),
+  price: z.number().nonnegative().optional(),
+  billingFrequency: trimmed.max(80).optional(),
+  contractLength: z.number().int().nonnegative().optional(),
+  classLimit: z.number().int().nonnegative().optional(),
+  sessionLimit: z.number().int().nonnegative().optional(),
+  active: z.boolean().optional(),
+  notes: trimmed.max(1000).optional(),
+  skipped: z.boolean().optional()
+});
+
+export const migrationStagedPlansApproveSchema = z.object({
+  stagedPlanIds: z.array(id).max(1000).optional(),
+  approveAllReady: z.boolean().default(false)
+});
+
 export const classTypeCreateSchema = z.object({
   name: trimmed.min(1).max(120),
   description: trimmed.max(1000).optional(),
@@ -852,6 +921,10 @@ export type MemberUpdateInput = z.input<typeof memberUpdateSchema>;
 export type MembershipPlanCreateInput = z.infer<typeof membershipPlanCreateSchema>;
 export type MembershipPlanUpdateInput = z.infer<typeof membershipPlanUpdateSchema>;
 export type MemberMembershipAssignInput = z.infer<typeof memberMembershipAssignSchema>;
+export type MigrationColumnMappingSaveInput = z.infer<typeof migrationColumnMappingSaveSchema>;
+export type MigrationPlanMappingApproveInput = z.infer<typeof migrationPlanMappingApproveSchema>;
+export type MigrationStagedPlanUpdateInput = z.infer<typeof migrationStagedPlanUpdateSchema>;
+export type MigrationStagedPlansApproveInput = z.infer<typeof migrationStagedPlansApproveSchema>;
 export type ClassTypeCreateInput = z.infer<typeof classTypeCreateSchema>;
 export type ClassSessionCreateInput = z.input<typeof classSessionCreateSchema>;
 export type ClassBookingCreateInput = z.infer<typeof classBookingCreateSchema>;

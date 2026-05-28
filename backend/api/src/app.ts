@@ -35,6 +35,10 @@ import {
   migrationMemberCsvPreviewSchema,
   memberMembershipAssignSchema,
   memberUpdateSchema,
+  migrationColumnMappingSaveSchema,
+  migrationPlanMappingApproveSchema,
+  migrationStagedPlansApproveSchema,
+  migrationStagedPlanUpdateSchema,
   membershipPlanCreateSchema,
   membershipPlanUpdateSchema,
   logoutSchema,
@@ -97,6 +101,7 @@ import { MemberService } from "./modules/members/member.service.js";
 import { MembershipPlanService } from "./modules/membershipPlans/membershipPlan.service.js";
 import { MigrationAssistantService } from "./modules/migrations/migrationAssistant.service.js";
 import { MigrationImportService } from "./modules/migrations/migrationImport.service.js";
+import { MigrationPlanImportService } from "./modules/migrations/migrationPlanImport.service.js";
 import { PosService } from "./modules/pos/pos.service.js";
 import { PosStripeService } from "./modules/pos/posStripe.service.js";
 import { ReservationResourceService } from "./modules/reservations/reservationResource.service.js";
@@ -153,6 +158,7 @@ export interface Services {
   crmActivityService: CrmActivityService;
   memberMembershipService: MemberMembershipService;
   membershipPlanService: MembershipPlanService;
+  migrationPlanImportService: MigrationPlanImportService;
   posService: PosService;
   posStripeService: PosStripeService;
   reservationResourceService: ReservationResourceService;
@@ -194,6 +200,10 @@ export function createServices(
   const crmActivityService = new CrmActivityService(repositories, clock);
   const memberMembershipService = new MemberMembershipService(repositories, clock);
   const membershipPlanService = new MembershipPlanService(repositories, clock);
+  const migrationPlanImportService = new MigrationPlanImportService(repositories, clock, {
+    ...(config.openAiApiKey ? { apiKey: config.openAiApiKey } : {}),
+    ...(config.openAiMigrationModel ? { model: config.openAiMigrationModel } : {})
+  });
   const posService = new PosService(repositories, clock);
   const bootstrapServices = {} as Services;
   const reservationResourceService = new ReservationResourceService(repositories, clock);
@@ -217,6 +227,7 @@ export function createServices(
     crmActivityService,
     memberMembershipService,
     membershipPlanService,
+    migrationPlanImportService,
     posService,
     posStripeService: undefined as unknown as PosStripeService,
     reservationResourceService,
@@ -238,6 +249,7 @@ export function createServices(
   bootstrapServices.crmActivityService = services.crmActivityService;
   bootstrapServices.memberMembershipService = services.memberMembershipService;
   bootstrapServices.membershipPlanService = services.membershipPlanService;
+  bootstrapServices.migrationPlanImportService = services.migrationPlanImportService;
   bootstrapServices.posService = services.posService;
   bootstrapServices.reservationResourceService = services.reservationResourceService;
   bootstrapServices.classScheduleService = services.classScheduleService;
@@ -1667,6 +1679,156 @@ function createRoutes() {
     await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
     await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PlanWrite);
     return context.services.membershipPlanService.archive(gymId, requiredParam(context, "planId"));
+  });
+
+  add("POST", "/gyms/:gymId/migrations/batches", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PlanWrite);
+    return context.services.migrationPlanImportService.createBatch(gymId, auth.sub);
+  });
+
+  add("GET", "/gyms/:gymId/migrations/batches", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PlanRead);
+    return context.services.migrationPlanImportService.listBatches(gymId);
+  });
+
+  add("GET", "/gyms/:gymId/migrations/batches/:batchId", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PlanRead);
+    return context.services.migrationPlanImportService.getBatchState(
+      gymId,
+      requiredParam(context, "batchId")
+    );
+  });
+
+  add("POST", "/gyms/:gymId/migrations/batches/:batchId/files", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PlanWrite);
+    const input = parseWith(migrationFileUploadSchema, context.body);
+    return context.services.migrationPlanImportService.uploadFile(
+      gymId,
+      requiredParam(context, "batchId"),
+      auth.sub,
+      input
+    );
+  });
+
+  add("DELETE", "/gyms/:gymId/migrations/batches/:batchId/files/:fileId", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PlanWrite);
+    return context.services.migrationPlanImportService.deleteFile(
+      gymId,
+      requiredParam(context, "batchId"),
+      requiredParam(context, "fileId"),
+      auth.sub
+    );
+  });
+
+  add("POST", "/gyms/:gymId/migrations/batches/:batchId/files/:fileId/column-mappings/generate", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PlanWrite);
+    return context.services.migrationPlanImportService.generateColumnMappings(
+      gymId,
+      requiredParam(context, "batchId"),
+      requiredParam(context, "fileId"),
+      auth.sub
+    );
+  });
+
+  add("POST", "/gyms/:gymId/migrations/batches/:batchId/files/:fileId/column-mappings", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PlanWrite);
+    const input = parseWith(migrationColumnMappingSaveSchema, context.body);
+    return context.services.migrationPlanImportService.approveColumnMappings(
+      gymId,
+      requiredParam(context, "batchId"),
+      requiredParam(context, "fileId"),
+      auth.sub,
+      input
+    );
+  });
+
+  add("POST", "/gyms/:gymId/migrations/batches/:batchId/files/:fileId/stage-membership-plans", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PlanWrite);
+    return context.services.migrationPlanImportService.stageMembershipPlans(
+      gymId,
+      requiredParam(context, "batchId"),
+      requiredParam(context, "fileId"),
+      auth.sub
+    );
+  });
+
+  add("POST", "/gyms/:gymId/migrations/batches/:batchId/plan-mappings/generate", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PlanWrite);
+    return context.services.migrationPlanImportService.generatePlanMappings(
+      gymId,
+      requiredParam(context, "batchId"),
+      auth.sub
+    );
+  });
+
+  add("POST", "/gyms/:gymId/migrations/batches/:batchId/plan-mappings/approve", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PlanWrite);
+    const input = parseWith(migrationPlanMappingApproveSchema, context.body);
+    return context.services.migrationPlanImportService.approvePlanMappings(
+      gymId,
+      requiredParam(context, "batchId"),
+      auth.sub,
+      input
+    );
+  });
+
+  add("PATCH", "/gyms/:gymId/migrations/batches/:batchId/staged-membership-plans/:stagedPlanId", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PlanWrite);
+    const input = parseWith(migrationStagedPlanUpdateSchema, context.body);
+    return context.services.migrationPlanImportService.updateStagedPlan(
+      gymId,
+      requiredParam(context, "batchId"),
+      requiredParam(context, "stagedPlanId"),
+      auth.sub,
+      input
+    );
+  });
+
+  add("POST", "/gyms/:gymId/migrations/batches/:batchId/staged-membership-plans/approve", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.PlanWrite);
+    const input = parseWith(migrationStagedPlansApproveSchema, context.body ?? {});
+    return context.services.migrationPlanImportService.approveStagedPlans(
+      gymId,
+      requiredParam(context, "batchId"),
+      auth.sub,
+      input
+    );
   });
 
   add("GET", "/gyms/:gymId/class-types", async (context) => {

@@ -1,7 +1,7 @@
 CREATE TABLE migration_batches (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   gym_id uuid NOT NULL REFERENCES gyms(id) ON DELETE CASCADE,
-  status text NOT NULL CHECK (status IN ('draft', 'files_uploaded', 'detecting', 'ready_for_staging', 'approved', 'finalized', 'cancelled')),
+  status text NOT NULL CHECK (status IN ('draft', 'files_uploaded', 'detecting', 'ready_for_staging', 'mapped', 'staged', 'approved', 'finalized', 'cancelled')),
   created_by_user_id uuid NOT NULL REFERENCES users(id),
   approved_by_user_id uuid REFERENCES users(id),
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -25,7 +25,7 @@ CREATE TABLE migration_files (
   row_count integer NOT NULL DEFAULT 0,
   column_headers_json jsonb NOT NULL DEFAULT '[]'::jsonb,
   sample_rows_json jsonb NOT NULL DEFAULT '[]'::jsonb,
-  status text NOT NULL CHECK (status IN ('uploaded', 'detecting', 'needs_review', 'confirmed', 'deleted')),
+  status text NOT NULL CHECK (status IN ('uploaded', 'detecting', 'needs_review', 'confirmed', 'detected', 'mapped', 'staged', 'approved', 'deleted')),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -123,6 +123,7 @@ CREATE TABLE migration_staged_membership_plans (
   ai_confidence numeric(5,4),
   approved boolean NOT NULL DEFAULT false,
   imported_plan_id uuid REFERENCES membership_plans(id),
+  skipped boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );

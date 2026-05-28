@@ -5,6 +5,8 @@ dist/
 build/
 .next/
 uploads/
+.migration-uploads/
+backend/api/.uploads/
 
 
 # Python

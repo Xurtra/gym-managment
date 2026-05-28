@@ -108,6 +108,8 @@ export type MigrationBatchStatus =
   | "files_uploaded"
   | "detecting"
   | "ready_for_staging"
+  | "mapped"
+  | "staged"
   | "approved"
   | "finalized"
   | "cancelled";
@@ -127,7 +129,29 @@ export type MigrationFileStatus =
   | "detecting"
   | "needs_review"
   | "confirmed"
+  | "detected"
+  | "mapped"
+  | "staged"
+  | "approved"
   | "deleted";
+
+export type MigrationValidationStatus = "pending" | "ready" | "warning" | "critical" | "skipped";
+
+export type MigrationValidationSeverity = "info" | "warning" | "critical";
+export type MigrationValidationErrorSeverity = MigrationValidationSeverity;
+
+export type MigrationPlanType =
+  | "Monthly Membership"
+  | "Annual Membership"
+  | "Class Pack"
+  | "Personal Training Package"
+  | "Drop-In"
+  | "Trial"
+  | "Family Add-On"
+  | "Student/Discounted Plan"
+  | "Legacy Plan"
+  | "Free/Comped Plan"
+  | "Unknown";
 
 export interface MigrationFile {
   id: string;
@@ -199,12 +223,48 @@ export interface MigrationStagedMember {
   updatedAt: Date;
 }
 
-export type MigrationValidationErrorSeverity = "info" | "warning" | "critical";
+export interface MigrationStagedMembershipPlan {
+  id: string;
+  migrationBatchId: string;
+  migrationFileId: string;
+  sourceRowNumber: number;
+  sourceRowJson: Record<string, string>;
+  planName?: string;
+  planType?: MigrationPlanType;
+  price?: number;
+  billingFrequency?: string;
+  contractLength?: number;
+  classLimit?: number;
+  sessionLimit?: number;
+  active?: boolean;
+  notes?: string;
+  validationStatus: MigrationValidationStatus;
+  aiConfidence?: number;
+  approved: boolean;
+  importedPlanId?: string;
+  skipped: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface MigrationPlanMapping {
+  id: string;
+  migrationBatchId: string;
+  oldPlanName: string;
+  suggestedPlanType: MigrationPlanType;
+  finalPlanType: MigrationPlanType;
+  confidence: number;
+  requiresReview: boolean;
+  approved: boolean;
+  approvedByUserId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 export interface MigrationValidationError {
   id: string;
   migrationBatchId: string;
-  migrationFileId: string;
+  migrationFileId?: string;
   stagedRecordType: string;
   stagedRecordId?: string;
   severity: MigrationValidationErrorSeverity;
@@ -220,7 +280,7 @@ export interface MigrationValidationError {
 export interface MigrationAuditLog {
   id: string;
   migrationBatchId: string;
-  userId: string;
+  userId?: string;
   action: string;
   entityType?: string;
   entityId?: string;
@@ -795,6 +855,8 @@ export interface StoreSnapshot {
   migrationFiles: MigrationFile[];
   migrationColumnMappings: MigrationColumnMapping[];
   migrationStagedMembers: MigrationStagedMember[];
+  migrationStagedMembershipPlans: MigrationStagedMembershipPlan[];
+  migrationPlanMappings: MigrationPlanMapping[];
   migrationValidationErrors: MigrationValidationError[];
   migrationAuditLogs: MigrationAuditLog[];
   classTypes: ClassType[];

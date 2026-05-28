@@ -474,6 +474,66 @@ export const memberMembershipAssignSchema = z
     endsAt: z.string().datetime().optional()
 })
     .refine((value) => !value.startsAt || !value.endsAt || new Date(value.endsAt) > new Date(value.startsAt), "Membership end date must be after start date.");
+export const migrationPlanTypeSchema = z.enum([
+    "Monthly Membership",
+    "Annual Membership",
+    "Class Pack",
+    "Personal Training Package",
+    "Drop-In",
+    "Trial",
+    "Family Add-On",
+    "Student/Discounted Plan",
+    "Legacy Plan",
+    "Free/Comped Plan",
+    "Unknown"
+]);
+export const migrationColumnMappingSaveSchema = z.object({
+    mappings: z
+        .array(z.object({
+        sourceColumn: trimmed.min(1).max(180),
+        targetField: z.enum([
+            "ignore",
+            "plan_name",
+            "plan_type",
+            "price",
+            "billing_frequency",
+            "contract_length",
+            "class_limit",
+            "session_limit",
+            "active",
+            "notes"
+        ]),
+        confidence: z.number().min(0).max(1).default(1)
+    }))
+        .min(1)
+        .max(200)
+});
+export const migrationPlanMappingApproveSchema = z.object({
+    mappings: z
+        .array(z.object({
+        mappingId: id.optional(),
+        oldPlanName: trimmed.min(1).max(180),
+        finalPlanType: migrationPlanTypeSchema
+    }))
+        .min(1)
+        .max(500)
+});
+export const migrationStagedPlanUpdateSchema = z.object({
+    planName: trimmed.max(180).optional(),
+    planType: migrationPlanTypeSchema.optional(),
+    price: z.number().nonnegative().optional(),
+    billingFrequency: trimmed.max(80).optional(),
+    contractLength: z.number().int().nonnegative().optional(),
+    classLimit: z.number().int().nonnegative().optional(),
+    sessionLimit: z.number().int().nonnegative().optional(),
+    active: z.boolean().optional(),
+    notes: trimmed.max(1000).optional(),
+    skipped: z.boolean().optional()
+});
+export const migrationStagedPlansApproveSchema = z.object({
+    stagedPlanIds: z.array(id).max(1000).optional(),
+    approveAllReady: z.boolean().default(false)
+});
 export const classTypeCreateSchema = z.object({
     name: trimmed.min(1).max(120),
     description: trimmed.max(1000).optional(),

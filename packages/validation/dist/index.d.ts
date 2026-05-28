@@ -2983,6 +2983,105 @@ export declare const memberMembershipAssignSchema: z.ZodEffects<z.ZodObject<{
     startsAt?: string | undefined;
     endsAt?: string | undefined;
 }>;
+export declare const migrationPlanTypeSchema: z.ZodEnum<["Monthly Membership", "Annual Membership", "Class Pack", "Personal Training Package", "Drop-In", "Trial", "Family Add-On", "Student/Discounted Plan", "Legacy Plan", "Free/Comped Plan", "Unknown"]>;
+export declare const migrationColumnMappingSaveSchema: z.ZodObject<{
+    mappings: z.ZodArray<z.ZodObject<{
+        sourceColumn: z.ZodString;
+        targetField: z.ZodEnum<["ignore", "plan_name", "plan_type", "price", "billing_frequency", "contract_length", "class_limit", "session_limit", "active", "notes"]>;
+        confidence: z.ZodDefault<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        sourceColumn: string;
+        targetField: "notes" | "active" | "ignore" | "plan_name" | "plan_type" | "price" | "billing_frequency" | "contract_length" | "class_limit" | "session_limit";
+        confidence: number;
+    }, {
+        sourceColumn: string;
+        targetField: "notes" | "active" | "ignore" | "plan_name" | "plan_type" | "price" | "billing_frequency" | "contract_length" | "class_limit" | "session_limit";
+        confidence?: number | undefined;
+    }>, "many">;
+}, "strip", z.ZodTypeAny, {
+    mappings: {
+        sourceColumn: string;
+        targetField: "notes" | "active" | "ignore" | "plan_name" | "plan_type" | "price" | "billing_frequency" | "contract_length" | "class_limit" | "session_limit";
+        confidence: number;
+    }[];
+}, {
+    mappings: {
+        sourceColumn: string;
+        targetField: "notes" | "active" | "ignore" | "plan_name" | "plan_type" | "price" | "billing_frequency" | "contract_length" | "class_limit" | "session_limit";
+        confidence?: number | undefined;
+    }[];
+}>;
+export declare const migrationPlanMappingApproveSchema: z.ZodObject<{
+    mappings: z.ZodArray<z.ZodObject<{
+        mappingId: z.ZodOptional<z.ZodString>;
+        oldPlanName: z.ZodString;
+        finalPlanType: z.ZodEnum<["Monthly Membership", "Annual Membership", "Class Pack", "Personal Training Package", "Drop-In", "Trial", "Family Add-On", "Student/Discounted Plan", "Legacy Plan", "Free/Comped Plan", "Unknown"]>;
+    }, "strip", z.ZodTypeAny, {
+        oldPlanName: string;
+        finalPlanType: "Trial" | "Monthly Membership" | "Annual Membership" | "Class Pack" | "Personal Training Package" | "Drop-In" | "Family Add-On" | "Student/Discounted Plan" | "Legacy Plan" | "Free/Comped Plan" | "Unknown";
+        mappingId?: string | undefined;
+    }, {
+        oldPlanName: string;
+        finalPlanType: "Trial" | "Monthly Membership" | "Annual Membership" | "Class Pack" | "Personal Training Package" | "Drop-In" | "Family Add-On" | "Student/Discounted Plan" | "Legacy Plan" | "Free/Comped Plan" | "Unknown";
+        mappingId?: string | undefined;
+    }>, "many">;
+}, "strip", z.ZodTypeAny, {
+    mappings: {
+        oldPlanName: string;
+        finalPlanType: "Trial" | "Monthly Membership" | "Annual Membership" | "Class Pack" | "Personal Training Package" | "Drop-In" | "Family Add-On" | "Student/Discounted Plan" | "Legacy Plan" | "Free/Comped Plan" | "Unknown";
+        mappingId?: string | undefined;
+    }[];
+}, {
+    mappings: {
+        oldPlanName: string;
+        finalPlanType: "Trial" | "Monthly Membership" | "Annual Membership" | "Class Pack" | "Personal Training Package" | "Drop-In" | "Family Add-On" | "Student/Discounted Plan" | "Legacy Plan" | "Free/Comped Plan" | "Unknown";
+        mappingId?: string | undefined;
+    }[];
+}>;
+export declare const migrationStagedPlanUpdateSchema: z.ZodObject<{
+    planName: z.ZodOptional<z.ZodString>;
+    planType: z.ZodOptional<z.ZodEnum<["Monthly Membership", "Annual Membership", "Class Pack", "Personal Training Package", "Drop-In", "Trial", "Family Add-On", "Student/Discounted Plan", "Legacy Plan", "Free/Comped Plan", "Unknown"]>>;
+    price: z.ZodOptional<z.ZodNumber>;
+    billingFrequency: z.ZodOptional<z.ZodString>;
+    contractLength: z.ZodOptional<z.ZodNumber>;
+    classLimit: z.ZodOptional<z.ZodNumber>;
+    sessionLimit: z.ZodOptional<z.ZodNumber>;
+    active: z.ZodOptional<z.ZodBoolean>;
+    notes: z.ZodOptional<z.ZodString>;
+    skipped: z.ZodOptional<z.ZodBoolean>;
+}, "strip", z.ZodTypeAny, {
+    notes?: string | undefined;
+    active?: boolean | undefined;
+    price?: number | undefined;
+    planName?: string | undefined;
+    planType?: "Trial" | "Monthly Membership" | "Annual Membership" | "Class Pack" | "Personal Training Package" | "Drop-In" | "Family Add-On" | "Student/Discounted Plan" | "Legacy Plan" | "Free/Comped Plan" | "Unknown" | undefined;
+    billingFrequency?: string | undefined;
+    contractLength?: number | undefined;
+    classLimit?: number | undefined;
+    sessionLimit?: number | undefined;
+    skipped?: boolean | undefined;
+}, {
+    notes?: string | undefined;
+    active?: boolean | undefined;
+    price?: number | undefined;
+    planName?: string | undefined;
+    planType?: "Trial" | "Monthly Membership" | "Annual Membership" | "Class Pack" | "Personal Training Package" | "Drop-In" | "Family Add-On" | "Student/Discounted Plan" | "Legacy Plan" | "Free/Comped Plan" | "Unknown" | undefined;
+    billingFrequency?: string | undefined;
+    contractLength?: number | undefined;
+    classLimit?: number | undefined;
+    sessionLimit?: number | undefined;
+    skipped?: boolean | undefined;
+}>;
+export declare const migrationStagedPlansApproveSchema: z.ZodObject<{
+    stagedPlanIds: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    approveAllReady: z.ZodDefault<z.ZodBoolean>;
+}, "strip", z.ZodTypeAny, {
+    approveAllReady: boolean;
+    stagedPlanIds?: string[] | undefined;
+}, {
+    stagedPlanIds?: string[] | undefined;
+    approveAllReady?: boolean | undefined;
+}>;
 export declare const classTypeCreateSchema: z.ZodObject<{
     name: z.ZodString;
     description: z.ZodOptional<z.ZodString>;
@@ -3881,6 +3980,10 @@ export type MemberUpdateInput = z.input<typeof memberUpdateSchema>;
 export type MembershipPlanCreateInput = z.infer<typeof membershipPlanCreateSchema>;
 export type MembershipPlanUpdateInput = z.infer<typeof membershipPlanUpdateSchema>;
 export type MemberMembershipAssignInput = z.infer<typeof memberMembershipAssignSchema>;
+export type MigrationColumnMappingSaveInput = z.infer<typeof migrationColumnMappingSaveSchema>;
+export type MigrationPlanMappingApproveInput = z.infer<typeof migrationPlanMappingApproveSchema>;
+export type MigrationStagedPlanUpdateInput = z.infer<typeof migrationStagedPlanUpdateSchema>;
+export type MigrationStagedPlansApproveInput = z.infer<typeof migrationStagedPlansApproveSchema>;
 export type ClassTypeCreateInput = z.infer<typeof classTypeCreateSchema>;
 export type ClassSessionCreateInput = z.input<typeof classSessionCreateSchema>;
 export type ClassBookingCreateInput = z.infer<typeof classBookingCreateSchema>;

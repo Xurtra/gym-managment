@@ -19,6 +19,8 @@ import type {
   MigrationBatch,
   MigrationColumnMapping,
   MigrationFile,
+  MigrationPlanMapping,
+  MigrationStagedMembershipPlan,
   MigrationStagedMember,
   MigrationValidationError,
   NotificationEvent,
@@ -50,6 +52,7 @@ import type {
   MemberRepository,
   MemberMembershipRepository,
   MembershipPlanRepository,
+  MigrationRepository,
   MigrationAuditLogRepository,
   MigrationBatchRepository,
   MigrationColumnMappingRepository,
@@ -88,13 +91,16 @@ export class InMemoryStore implements Repositories {
   private readonly memberRecords = new Map<string, Member>();
   private readonly crmActivityRecords = new Map<string, CrmActivity>();
   private readonly membershipPlanRecords = new Map<string, MembershipPlan>();
-  private readonly memberMembershipRecords = new Map<string, MemberMembership>();
   private readonly migrationBatchRecords = new Map<string, MigrationBatch>();
   private readonly migrationFileRecords = new Map<string, MigrationFile>();
   private readonly migrationColumnMappingRecords = new Map<string, MigrationColumnMapping>();
-  private readonly migrationStagedMemberRecords = new Map<string, MigrationStagedMember>();
+  private readonly migrationStagedMembershipPlanRecords =
+    new Map<string, MigrationStagedMembershipPlan>();
+  private readonly migrationPlanMappingRecords = new Map<string, MigrationPlanMapping>();
   private readonly migrationValidationErrorRecords = new Map<string, MigrationValidationError>();
   private readonly migrationAuditLogRecords = new Map<string, MigrationAuditLog>();
+  private readonly memberMembershipRecords = new Map<string, MemberMembership>();
+  private readonly migrationStagedMemberRecords = new Map<string, MigrationStagedMember>();
   private readonly classTypeRecords = new Map<string, ClassType>();
   private readonly classSessionRecords = new Map<string, ClassSession>();
   private readonly classBookingRecords = new Map<string, ClassBooking>();
@@ -219,6 +225,33 @@ export class InMemoryStore implements Repositories {
     getMembershipPlan: (planId) => this.getMembershipPlan(planId),
     listMembershipPlansForGym: (gymId) => this.listMembershipPlansForGym(gymId),
     updateMembershipPlan: (plan) => this.updateMembershipPlan(plan)
+  };
+
+  readonly migrations: MigrationRepository = {
+    createBatch: (batch) => this.createMigrationBatch(batch),
+    getBatch: (batchId) => this.getMigrationBatch(batchId),
+    listBatchesForGym: (gymId) => this.listMigrationBatchesForGym(gymId),
+    updateBatch: (batch) => this.updateMigrationBatch(batch),
+    createFile: (file) => this.createMigrationFile(file),
+    getFile: (fileId) => this.getMigrationFile(fileId),
+    listFilesForBatch: (batchId) => this.listMigrationFilesForBatch(batchId),
+    updateFile: (file) => this.updateMigrationFile(file),
+    replaceColumnMappings: (batchId, fileId, mappings) =>
+      this.replaceMigrationColumnMappings(batchId, fileId, mappings),
+    listColumnMappingsForFile: (fileId) => this.listMigrationColumnMappingsForFile(fileId),
+    replaceStagedMembershipPlans: (batchId, fileId, plans) =>
+      this.replaceMigrationStagedMembershipPlans(batchId, fileId, plans),
+    listStagedMembershipPlansForBatch: (batchId) =>
+      this.listMigrationStagedMembershipPlansForBatch(batchId),
+    updateStagedMembershipPlan: (plan) => this.updateMigrationStagedMembershipPlan(plan),
+    replacePlanMappings: (batchId, mappings) => this.replaceMigrationPlanMappings(batchId, mappings),
+    listPlanMappingsForBatch: (batchId) => this.listMigrationPlanMappingsForBatch(batchId),
+    updatePlanMapping: (mapping) => this.updateMigrationPlanMapping(mapping),
+    replaceValidationErrorsForBatch: (batchId, errors) =>
+      this.replaceMigrationValidationErrorsForBatch(batchId, errors),
+    listValidationErrorsForBatch: (batchId) => this.listMigrationValidationErrorsForBatch(batchId),
+    createAuditLog: (entry) => this.createMigrationAuditLog(entry),
+    listAuditLogsForBatch: (batchId) => this.listMigrationAuditLogsForBatch(batchId)
   };
 
   readonly memberMemberships: MemberMembershipRepository = {
@@ -709,6 +742,93 @@ export class InMemoryStore implements Repositories {
     return plan;
   }
 
+  async replaceMigrationColumnMappings(
+    batchId: string,
+    fileId: string,
+    mappings: MigrationColumnMapping[]
+  ) {
+    for (const mapping of this.migrationColumnMappingRecords.values()) {
+      if (mapping.migrationBatchId === batchId && mapping.migrationFileId === fileId) {
+        this.migrationColumnMappingRecords.delete(mapping.id);
+      }
+    }
+    for (const mapping of mappings) {
+      this.migrationColumnMappingRecords.set(mapping.id, mapping);
+    }
+    return mappings;
+  }
+
+  async replaceMigrationStagedMembershipPlans(
+    batchId: string,
+    fileId: string,
+    plans: MigrationStagedMembershipPlan[]
+  ) {
+    for (const plan of this.migrationStagedMembershipPlanRecords.values()) {
+      if (plan.migrationBatchId === batchId && plan.migrationFileId === fileId) {
+        this.migrationStagedMembershipPlanRecords.delete(plan.id);
+      }
+    }
+    for (const plan of plans) {
+      this.migrationStagedMembershipPlanRecords.set(plan.id, plan);
+    }
+    return plans;
+  }
+
+  async listMigrationStagedMembershipPlansForBatch(batchId: string) {
+    return [...this.migrationStagedMembershipPlanRecords.values()]
+      .filter((plan) => plan.migrationBatchId === batchId)
+      .sort((left, right) => left.sourceRowNumber - right.sourceRowNumber);
+  }
+
+  async updateMigrationStagedMembershipPlan(plan: MigrationStagedMembershipPlan) {
+    this.migrationStagedMembershipPlanRecords.set(plan.id, plan);
+    return plan;
+  }
+
+  async replaceMigrationPlanMappings(batchId: string, mappings: MigrationPlanMapping[]) {
+    for (const mapping of this.migrationPlanMappingRecords.values()) {
+      if (mapping.migrationBatchId === batchId) {
+        this.migrationPlanMappingRecords.delete(mapping.id);
+      }
+    }
+    for (const mapping of mappings) {
+      this.migrationPlanMappingRecords.set(mapping.id, mapping);
+    }
+    return mappings;
+  }
+
+  async listMigrationPlanMappingsForBatch(batchId: string) {
+    return [...this.migrationPlanMappingRecords.values()]
+      .filter((mapping) => mapping.migrationBatchId === batchId)
+      .sort((left, right) => left.oldPlanName.localeCompare(right.oldPlanName));
+  }
+
+  async updateMigrationPlanMapping(mapping: MigrationPlanMapping) {
+    this.migrationPlanMappingRecords.set(mapping.id, mapping);
+    return mapping;
+  }
+
+  async replaceMigrationValidationErrorsForBatch(
+    batchId: string,
+    errors: MigrationValidationError[]
+  ) {
+    for (const error of this.migrationValidationErrorRecords.values()) {
+      if (error.migrationBatchId === batchId) {
+        this.migrationValidationErrorRecords.delete(error.id);
+      }
+    }
+    for (const error of errors) {
+      this.migrationValidationErrorRecords.set(error.id, error);
+    }
+    return errors;
+  }
+
+  async listMigrationValidationErrorsForBatch(batchId: string) {
+    return [...this.migrationValidationErrorRecords.values()]
+      .filter((error) => error.migrationBatchId === batchId)
+      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
+  }
+
   async createMemberMembership(membership: MemberMembership) {
     this.memberMembershipRecords.set(membership.id, membership);
     return membership;
@@ -760,7 +880,7 @@ export class InMemoryStore implements Repositories {
 
   async listMigrationFilesForBatch(batchId: string) {
     return [...this.migrationFileRecords.values()]
-      .filter((file) => file.migrationBatchId === batchId)
+      .filter((file) => file.migrationBatchId === batchId && file.status !== "deleted")
       .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
   }
 
@@ -1142,6 +1262,8 @@ export class InMemoryStore implements Repositories {
       migrationFiles: [...this.migrationFileRecords.values()],
       migrationColumnMappings: [...this.migrationColumnMappingRecords.values()],
       migrationStagedMembers: [...this.migrationStagedMemberRecords.values()],
+      migrationStagedMembershipPlans: [...this.migrationStagedMembershipPlanRecords.values()],
+      migrationPlanMappings: [...this.migrationPlanMappingRecords.values()],
       migrationValidationErrors: [...this.migrationValidationErrorRecords.values()],
       migrationAuditLogs: [...this.migrationAuditLogRecords.values()],
       classTypes: [...this.classTypeRecords.values()],

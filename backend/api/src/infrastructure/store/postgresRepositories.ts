@@ -20,6 +20,8 @@ import type {
   MigrationBatch,
   MigrationColumnMapping,
   MigrationFile,
+  MigrationPlanMapping,
+  MigrationStagedMembershipPlan,
   MigrationStagedMember,
   MigrationValidationError,
   NotificationEvent,
@@ -306,6 +308,44 @@ interface MembershipPlanRow extends QueryResultRow {
   is_public: boolean;
   status: MembershipPlan["status"];
   archived_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface MigrationStagedMembershipPlanRow extends QueryResultRow {
+  id: string;
+  migration_batch_id: string;
+  migration_file_id: string;
+  source_row_number: number;
+  source_row_json: unknown;
+  plan_name: string | null;
+  plan_type: MigrationStagedMembershipPlan["planType"] | null;
+  price: string | number | null;
+  billing_frequency: string | null;
+  contract_length: number | null;
+  class_limit: number | null;
+  session_limit: number | null;
+  active: boolean | null;
+  notes: string | null;
+  validation_status: MigrationStagedMembershipPlan["validationStatus"];
+  ai_confidence: string | number | null;
+  approved: boolean;
+  imported_plan_id: string | null;
+  skipped: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface MigrationPlanMappingRow extends QueryResultRow {
+  id: string;
+  migration_batch_id: string;
+  old_plan_name: string;
+  suggested_plan_type: MigrationPlanMapping["suggestedPlanType"];
+  final_plan_type: MigrationPlanMapping["finalPlanType"];
+  confidence: string | number;
+  requires_review: boolean;
+  approved: boolean;
+  approved_by_user_id: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -763,6 +803,45 @@ export class PostgresRepositories implements Repositories {
     getMembershipPlan: (planId: string) => this.getMembershipPlan(planId),
     listMembershipPlansForGym: (gymId: string) => this.listMembershipPlansForGym(gymId),
     updateMembershipPlan: (plan: MembershipPlan) => this.updateMembershipPlan(plan)
+  };
+
+  readonly migrations = {
+    createBatch: (batch: MigrationBatch) => this.createMigrationBatch(batch),
+    getBatch: (batchId: string) => this.getMigrationBatch(batchId),
+    listBatchesForGym: (gymId: string) => this.listMigrationBatchesForGym(gymId),
+    updateBatch: (batch: MigrationBatch) => this.updateMigrationBatch(batch),
+    createFile: (file: MigrationFile) => this.createMigrationFile(file),
+    getFile: (fileId: string) => this.getMigrationFile(fileId),
+    listFilesForBatch: (batchId: string) => this.listMigrationFilesForBatch(batchId),
+    updateFile: (file: MigrationFile) => this.updateMigrationFile(file),
+    replaceColumnMappings: (
+      batchId: string,
+      fileId: string,
+      mappings: MigrationColumnMapping[]
+    ) => this.replaceMigrationColumnMappings(batchId, fileId, mappings),
+    listColumnMappingsForFile: (fileId: string) =>
+      this.listMigrationColumnMappingsForFile(fileId),
+    replaceStagedMembershipPlans: (
+      batchId: string,
+      fileId: string,
+      plans: MigrationStagedMembershipPlan[]
+    ) => this.replaceMigrationStagedMembershipPlans(batchId, fileId, plans),
+    listStagedMembershipPlansForBatch: (batchId: string) =>
+      this.listMigrationStagedMembershipPlansForBatch(batchId),
+    updateStagedMembershipPlan: (plan: MigrationStagedMembershipPlan) =>
+      this.updateMigrationStagedMembershipPlan(plan),
+    replacePlanMappings: (batchId: string, mappings: MigrationPlanMapping[]) =>
+      this.replaceMigrationPlanMappings(batchId, mappings),
+    listPlanMappingsForBatch: (batchId: string) => this.listMigrationPlanMappingsForBatch(batchId),
+    updatePlanMapping: (mapping: MigrationPlanMapping) => this.updateMigrationPlanMapping(mapping),
+    replaceValidationErrorsForBatch: (
+      batchId: string,
+      errors: MigrationValidationError[]
+    ) => this.replaceMigrationValidationErrorsForBatch(batchId, errors),
+    listValidationErrorsForBatch: (batchId: string) =>
+      this.listMigrationValidationErrorsForBatch(batchId),
+    createAuditLog: (entry: MigrationAuditLog) => this.createMigrationAuditLog(entry),
+    listAuditLogsForBatch: (batchId: string) => this.listMigrationAuditLogsForBatch(batchId)
   };
 
   readonly memberMemberships = {
@@ -1683,7 +1762,7 @@ export class PostgresRepositories implements Repositories {
       [
         entry.id,
         entry.migrationBatchId,
-        entry.userId,
+        entry.userId ?? null,
         entry.action,
         entry.entityType ?? null,
         entry.entityId ?? null,
@@ -2385,6 +2464,257 @@ export class PostgresRepositories implements Repositories {
       ]
     );
     return mapMembershipPlan(one(result));
+  }
+
+  async replaceMigrationColumnMappings(
+    batchId: string,
+    fileId: string,
+    mappings: MigrationColumnMapping[]
+  ) {
+    await this.executor.query(
+      "DELETE FROM migration_column_mappings WHERE migration_batch_id = $1 AND migration_file_id = $2",
+      [batchId, fileId]
+    );
+    const saved: MigrationColumnMapping[] = [];
+    for (const mapping of mappings) {
+      const result = await this.executor.query<MigrationColumnMappingRow>(
+        `INSERT INTO migration_column_mappings (
+          id, migration_batch_id, migration_file_id, source_column, target_field,
+          confidence, approved, approved_by_user_id, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING *`,
+        [
+          mapping.id,
+          mapping.migrationBatchId,
+          mapping.migrationFileId,
+          mapping.sourceColumn,
+          mapping.targetField,
+          mapping.confidence,
+          mapping.approved,
+          mapping.approvedByUserId ?? null,
+          mapping.createdAt,
+          mapping.updatedAt
+        ]
+      );
+      saved.push(mapMigrationColumnMapping(one(result)));
+    }
+    return saved;
+  }
+
+  async replaceMigrationStagedMembershipPlans(
+    batchId: string,
+    fileId: string,
+    plans: MigrationStagedMembershipPlan[]
+  ) {
+    await this.executor.query(
+      "DELETE FROM migration_staged_membership_plans WHERE migration_batch_id = $1 AND migration_file_id = $2",
+      [batchId, fileId]
+    );
+    const saved: MigrationStagedMembershipPlan[] = [];
+    for (const plan of plans) {
+      saved.push(await this.insertMigrationStagedMembershipPlan(plan));
+    }
+    return saved;
+  }
+
+  async listMigrationStagedMembershipPlansForBatch(batchId: string) {
+    const result = await this.executor.query<MigrationStagedMembershipPlanRow>(
+      "SELECT * FROM migration_staged_membership_plans WHERE migration_batch_id = $1 ORDER BY source_row_number ASC",
+      [batchId]
+    );
+    return result.rows.map(mapMigrationStagedMembershipPlan);
+  }
+
+  async updateMigrationStagedMembershipPlan(plan: MigrationStagedMembershipPlan) {
+    const result = await this.executor.query<MigrationStagedMembershipPlanRow>(
+      `UPDATE migration_staged_membership_plans
+      SET plan_name = $2,
+          plan_type = $3,
+          price = $4,
+          billing_frequency = $5,
+          contract_length = $6,
+          class_limit = $7,
+          session_limit = $8,
+          active = $9,
+          notes = $10,
+          validation_status = $11,
+          ai_confidence = $12,
+          approved = $13,
+          imported_plan_id = $14,
+          skipped = $15,
+          updated_at = $16
+      WHERE id = $1
+      RETURNING *`,
+      [
+        plan.id,
+        plan.planName ?? null,
+        plan.planType ?? null,
+        plan.price ?? null,
+        plan.billingFrequency ?? null,
+        plan.contractLength ?? null,
+        plan.classLimit ?? null,
+        plan.sessionLimit ?? null,
+        plan.active ?? null,
+        plan.notes ?? null,
+        plan.validationStatus,
+        plan.aiConfidence ?? null,
+        plan.approved,
+        plan.importedPlanId ?? null,
+        plan.skipped,
+        plan.updatedAt
+      ]
+    );
+    return mapMigrationStagedMembershipPlan(one(result));
+  }
+
+  async replaceMigrationPlanMappings(batchId: string, mappings: MigrationPlanMapping[]) {
+    await this.executor.query("DELETE FROM migration_plan_mappings WHERE migration_batch_id = $1", [
+      batchId
+    ]);
+    const saved: MigrationPlanMapping[] = [];
+    for (const mapping of mappings) {
+      saved.push(await this.insertMigrationPlanMapping(mapping));
+    }
+    return saved;
+  }
+
+  async listMigrationPlanMappingsForBatch(batchId: string) {
+    const result = await this.executor.query<MigrationPlanMappingRow>(
+      "SELECT * FROM migration_plan_mappings WHERE migration_batch_id = $1 ORDER BY old_plan_name ASC",
+      [batchId]
+    );
+    return result.rows.map(mapMigrationPlanMapping);
+  }
+
+  async updateMigrationPlanMapping(mapping: MigrationPlanMapping) {
+    const result = await this.executor.query<MigrationPlanMappingRow>(
+      `UPDATE migration_plan_mappings
+      SET suggested_plan_type = $2,
+          final_plan_type = $3,
+          confidence = $4,
+          requires_review = $5,
+          approved = $6,
+          approved_by_user_id = $7,
+          updated_at = $8
+      WHERE id = $1
+      RETURNING *`,
+      [
+        mapping.id,
+        mapping.suggestedPlanType,
+        mapping.finalPlanType,
+        mapping.confidence,
+        mapping.requiresReview,
+        mapping.approved,
+        mapping.approvedByUserId ?? null,
+        mapping.updatedAt
+      ]
+    );
+    return mapMigrationPlanMapping(one(result));
+  }
+
+  async replaceMigrationValidationErrorsForBatch(
+    batchId: string,
+    errors: MigrationValidationError[]
+  ) {
+    await this.executor.query("DELETE FROM migration_validation_errors WHERE migration_batch_id = $1", [
+      batchId
+    ]);
+    const saved: MigrationValidationError[] = [];
+    for (const error of errors) {
+      const result = await this.executor.query<MigrationValidationErrorRow>(
+        `INSERT INTO migration_validation_errors (
+          id, migration_batch_id, migration_file_id, staged_record_type, staged_record_id,
+          severity, error_code, message, field_name, resolved, resolved_by_user_id,
+          created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        RETURNING *`,
+        [
+          error.id,
+          error.migrationBatchId,
+          error.migrationFileId ?? null,
+          error.stagedRecordType,
+          error.stagedRecordId,
+          error.severity,
+          error.errorCode,
+          error.message,
+          error.fieldName ?? null,
+          error.resolved,
+          error.resolvedByUserId ?? null,
+          error.createdAt,
+          error.updatedAt
+        ]
+      );
+      saved.push(mapMigrationValidationError(one(result)));
+    }
+    return saved;
+  }
+
+  async listMigrationValidationErrorsForBatch(batchId: string) {
+    const result = await this.executor.query<MigrationValidationErrorRow>(
+      "SELECT * FROM migration_validation_errors WHERE migration_batch_id = $1 ORDER BY created_at ASC",
+      [batchId]
+    );
+    return result.rows.map(mapMigrationValidationError);
+  }
+
+  private async insertMigrationStagedMembershipPlan(plan: MigrationStagedMembershipPlan) {
+    const result = await this.executor.query<MigrationStagedMembershipPlanRow>(
+      `INSERT INTO migration_staged_membership_plans (
+        id, migration_batch_id, migration_file_id, source_row_number, source_row_json,
+        plan_name, plan_type, price, billing_frequency, contract_length, class_limit,
+        session_limit, active, notes, validation_status, ai_confidence, approved,
+        imported_plan_id, skipped, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+      RETURNING *`,
+      [
+        plan.id,
+        plan.migrationBatchId,
+        plan.migrationFileId,
+        plan.sourceRowNumber,
+        JSON.stringify(plan.sourceRowJson),
+        plan.planName ?? null,
+        plan.planType ?? null,
+        plan.price ?? null,
+        plan.billingFrequency ?? null,
+        plan.contractLength ?? null,
+        plan.classLimit ?? null,
+        plan.sessionLimit ?? null,
+        plan.active ?? null,
+        plan.notes ?? null,
+        plan.validationStatus,
+        plan.aiConfidence ?? null,
+        plan.approved,
+        plan.importedPlanId ?? null,
+        plan.skipped,
+        plan.createdAt,
+        plan.updatedAt
+      ]
+    );
+    return mapMigrationStagedMembershipPlan(one(result));
+  }
+
+  private async insertMigrationPlanMapping(mapping: MigrationPlanMapping) {
+    const result = await this.executor.query<MigrationPlanMappingRow>(
+      `INSERT INTO migration_plan_mappings (
+        id, migration_batch_id, old_plan_name, suggested_plan_type, final_plan_type,
+        confidence, requires_review, approved, approved_by_user_id, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING *`,
+      [
+        mapping.id,
+        mapping.migrationBatchId,
+        mapping.oldPlanName,
+        mapping.suggestedPlanType,
+        mapping.finalPlanType,
+        mapping.confidence,
+        mapping.requiresReview,
+        mapping.approved,
+        mapping.approvedByUserId ?? null,
+        mapping.createdAt,
+        mapping.updatedAt
+      ]
+    );
+    return mapMigrationPlanMapping(one(result));
   }
 
   async createMemberMembership(membership: MemberMembership) {
@@ -3646,6 +3976,74 @@ function mapMembershipPlan(row: MembershipPlanRow): MembershipPlan {
   return plan;
 }
 
+function mapMigrationStagedMembershipPlan(row: MigrationStagedMembershipPlanRow): MigrationStagedMembershipPlan {
+  const plan: MigrationStagedMembershipPlan = {
+    id: row.id,
+    migrationBatchId: row.migration_batch_id,
+    migrationFileId: row.migration_file_id,
+    sourceRowNumber: row.source_row_number,
+    sourceRowJson: stringRecord(row.source_row_json),
+    validationStatus: row.validation_status,
+    approved: row.approved,
+    skipped: row.skipped,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+  if (row.plan_name) {
+    plan.planName = row.plan_name;
+  }
+  if (row.plan_type) {
+    plan.planType = row.plan_type;
+  }
+  if (row.price !== null) {
+    plan.price = numeric(row.price);
+  }
+  if (row.billing_frequency) {
+    plan.billingFrequency = row.billing_frequency;
+  }
+  if (row.contract_length !== null) {
+    plan.contractLength = row.contract_length;
+  }
+  if (row.class_limit !== null) {
+    plan.classLimit = row.class_limit;
+  }
+  if (row.session_limit !== null) {
+    plan.sessionLimit = row.session_limit;
+  }
+  if (row.active !== null) {
+    plan.active = row.active;
+  }
+  if (row.notes) {
+    plan.notes = row.notes;
+  }
+  if (row.ai_confidence !== null) {
+    plan.aiConfidence = numeric(row.ai_confidence);
+  }
+  if (row.imported_plan_id) {
+    plan.importedPlanId = row.imported_plan_id;
+  }
+  return plan;
+}
+
+function mapMigrationPlanMapping(row: MigrationPlanMappingRow): MigrationPlanMapping {
+  const mapping: MigrationPlanMapping = {
+    id: row.id,
+    migrationBatchId: row.migration_batch_id,
+    oldPlanName: row.old_plan_name,
+    suggestedPlanType: row.suggested_plan_type,
+    finalPlanType: row.final_plan_type,
+    confidence: numeric(row.confidence),
+    requiresReview: row.requires_review,
+    approved: row.approved,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+  if (row.approved_by_user_id) {
+    mapping.approvedByUserId = row.approved_by_user_id;
+  }
+  return mapping;
+}
+
 function mapMemberMembership(row: MemberMembershipRow): MemberMembership {
   const membership: MemberMembership = {
     id: row.id,
@@ -4155,6 +4553,26 @@ function mapPurposeToken(row: PurposeTokenRow): PurposeToken {
     purposeToken.usedAt = row.used_at;
   }
   return purposeToken;
+}
+
+function numeric(value: string | number) {
+  return typeof value === "number" ? value : Number(value);
+}
+
+function recordArray(value: unknown): Record<string, string>[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((item) => (isRecord(item) ? [stringRecord(item)] : []));
+}
+
+function stringRecord(value: unknown): Record<string, string> {
+  if (!isRecord(value)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => [key, typeof entry === "string" ? entry : String(entry ?? "")])
+  );
 }
 
 function stringArray(value: unknown) {

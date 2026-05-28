@@ -29,6 +29,12 @@ export const dashboardRoutes: DashboardRoute[] = [
   { path: "/reset-password", title: "Reset Password", protected: false },
   { path: "/", title: "Dashboard", protected: true, requiredPermissions: [Permission.GymRead] },
   {
+    path: "/migration",
+    title: "Migration",
+    protected: true,
+    requiredPermissions: [Permission.PlanWrite]
+  },
+  {
     path: "/locations",
     title: "Locations",
     protected: true,
