@@ -41,6 +41,36 @@ export const LeadStage = {
     Converted: "converted",
     Closed: "closed"
 };
+export const InteractionType = {
+    Call: "call",
+    Sms: "sms",
+    Email: "email",
+    Note: "note"
+};
+export const LeadSource = {
+    WalkIn: "walk_in",
+    Referral: "referral",
+    Website: "website",
+    SocialMedia: "social_media",
+    CsvImport: "csv_import",
+    Other: "other"
+};
+export const InterestLevel = {
+    Low: "low",
+    Medium: "medium",
+    High: "high"
+};
+export const RetentionFlag = {
+    AtRisk: "at_risk",
+    Lapsed: "lapsed",
+    Churned: "churned"
+};
+export const ContactPreference = {
+    Email: "email",
+    Sms: "sms",
+    Phone: "phone",
+    Any: "any"
+};
 export const ConsumerSegment = {
     Lead: "lead",
     Customer: "customer",
@@ -177,6 +207,8 @@ export const Permission = {
     SchedulePublish: "schedule:publish",
     ScheduleRequestsManage: "schedule:requests_manage",
     ScheduleAutoResolve: "schedule:auto_resolve",
+    GrowthRead: "growth:read",
+    GrowthWrite: "growth:write",
     PlatformAdmin: "platform:admin"
 };
 export const FeatureFlag = {
@@ -219,7 +251,9 @@ export const DEFAULT_ROLE_PERMISSIONS = {
         Permission.AccessRead,
         Permission.AccessWrite,
         Permission.PaymentRead,
-        Permission.ReportRead
+        Permission.ReportRead,
+        Permission.GrowthRead,
+        Permission.GrowthWrite
     ],
     [RoleName.Trainer]: [
         Permission.GymRead,
@@ -242,7 +276,8 @@ export const DEFAULT_ROLE_PERMISSIONS = {
         Permission.BookingWrite,
         Permission.AccessRead,
         Permission.PaymentRead,
-        Permission.PaymentWrite
+        Permission.PaymentWrite,
+        Permission.GrowthRead
     ],
     [RoleName.Sales]: [
         Permission.GymRead,
@@ -250,7 +285,9 @@ export const DEFAULT_ROLE_PERMISSIONS = {
         Permission.MemberRead,
         Permission.MemberWrite,
         Permission.PlanRead,
-        Permission.PaymentRead
+        Permission.PaymentRead,
+        Permission.GrowthRead,
+        Permission.GrowthWrite
     ],
     [RoleName.Accountant]: [
         Permission.GymRead,

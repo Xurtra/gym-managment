@@ -8,6 +8,16 @@ export function button(input) {
         ...(input.icon ? { icon: input.icon } : {})
     };
 }
+export function badge(input) {
+    return {
+        kind: "badge",
+        label: input.label,
+        tone: input.tone ?? "neutral"
+    };
+}
+export function avatar(input) {
+    return { kind: "avatar", ...input };
+}
 export function input(inputModel) {
     return { kind: "input", ...inputModel };
 }
@@ -28,6 +38,9 @@ export function loadingState(label = "Loading") {
 }
 export function emptyState(inputModel) {
     return { kind: "empty", ...inputModel };
+}
+export function calendarEvent(inputModel) {
+    return { kind: "calendar_event", ...inputModel };
 }
 export function errorState(inputModel) {
     return { kind: "error", ...inputModel };

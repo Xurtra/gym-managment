@@ -1,4 +1,4 @@
-import { MemberStatus } from "@gym-platform/constants";
+import { ConsumerRecordStatus, MemberStatus } from "@gym-platform/constants";
 import { describe, expect, it } from "vitest";
 import {
   buildMemberDirectorySearchScreen,
@@ -17,6 +17,7 @@ const members: MemberView[] = [
     phone: "555-0101",
     barcode: "MEM-100",
     status: MemberStatus.Active,
+    recordStatus: ConsumerRecordStatus.Active,
     tagNames: ["Strength"],
     createdAt: "2026-05-16T12:00:00.000Z",
     updatedAt: "2026-05-16T12:00:00.000Z"
@@ -30,6 +31,7 @@ const members: MemberView[] = [
     phone: "(555) 0102",
     barcode: "BAR-200",
     status: MemberStatus.PastDue,
+    recordStatus: ConsumerRecordStatus.Active,
     tagNames: ["Yoga"],
     createdAt: "2026-05-15T12:00:00.000Z",
     updatedAt: "2026-05-16T12:00:00.000Z"
@@ -40,6 +42,7 @@ const members: MemberView[] = [
     firstName: "Casey",
     lastName: "Ng",
     status: MemberStatus.Trial,
+    recordStatus: ConsumerRecordStatus.Active,
     tagNames: [],
     createdAt: "2026-05-14T12:00:00.000Z",
     updatedAt: "2026-05-16T12:00:00.000Z"

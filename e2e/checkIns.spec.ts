@@ -7,7 +7,7 @@ test.describe("Check-Ins", () => {
     await loginViaUi(page, gym);
 
     await navigateToDashboardView(page, "check_in");
-    await expect(page.locator("h2, h3")).toContainText(/check.in/i);
+    await expect(page.getByRole("heading", { name: /check-in lookup/i })).toBeVisible();
   });
 
   test("check-in flow via API — active member is allowed, expired member is denied", async ({
@@ -44,7 +44,8 @@ test.describe("Check-Ins", () => {
       }
     });
     expect(locationRes.status()).toBe(200);
-    const { location } = await locationRes.json() as { location: { id: string } };
+    const locationBody = await locationRes.json() as { location?: { id: string }; id?: string };
+    const location = locationBody.location ?? locationBody as { id: string };
 
     // Create a plan and an active member
     const planRes = await request.post(`${API_URL}/gyms/${gymId}/membership-plans`, {
@@ -52,14 +53,16 @@ test.describe("Check-Ins", () => {
       data: { name: "Monthly", billingInterval: "monthly", priceCents: 5000, signupFeeCents: 0, trialDays: 0, autoRenew: true, isPublic: true }
     });
     expect(planRes.status()).toBe(200);
-    const { plan } = await planRes.json() as { plan: { id: string } };
+    const planBody = await planRes.json() as { plan?: { id: string }; id?: string };
+    const plan = planBody.plan ?? planBody as { id: string };
 
     const memberRes = await request.post(`${API_URL}/gyms/${gymId}/members`, {
       headers: authHeader,
       data: { firstName: "Active", lastName: "Member", email: `active-${suffix}@e2e.test`, status: "active" }
     });
     expect(memberRes.status()).toBe(200);
-    const { member } = await memberRes.json() as { member: { id: string } };
+    const memberBody = await memberRes.json() as { member?: { id: string }; id?: string };
+    const member = memberBody.member ?? memberBody as { id: string };
 
     await request.post(`${API_URL}/gyms/${gymId}/members/${member.id}/memberships`, {
       headers: authHeader,
@@ -69,11 +72,12 @@ test.describe("Check-Ins", () => {
     // Check in the active member — should be allowed
     const checkInRes = await request.post(`${API_URL}/gyms/${gymId}/check-ins`, {
       headers: authHeader,
-      data: { memberId: member.id, locationId: location.id, method: "manual" }
+      data: { memberId: member.id, locationId: location.id, method: "staff_manual" }
     });
     expect(checkInRes.status()).toBe(200);
-    const { checkIn } = await checkInRes.json() as { checkIn: { decision: string } };
-    expect(checkIn.decision).toBe("allowed");
+    const checkInBody = await checkInRes.json() as { checkIn?: { decision?: string; status?: string }; decision?: string; status?: string };
+    const checkIn = checkInBody.checkIn ?? checkInBody as { decision?: string; status?: string };
+    expect(checkIn.decision ?? checkIn.status).toBe("allowed");
 
     // Create a member with no membership — should be denied
     const noMembershipRes = await request.post(`${API_URL}/gyms/${gymId}/members`, {
@@ -81,14 +85,16 @@ test.describe("Check-Ins", () => {
       data: { firstName: "No", lastName: "Membership", email: `nomem-${suffix}@e2e.test`, status: "active" }
     });
     expect(noMembershipRes.status()).toBe(200);
-    const { member: noMember } = await noMembershipRes.json() as { member: { id: string } };
+    const noMemberBody = await noMembershipRes.json() as { member?: { id: string }; id?: string };
+    const noMember = noMemberBody.member ?? noMemberBody as { id: string };
 
     const deniedRes = await request.post(`${API_URL}/gyms/${gymId}/check-ins`, {
       headers: authHeader,
-      data: { memberId: noMember.id, locationId: location.id, method: "manual" }
+      data: { memberId: noMember.id, locationId: location.id, method: "staff_manual" }
     });
     expect(deniedRes.status()).toBe(200);
-    const { checkIn: deniedCheckIn } = await deniedRes.json() as { checkIn: { decision: string } };
-    expect(deniedCheckIn.decision).toBe("denied");
+    const deniedCheckInBody = await deniedRes.json() as { checkIn?: { decision?: string; status?: string }; decision?: string; status?: string };
+    const deniedCheckIn = deniedCheckInBody.checkIn ?? deniedCheckInBody as { decision?: string; status?: string };
+    expect(deniedCheckIn.decision ?? deniedCheckIn.status).toBe("denied");
   });
 });

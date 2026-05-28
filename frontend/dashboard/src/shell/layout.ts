@@ -18,6 +18,8 @@ export function buildDashboardShellLayout(inputModel: {
   lastName?: string;
   email: string;
   gymName?: string;
+  gymSlug?: string;
+  gymLogoUrl?: string;
   searchQuery?: string;
   searchItems?: GlobalSearchItem[];
   selectedSearchResultId?: string;
@@ -111,6 +113,8 @@ export function buildDashboardShellLayout(inputModel: {
     topBar: {
       title: route.title,
       ...(inputModel.gymName ? { gymName: inputModel.gymName } : {}),
+      ...(inputModel.gymSlug ? { gymSlug: inputModel.gymSlug } : {}),
+      ...(inputModel.gymLogoUrl ? { gymLogoUrl: inputModel.gymLogoUrl } : {}),
       searchResultCount: globalSearch.resultCount,
       globalSearch,
       accountMenu: buildAccountMenu(accountInput)

@@ -27,23 +27,25 @@ export function buildGroupedDashboardNavigation(
 
 const navigationGroups = [
   {
-    key: "workspace",
-    label: "Workspace",
-    paths: ["/", "/locations"]
-  },
-  {
-    key: "people",
-    label: "People",
-    paths: ["/consumers", "/check-ins"]
-  },
-  {
-    key: "classes",
-    label: "Classes",
-    paths: ["/classes"]
-  },
-  {
-    key: "operations",
-    label: "Operations",
-    paths: ["/access-control", "/reports", "/settings"]
+    key: "tabs",
+    label: "Dashboard",
+    paths: [
+      "/",
+      "/consumers",
+      "/staff",
+      "/payments",
+      "/plans",
+      "/locations",
+      "/classes",
+      "/bookings",
+      "/training",
+      "/access-control",
+      "/contracts",
+      "/portal",
+      "/marketing",
+      "/reports",
+      "/settings",
+      "/check-ins"
+    ]
   }
 ] as const;
