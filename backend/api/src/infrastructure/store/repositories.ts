@@ -14,6 +14,12 @@ import type {
   Member,
   MemberMembership,
   MembershipPlan,
+  MigrationAuditLog,
+  MigrationBatch,
+  MigrationColumnMapping,
+  MigrationFile,
+  MigrationStagedMember,
+  MigrationValidationError,
   NotificationEvent,
   PurposeToken,
   ReservableResource,
@@ -153,6 +159,57 @@ export interface MemberMembershipRepository {
   updateMemberMembership(membership: MemberMembership): RepositoryResult<MemberMembership>;
 }
 
+export interface MigrationBatchRepository {
+  createMigrationBatch(batch: MigrationBatch): RepositoryResult<MigrationBatch>;
+  getMigrationBatch(batchId: string): RepositoryResult<MigrationBatch | undefined>;
+  listMigrationBatchesForGym(gymId: string): RepositoryResult<MigrationBatch[]>;
+  updateMigrationBatch(batch: MigrationBatch): RepositoryResult<MigrationBatch>;
+}
+
+export interface MigrationFileRepository {
+  createMigrationFile(file: MigrationFile): RepositoryResult<MigrationFile>;
+  getMigrationFile(fileId: string): RepositoryResult<MigrationFile | undefined>;
+  listMigrationFilesForBatch(batchId: string): RepositoryResult<MigrationFile[]>;
+  updateMigrationFile(file: MigrationFile): RepositoryResult<MigrationFile>;
+}
+
+export interface MigrationColumnMappingRepository {
+  createMigrationColumnMapping(mapping: MigrationColumnMapping): RepositoryResult<MigrationColumnMapping>;
+  listMigrationColumnMappingsForFile(fileId: string): RepositoryResult<MigrationColumnMapping[]>;
+  replaceMigrationColumnMappingsForFile(
+    batchId: string,
+    fileId: string,
+    mappings: MigrationColumnMapping[]
+  ): RepositoryResult<MigrationColumnMapping[]>;
+}
+
+export interface MigrationStagedMemberRepository {
+  createMigrationStagedMember(member: MigrationStagedMember): RepositoryResult<MigrationStagedMember>;
+  getMigrationStagedMember(memberId: string): RepositoryResult<MigrationStagedMember | undefined>;
+  listMigrationStagedMembersForFile(fileId: string): RepositoryResult<MigrationStagedMember[]>;
+  updateMigrationStagedMember(member: MigrationStagedMember): RepositoryResult<MigrationStagedMember>;
+  replaceMigrationStagedMembersForFile(
+    batchId: string,
+    fileId: string,
+    members: MigrationStagedMember[]
+  ): RepositoryResult<MigrationStagedMember[]>;
+}
+
+export interface MigrationValidationErrorRepository {
+  createMigrationValidationError(error: MigrationValidationError): RepositoryResult<MigrationValidationError>;
+  listMigrationValidationErrorsForFile(fileId: string): RepositoryResult<MigrationValidationError[]>;
+  replaceMigrationValidationErrorsForFile(
+    batchId: string,
+    fileId: string,
+    errors: MigrationValidationError[]
+  ): RepositoryResult<MigrationValidationError[]>;
+}
+
+export interface MigrationAuditLogRepository {
+  createMigrationAuditLog(entry: MigrationAuditLog): RepositoryResult<MigrationAuditLog>;
+  listMigrationAuditLogsForBatch(batchId: string): RepositoryResult<MigrationAuditLog[]>;
+}
+
 export interface ClassRepository {
   createClassType(classType: ClassType): RepositoryResult<ClassType>;
   getClassType(classTypeId: string): RepositoryResult<ClassType | undefined>;
@@ -250,6 +307,12 @@ export interface Repositories {
   crmActivities: CrmActivityRepository;
   membershipPlans: MembershipPlanRepository;
   memberMemberships: MemberMembershipRepository;
+  migrationBatches: MigrationBatchRepository;
+  migrationFiles: MigrationFileRepository;
+  migrationColumnMappings: MigrationColumnMappingRepository;
+  migrationStagedMembers: MigrationStagedMemberRepository;
+  migrationValidationErrors: MigrationValidationErrorRepository;
+  migrationAuditLogs: MigrationAuditLogRepository;
   classes: ClassRepository;
   bookings: BookingRepository;
   reservationResources: ReservationResourceRepository;

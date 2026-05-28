@@ -16,6 +16,12 @@ import type {
   Member,
   MemberMembership,
   MembershipPlan,
+  MigrationAuditLog,
+  MigrationBatch,
+  MigrationColumnMapping,
+  MigrationFile,
+  MigrationStagedMember,
+  MigrationValidationError,
   NotificationEvent,
   OperatingHours,
   PurposeToken,
@@ -315,6 +321,111 @@ interface MemberMembershipRow extends QueryResultRow {
   cancelled_at: Date | null;
   created_at: Date;
   updated_at: Date;
+}
+
+interface MigrationBatchRow extends QueryResultRow {
+  id: string;
+  gym_id: string;
+  status: MigrationBatch["status"];
+  created_by_user_id: string;
+  approved_by_user_id: string | null;
+  created_at: Date;
+  updated_at: Date;
+  approved_at: Date | null;
+  finalized_at: Date | null;
+  summary_json: unknown;
+}
+
+interface MigrationFileRow extends QueryResultRow {
+  id: string;
+  migration_batch_id: string;
+  original_filename: string;
+  stored_file_path: string;
+  content_type: string;
+  size_bytes: number;
+  file_type: MigrationFile["fileType"];
+  detected_file_type: MigrationFile["detectedFileType"] | null;
+  file_type_confidence: string | number | null;
+  detection_reason: string | null;
+  row_count: number;
+  column_headers_json: unknown;
+  sample_rows_json: unknown;
+  status: MigrationFile["status"];
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface MigrationColumnMappingRow extends QueryResultRow {
+  id: string;
+  migration_batch_id: string;
+  migration_file_id: string;
+  source_column: string;
+  target_field: string | null;
+  confidence: string | number | null;
+  approved: boolean;
+  approved_by_user_id: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface MigrationStagedMemberRow extends QueryResultRow {
+  id: string;
+  migration_batch_id: string;
+  migration_file_id: string;
+  source_row_number: number;
+  source_row_json: unknown;
+  first_name: string | null;
+  last_name: string | null;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  date_of_birth: Date | null;
+  address: string | null;
+  emergency_contact: string | null;
+  membership_status: string | null;
+  membership_plan_name: string | null;
+  start_date: Date | null;
+  cancellation_date: Date | null;
+  next_billing_date: Date | null;
+  assigned_trainer_name: string | null;
+  notes: string | null;
+  tags_json: unknown;
+  duplicate_group_id: string | null;
+  validation_status: MigrationStagedMember["validationStatus"];
+  ai_confidence: string | number | null;
+  approved: boolean;
+  imported_member_id: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface MigrationValidationErrorRow extends QueryResultRow {
+  id: string;
+  migration_batch_id: string;
+  migration_file_id: string;
+  staged_record_type: string;
+  staged_record_id: string | null;
+  severity: MigrationValidationError["severity"];
+  error_code: string;
+  message: string;
+  field_name: string | null;
+  resolved: boolean;
+  resolved_by_user_id: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface MigrationAuditLogRow extends QueryResultRow {
+  id: string;
+  migration_batch_id: string;
+  user_id: string;
+  action: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  before_json: unknown;
+  after_json: unknown;
+  message: string | null;
+  created_at: Date;
 }
 
 interface ClassTypeRow extends QueryResultRow {
@@ -662,6 +773,64 @@ export class PostgresRepositories implements Repositories {
       this.listMemberMembershipsForMember(memberId),
     updateMemberMembership: (membership: MemberMembership) =>
       this.updateMemberMembership(membership)
+  };
+
+  readonly migrationBatches = {
+    createMigrationBatch: (batch: MigrationBatch) => this.createMigrationBatch(batch),
+    getMigrationBatch: (batchId: string) => this.getMigrationBatch(batchId),
+    listMigrationBatchesForGym: (gymId: string) => this.listMigrationBatchesForGym(gymId),
+    updateMigrationBatch: (batch: MigrationBatch) => this.updateMigrationBatch(batch)
+  };
+
+  readonly migrationFiles = {
+    createMigrationFile: (file: MigrationFile) => this.createMigrationFile(file),
+    getMigrationFile: (fileId: string) => this.getMigrationFile(fileId),
+    listMigrationFilesForBatch: (batchId: string) => this.listMigrationFilesForBatch(batchId),
+    updateMigrationFile: (file: MigrationFile) => this.updateMigrationFile(file)
+  };
+
+  readonly migrationColumnMappings = {
+    createMigrationColumnMapping: (mapping: MigrationColumnMapping) =>
+      this.createMigrationColumnMapping(mapping),
+    listMigrationColumnMappingsForFile: (fileId: string) =>
+      this.listMigrationColumnMappingsForFile(fileId),
+    replaceMigrationColumnMappingsForFile: (
+      batchId: string,
+      fileId: string,
+      mappings: MigrationColumnMapping[]
+    ) => this.replaceMigrationColumnMappingsForFile(batchId, fileId, mappings)
+  };
+
+  readonly migrationStagedMembers = {
+    createMigrationStagedMember: (member: MigrationStagedMember) =>
+      this.createMigrationStagedMember(member),
+    getMigrationStagedMember: (memberId: string) => this.getMigrationStagedMember(memberId),
+    listMigrationStagedMembersForFile: (fileId: string) =>
+      this.listMigrationStagedMembersForFile(fileId),
+    updateMigrationStagedMember: (member: MigrationStagedMember) =>
+      this.updateMigrationStagedMember(member),
+    replaceMigrationStagedMembersForFile: (
+      batchId: string,
+      fileId: string,
+      members: MigrationStagedMember[]
+    ) => this.replaceMigrationStagedMembersForFile(batchId, fileId, members)
+  };
+
+  readonly migrationValidationErrors = {
+    createMigrationValidationError: (error: MigrationValidationError) =>
+      this.createMigrationValidationError(error),
+    listMigrationValidationErrorsForFile: (fileId: string) =>
+      this.listMigrationValidationErrorsForFile(fileId),
+    replaceMigrationValidationErrorsForFile: (
+      batchId: string,
+      fileId: string,
+      errors: MigrationValidationError[]
+    ) => this.replaceMigrationValidationErrorsForFile(batchId, fileId, errors)
+  };
+
+  readonly migrationAuditLogs = {
+    createMigrationAuditLog: (entry: MigrationAuditLog) => this.createMigrationAuditLog(entry),
+    listMigrationAuditLogsForBatch: (batchId: string) => this.listMigrationAuditLogsForBatch(batchId)
   };
 
   readonly classes = {
@@ -1176,6 +1345,363 @@ export class PostgresRepositories implements Repositories {
       [gymId]
     );
     return result.rows.map(mapStaffAuditLog);
+  }
+
+  // Migration batches and files
+  async createMigrationBatch(batch: MigrationBatch) {
+    const result = await this.executor.query<MigrationBatchRow>(
+      `INSERT INTO migration_batches (id, gym_id, status, created_by_user_id, approved_by_user_id, created_at, updated_at, approved_at, finalized_at, summary_json)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      [
+        batch.id,
+        batch.gymId,
+        batch.status,
+        batch.createdByUserId,
+        batch.approvedByUserId ?? null,
+        batch.createdAt,
+        batch.updatedAt,
+        batch.approvedAt ?? null,
+        batch.finalizedAt ?? null,
+        batch.summaryJson ?? {}
+      ]
+    );
+    return mapMigrationBatch(one(result));
+  }
+
+  async getMigrationBatch(batchId: string) {
+    const result = await this.executor.query<MigrationBatchRow>("SELECT * FROM migration_batches WHERE id = $1", [batchId]);
+    return result.rows[0] ? mapMigrationBatch(result.rows[0]) : undefined;
+  }
+
+  async listMigrationBatchesForGym(gymId: string) {
+    const result = await this.executor.query<MigrationBatchRow>("SELECT * FROM migration_batches WHERE gym_id = $1 ORDER BY created_at DESC", [gymId]);
+    return result.rows.map(mapMigrationBatch);
+  }
+
+  async updateMigrationBatch(batch: MigrationBatch) {
+    const result = await this.executor.query<MigrationBatchRow>(
+      `UPDATE migration_batches SET status=$2, approved_by_user_id=$3, updated_at=$4, approved_at=$5, finalized_at=$6, summary_json=$7 WHERE id=$1 RETURNING *`,
+      [batch.id, batch.status, batch.approvedByUserId ?? null, batch.updatedAt, batch.approvedAt ?? null, batch.finalizedAt ?? null, batch.summaryJson ?? {}]
+    );
+    return mapMigrationBatch(one(result));
+  }
+
+  async createMigrationFile(file: MigrationFile) {
+    const result = await this.executor.query<MigrationFileRow>(
+      `INSERT INTO migration_files (id, migration_batch_id, original_filename, stored_file_path, content_type, size_bytes, file_type, detected_file_type, file_type_confidence, detection_reason, row_count, column_headers_json, sample_rows_json, status, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
+      [
+        file.id,
+        file.migrationBatchId,
+        file.originalFilename,
+        file.storedFilePath,
+        file.contentType,
+        file.sizeBytes,
+        file.fileType,
+        file.detectedFileType ?? null,
+        file.fileTypeConfidence ?? null,
+        file.detectionReason ?? null,
+        file.rowCount ?? 0,
+        JSON.stringify(file.columnHeaders ?? []),
+        JSON.stringify(file.sampleRows ?? []),
+        file.status,
+        file.createdAt,
+        file.updatedAt
+      ]
+    );
+    return mapMigrationFile(one(result));
+  }
+
+  async getMigrationFile(fileId: string) {
+    const result = await this.executor.query<MigrationFileRow>("SELECT * FROM migration_files WHERE id = $1", [fileId]);
+    return result.rows[0] ? mapMigrationFile(result.rows[0]) : undefined;
+  }
+
+  async listMigrationFilesForBatch(batchId: string) {
+    const result = await this.executor.query<MigrationFileRow>("SELECT * FROM migration_files WHERE migration_batch_id = $1 ORDER BY created_at", [batchId]);
+    return result.rows.map(mapMigrationFile);
+  }
+
+  async updateMigrationFile(file: MigrationFile) {
+    const result = await this.executor.query<MigrationFileRow>(
+      `UPDATE migration_files SET original_filename=$2, stored_file_path=$3, content_type=$4, size_bytes=$5, file_type=$6, detected_file_type=$7, file_type_confidence=$8, detection_reason=$9, row_count=$10, column_headers_json=$11, sample_rows_json=$12, status=$13, updated_at=$14 WHERE id=$1 RETURNING *`,
+      [
+        file.id,
+        file.originalFilename,
+        file.storedFilePath,
+        file.contentType,
+        file.sizeBytes,
+        file.fileType,
+        file.detectedFileType ?? null,
+        file.fileTypeConfidence ?? null,
+        file.detectionReason ?? null,
+        file.rowCount ?? 0,
+        JSON.stringify(file.columnHeaders ?? []),
+        JSON.stringify(file.sampleRows ?? []),
+        file.status,
+        file.updatedAt
+      ]
+    );
+    return mapMigrationFile(one(result));
+  }
+
+  async createMigrationColumnMapping(mapping: MigrationColumnMapping) {
+    const result = await this.executor.query<MigrationColumnMappingRow>(
+      `INSERT INTO migration_column_mappings (
+        id, migration_batch_id, migration_file_id, source_column, target_field,
+        confidence, approved, approved_by_user_id, created_at, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      [
+        mapping.id,
+        mapping.migrationBatchId,
+        mapping.migrationFileId,
+        mapping.sourceColumn,
+        mapping.targetField ?? null,
+        mapping.confidence ?? null,
+        mapping.approved,
+        mapping.approvedByUserId ?? null,
+        mapping.createdAt,
+        mapping.updatedAt
+      ]
+    );
+    return mapMigrationColumnMapping(one(result));
+  }
+
+  async listMigrationColumnMappingsForFile(fileId: string) {
+    const result = await this.executor.query<MigrationColumnMappingRow>(
+      "SELECT * FROM migration_column_mappings WHERE migration_file_id = $1 ORDER BY created_at, id",
+      [fileId]
+    );
+    return result.rows.map(mapMigrationColumnMapping);
+  }
+
+  async replaceMigrationColumnMappingsForFile(
+    batchId: string,
+    fileId: string,
+    mappings: MigrationColumnMapping[]
+  ) {
+    await this.executor.query(
+      "DELETE FROM migration_column_mappings WHERE migration_batch_id = $1 AND migration_file_id = $2",
+      [batchId, fileId]
+    );
+    const created: MigrationColumnMapping[] = [];
+    for (const mapping of mappings) {
+      created.push(await this.createMigrationColumnMapping(mapping));
+    }
+    return created;
+  }
+
+  async createMigrationStagedMember(member: MigrationStagedMember) {
+    const result = await this.executor.query<MigrationStagedMemberRow>(
+      `INSERT INTO migration_staged_members (
+        id, migration_batch_id, migration_file_id, source_row_number, source_row_json,
+        first_name, last_name, full_name, email, phone, date_of_birth, address,
+        emergency_contact, membership_status, membership_plan_name, start_date,
+        cancellation_date, next_billing_date, assigned_trainer_name, notes, tags_json,
+        duplicate_group_id, validation_status, ai_confidence, approved, imported_member_id,
+        created_at, updated_at
+      ) VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28
+      ) RETURNING *`,
+      [
+        member.id,
+        member.migrationBatchId,
+        member.migrationFileId,
+        member.sourceRowNumber,
+        JSON.stringify(member.sourceRowJson),
+        member.firstName ?? null,
+        member.lastName ?? null,
+        member.fullName ?? null,
+        member.email ?? null,
+        member.phone ?? null,
+        member.dateOfBirth ?? null,
+        member.address ?? null,
+        member.emergencyContact ?? null,
+        member.membershipStatus ?? null,
+        member.membershipPlanName ?? null,
+        member.startDate ?? null,
+        member.cancellationDate ?? null,
+        member.nextBillingDate ?? null,
+        member.assignedTrainerName ?? null,
+        member.notes ?? null,
+        JSON.stringify(member.tagsJson ?? []),
+        member.duplicateGroupId ?? null,
+        member.validationStatus,
+        member.aiConfidence ?? null,
+        member.approved,
+        member.importedMemberId ?? null,
+        member.createdAt,
+        member.updatedAt
+      ]
+    );
+    return mapMigrationStagedMember(one(result));
+  }
+
+  async getMigrationStagedMember(memberId: string) {
+    const result = await this.executor.query<MigrationStagedMemberRow>(
+      "SELECT * FROM migration_staged_members WHERE id = $1",
+      [memberId]
+    );
+    return result.rows[0] ? mapMigrationStagedMember(result.rows[0]) : undefined;
+  }
+
+  async listMigrationStagedMembersForFile(fileId: string) {
+    const result = await this.executor.query<MigrationStagedMemberRow>(
+      "SELECT * FROM migration_staged_members WHERE migration_file_id = $1 ORDER BY source_row_number",
+      [fileId]
+    );
+    return result.rows.map(mapMigrationStagedMember);
+  }
+
+  async updateMigrationStagedMember(member: MigrationStagedMember) {
+    const result = await this.executor.query<MigrationStagedMemberRow>(
+      `UPDATE migration_staged_members SET
+        source_row_json=$2,
+        first_name=$3,
+        last_name=$4,
+        full_name=$5,
+        email=$6,
+        phone=$7,
+        date_of_birth=$8,
+        address=$9,
+        emergency_contact=$10,
+        membership_status=$11,
+        membership_plan_name=$12,
+        start_date=$13,
+        cancellation_date=$14,
+        next_billing_date=$15,
+        assigned_trainer_name=$16,
+        notes=$17,
+        tags_json=$18,
+        duplicate_group_id=$19,
+        validation_status=$20,
+        ai_confidence=$21,
+        approved=$22,
+        imported_member_id=$23,
+        updated_at=$24
+      WHERE id=$1 RETURNING *`,
+      [
+        member.id,
+        JSON.stringify(member.sourceRowJson),
+        member.firstName ?? null,
+        member.lastName ?? null,
+        member.fullName ?? null,
+        member.email ?? null,
+        member.phone ?? null,
+        member.dateOfBirth ?? null,
+        member.address ?? null,
+        member.emergencyContact ?? null,
+        member.membershipStatus ?? null,
+        member.membershipPlanName ?? null,
+        member.startDate ?? null,
+        member.cancellationDate ?? null,
+        member.nextBillingDate ?? null,
+        member.assignedTrainerName ?? null,
+        member.notes ?? null,
+        JSON.stringify(member.tagsJson ?? []),
+        member.duplicateGroupId ?? null,
+        member.validationStatus,
+        member.aiConfidence ?? null,
+        member.approved,
+        member.importedMemberId ?? null,
+        member.updatedAt
+      ]
+    );
+    return mapMigrationStagedMember(one(result));
+  }
+
+  async replaceMigrationStagedMembersForFile(
+    batchId: string,
+    fileId: string,
+    members: MigrationStagedMember[]
+  ) {
+    await this.executor.query(
+      "DELETE FROM migration_staged_members WHERE migration_batch_id = $1 AND migration_file_id = $2",
+      [batchId, fileId]
+    );
+    const created: MigrationStagedMember[] = [];
+    for (const member of members) {
+      created.push(await this.createMigrationStagedMember(member));
+    }
+    return created;
+  }
+
+  async createMigrationValidationError(error: MigrationValidationError) {
+    const result = await this.executor.query<MigrationValidationErrorRow>(
+      `INSERT INTO migration_validation_errors (
+        id, migration_batch_id, migration_file_id, staged_record_type, staged_record_id,
+        severity, error_code, message, field_name, resolved, resolved_by_user_id,
+        created_at, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+      [
+        error.id,
+        error.migrationBatchId,
+        error.migrationFileId,
+        error.stagedRecordType,
+        error.stagedRecordId ?? null,
+        error.severity,
+        error.errorCode,
+        error.message,
+        error.fieldName ?? null,
+        error.resolved,
+        error.resolvedByUserId ?? null,
+        error.createdAt,
+        error.updatedAt
+      ]
+    );
+    return mapMigrationValidationError(one(result));
+  }
+
+  async listMigrationValidationErrorsForFile(fileId: string) {
+    const result = await this.executor.query<MigrationValidationErrorRow>(
+      "SELECT * FROM migration_validation_errors WHERE migration_file_id = $1 ORDER BY created_at, id",
+      [fileId]
+    );
+    return result.rows.map(mapMigrationValidationError);
+  }
+
+  async replaceMigrationValidationErrorsForFile(
+    batchId: string,
+    fileId: string,
+    errors: MigrationValidationError[]
+  ) {
+    await this.executor.query(
+      "DELETE FROM migration_validation_errors WHERE migration_batch_id = $1 AND migration_file_id = $2",
+      [batchId, fileId]
+    );
+    const created: MigrationValidationError[] = [];
+    for (const error of errors) {
+      created.push(await this.createMigrationValidationError(error));
+    }
+    return created;
+  }
+
+  async createMigrationAuditLog(entry: MigrationAuditLog) {
+    const result = await this.executor.query<MigrationAuditLogRow>(
+      `INSERT INTO migration_audit_logs (id, migration_batch_id, user_id, action, entity_type, entity_id, before_json, after_json, message, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      [
+        entry.id,
+        entry.migrationBatchId,
+        entry.userId,
+        entry.action,
+        entry.entityType ?? null,
+        entry.entityId ?? null,
+        entry.beforeJson ? JSON.stringify(entry.beforeJson) : null,
+        entry.afterJson ? JSON.stringify(entry.afterJson) : null,
+        entry.message ?? null,
+        entry.createdAt
+      ]
+    );
+    return mapMigrationAuditLog(one(result));
+  }
+
+  async listMigrationAuditLogsForBatch(batchId: string) {
+    const result = await this.executor.query<MigrationAuditLogRow>(
+      "SELECT * FROM migration_audit_logs WHERE migration_batch_id = $1 ORDER BY created_at DESC",
+      [batchId]
+    );
+    return result.rows.map(mapMigrationAuditLog);
   }
 
   async createStaffShift(shift: StaffShift) {
@@ -3140,6 +3666,157 @@ function mapMemberMembership(row: MemberMembershipRow): MemberMembership {
   return membership;
 }
 
+function mapMigrationBatch(row: MigrationBatchRow): MigrationBatch {
+  const batch: MigrationBatch = {
+    id: row.id,
+    gymId: row.gym_id,
+    status: row.status,
+    createdByUserId: row.created_by_user_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    summaryJson: isRecord(row.summary_json) ? row.summary_json : {}
+  };
+  if (row.approved_by_user_id) {
+    batch.approvedByUserId = row.approved_by_user_id;
+  }
+  if (row.approved_at) {
+    batch.approvedAt = row.approved_at;
+  }
+  if (row.finalized_at) {
+    batch.finalizedAt = row.finalized_at;
+  }
+  return batch;
+}
+
+function mapMigrationFile(row: MigrationFileRow): MigrationFile {
+  const file: MigrationFile = {
+    id: row.id,
+    migrationBatchId: row.migration_batch_id,
+    originalFilename: row.original_filename,
+    storedFilePath: row.stored_file_path,
+    contentType: row.content_type,
+    sizeBytes: row.size_bytes,
+    fileType: row.file_type,
+    columnHeaders: stringArray(row.column_headers_json),
+    sampleRows: sampleRows(row.sample_rows_json),
+    rowCount: row.row_count,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+  if (row.detected_file_type) {
+    file.detectedFileType = row.detected_file_type;
+  }
+  if (row.file_type_confidence !== null) {
+    file.fileTypeConfidence = Number(row.file_type_confidence);
+  }
+  if (row.detection_reason) {
+    file.detectionReason = row.detection_reason;
+  }
+  return file;
+}
+
+function mapMigrationColumnMapping(row: MigrationColumnMappingRow): MigrationColumnMapping {
+  const mapping: MigrationColumnMapping = {
+    id: row.id,
+    migrationBatchId: row.migration_batch_id,
+    migrationFileId: row.migration_file_id,
+    sourceColumn: row.source_column,
+    approved: row.approved,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+  if (row.target_field) {
+    mapping.targetField = row.target_field;
+  }
+  if (row.confidence !== null) {
+    mapping.confidence = Number(row.confidence);
+  }
+  if (row.approved_by_user_id) {
+    mapping.approvedByUserId = row.approved_by_user_id;
+  }
+  return mapping;
+}
+
+function mapMigrationStagedMember(row: MigrationStagedMemberRow): MigrationStagedMember {
+  const member: MigrationStagedMember = {
+    id: row.id,
+    migrationBatchId: row.migration_batch_id,
+    migrationFileId: row.migration_file_id,
+    sourceRowNumber: row.source_row_number,
+    sourceRowJson: sourceRow(row.source_row_json),
+    tagsJson: stringArray(row.tags_json),
+    validationStatus: row.validation_status,
+    approved: row.approved,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+  if (row.first_name) member.firstName = row.first_name;
+  if (row.last_name) member.lastName = row.last_name;
+  if (row.full_name) member.fullName = row.full_name;
+  if (row.email) member.email = row.email;
+  if (row.phone) member.phone = row.phone;
+  if (row.date_of_birth) member.dateOfBirth = row.date_of_birth;
+  if (row.address) member.address = row.address;
+  if (row.emergency_contact) member.emergencyContact = row.emergency_contact;
+  if (row.membership_status) member.membershipStatus = row.membership_status;
+  if (row.membership_plan_name) member.membershipPlanName = row.membership_plan_name;
+  if (row.start_date) member.startDate = row.start_date;
+  if (row.cancellation_date) member.cancellationDate = row.cancellation_date;
+  if (row.next_billing_date) member.nextBillingDate = row.next_billing_date;
+  if (row.assigned_trainer_name) member.assignedTrainerName = row.assigned_trainer_name;
+  if (row.notes) member.notes = row.notes;
+  if (row.duplicate_group_id) member.duplicateGroupId = row.duplicate_group_id;
+  if (row.ai_confidence !== null) member.aiConfidence = Number(row.ai_confidence);
+  if (row.imported_member_id) member.importedMemberId = row.imported_member_id;
+  return member;
+}
+
+function mapMigrationValidationError(row: MigrationValidationErrorRow): MigrationValidationError {
+  const error: MigrationValidationError = {
+    id: row.id,
+    migrationBatchId: row.migration_batch_id,
+    migrationFileId: row.migration_file_id,
+    stagedRecordType: row.staged_record_type,
+    severity: row.severity,
+    errorCode: row.error_code,
+    message: row.message,
+    resolved: row.resolved,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+  if (row.staged_record_id) error.stagedRecordId = row.staged_record_id;
+  if (row.field_name) error.fieldName = row.field_name;
+  if (row.resolved_by_user_id) error.resolvedByUserId = row.resolved_by_user_id;
+  return error;
+}
+
+function mapMigrationAuditLog(row: MigrationAuditLogRow): MigrationAuditLog {
+  const entry: MigrationAuditLog = {
+    id: row.id,
+    migrationBatchId: row.migration_batch_id,
+    userId: row.user_id,
+    action: row.action,
+    createdAt: row.created_at
+  };
+  if (row.entity_type) {
+    entry.entityType = row.entity_type;
+  }
+  if (row.entity_id) {
+    entry.entityId = row.entity_id;
+  }
+  if (isRecord(row.before_json)) {
+    entry.beforeJson = row.before_json;
+  }
+  if (isRecord(row.after_json)) {
+    entry.afterJson = row.after_json;
+  }
+  if (row.message) {
+    entry.message = row.message;
+  }
+  return entry;
+}
+
 function mapClassType(row: ClassTypeRow): ClassType {
   const classType: ClassType = {
     id: row.id,
@@ -3484,6 +4161,28 @@ function stringArray(value: unknown) {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : [];
+}
+
+function sampleRows(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is Record<string, string> => {
+    if (!isRecord(item)) {
+      return false;
+    }
+    return Object.values(item).every((field) => typeof field === "string");
+  });
+}
+
+function sourceRow(value: unknown) {
+  if (!isRecord(value)) {
+    return {};
+  }
+  return Object.entries(value).reduce<Record<string, string>>((row, [key, field]) => {
+    row[key] = typeof field === "string" ? field : String(field ?? "");
+    return row;
+  }, {});
 }
 
 function numberArray(value: unknown) {

@@ -90,6 +90,146 @@ export interface GymMigrationUpload {
   textPreview?: string;
 }
 
+export interface MigrationBatch {
+  id: string;
+  gymId: string;
+  status: MigrationBatchStatus;
+  createdByUserId: string;
+  approvedByUserId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  approvedAt?: Date;
+  finalizedAt?: Date;
+  summaryJson: Record<string, unknown>;
+}
+
+export type MigrationBatchStatus =
+  | "draft"
+  | "files_uploaded"
+  | "detecting"
+  | "ready_for_staging"
+  | "approved"
+  | "finalized"
+  | "cancelled";
+
+export type MigrationFileType =
+  | "members"
+  | "staff"
+  | "membership_plans"
+  | "classes"
+  | "attendance"
+  | "billing"
+  | "appointments"
+  | "unknown";
+
+export type MigrationFileStatus =
+  | "uploaded"
+  | "detecting"
+  | "needs_review"
+  | "confirmed"
+  | "deleted";
+
+export interface MigrationFile {
+  id: string;
+  migrationBatchId: string;
+  originalFilename: string;
+  storedFilePath: string;
+  contentType: string;
+  sizeBytes: number;
+  fileType: MigrationFileType;
+  detectedFileType?: MigrationFileType;
+  fileTypeConfidence?: number;
+  detectionReason?: string;
+  columnHeaders: string[];
+  sampleRows: Record<string, string>[];
+  rowCount: number;
+  status: MigrationFileStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface MigrationColumnMapping {
+  id: string;
+  migrationBatchId: string;
+  migrationFileId: string;
+  sourceColumn: string;
+  targetField?: string;
+  confidence?: number;
+  approved: boolean;
+  approvedByUserId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type MigrationStagedRecordValidationStatus =
+  | "pending"
+  | "ready"
+  | "warnings"
+  | "critical"
+  | "skipped";
+
+export interface MigrationStagedMember {
+  id: string;
+  migrationBatchId: string;
+  migrationFileId: string;
+  sourceRowNumber: number;
+  sourceRowJson: Record<string, string>;
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;
+  email?: string;
+  phone?: string;
+  dateOfBirth?: Date;
+  address?: string;
+  emergencyContact?: string;
+  membershipStatus?: string;
+  membershipPlanName?: string;
+  startDate?: Date;
+  cancellationDate?: Date;
+  nextBillingDate?: Date;
+  assignedTrainerName?: string;
+  notes?: string;
+  tagsJson: string[];
+  duplicateGroupId?: string;
+  validationStatus: MigrationStagedRecordValidationStatus;
+  aiConfidence?: number;
+  approved: boolean;
+  importedMemberId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type MigrationValidationErrorSeverity = "info" | "warning" | "critical";
+
+export interface MigrationValidationError {
+  id: string;
+  migrationBatchId: string;
+  migrationFileId: string;
+  stagedRecordType: string;
+  stagedRecordId?: string;
+  severity: MigrationValidationErrorSeverity;
+  errorCode: string;
+  message: string;
+  fieldName?: string;
+  resolved: boolean;
+  resolvedByUserId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface MigrationAuditLog {
+  id: string;
+  migrationBatchId: string;
+  userId: string;
+  action: string;
+  entityType?: string;
+  entityId?: string;
+  beforeJson?: Record<string, unknown>;
+  afterJson?: Record<string, unknown>;
+  message?: string;
+  createdAt: Date;
+}
+
 export type GymMigrationChecklistItem =
   | "memberList"
   | "activeMemberships"
@@ -651,6 +791,12 @@ export interface StoreSnapshot {
   crmActivities: CrmActivity[];
   membershipPlans: MembershipPlan[];
   memberMemberships: MemberMembership[];
+  migrationBatches: MigrationBatch[];
+  migrationFiles: MigrationFile[];
+  migrationColumnMappings: MigrationColumnMapping[];
+  migrationStagedMembers: MigrationStagedMember[];
+  migrationValidationErrors: MigrationValidationError[];
+  migrationAuditLogs: MigrationAuditLog[];
   classTypes: ClassType[];
   classSessions: ClassSession[];
   classBookings: ClassBooking[];

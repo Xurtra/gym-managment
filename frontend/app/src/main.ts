@@ -777,6 +777,139 @@ interface MigrationMemberCsvAiMappingResponse {
   preview: MigrationMemberCsvPreviewResponse;
 }
 
+type MigrationFileType =
+  | "members"
+  | "staff"
+  | "membership_plans"
+  | "classes"
+  | "attendance"
+  | "billing"
+  | "appointments"
+  | "unknown";
+
+interface MigrationBatchRecord {
+  id: string;
+  gymId: string;
+  status: string;
+  createdByUserId: string;
+  approvedByUserId?: string;
+  createdAt: string;
+  updatedAt: string;
+  approvedAt?: string;
+  finalizedAt?: string;
+  summaryJson: Record<string, unknown>;
+}
+
+interface MigrationFileRecord {
+  id: string;
+  migrationBatchId: string;
+  originalFilename: string;
+  storedFilePath: string;
+  contentType: string;
+  sizeBytes: number;
+  fileType: MigrationFileType;
+  detectedFileType?: MigrationFileType;
+  fileTypeConfidence?: number;
+  detectionReason?: string;
+  columnHeaders: string[];
+  sampleRows: Record<string, string>[];
+  rowCount: number;
+  status: "uploaded" | "detecting" | "needs_review" | "confirmed" | "deleted";
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface MigrationColumnMappingRecord {
+  id: string;
+  migrationBatchId: string;
+  migrationFileId: string;
+  sourceColumn: string;
+  targetField?: string;
+  confidence?: number;
+  approved: boolean;
+  approvedByUserId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface MigrationMappingIssue {
+  severity: "warning" | "critical";
+  code: string;
+  message: string;
+  sourceColumn?: string;
+  targetField?: string;
+}
+
+interface MigrationColumnMappingResponse {
+  file: MigrationFileRecord;
+  targetFields: string[];
+  mappings: MigrationColumnMappingRecord[];
+  issues: MigrationMappingIssue[];
+  requiresHumanReview: boolean;
+}
+
+type MigrationStagedMemberValidationStatus = "pending" | "ready" | "warnings" | "critical" | "skipped";
+
+interface MigrationStagedMemberRecord {
+  id: string;
+  migrationBatchId: string;
+  migrationFileId: string;
+  sourceRowNumber: number;
+  sourceRowJson: Record<string, string>;
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;
+  email?: string;
+  phone?: string;
+  dateOfBirth?: string;
+  address?: string;
+  emergencyContact?: string;
+  membershipStatus?: string;
+  membershipPlanName?: string;
+  startDate?: string;
+  cancellationDate?: string;
+  nextBillingDate?: string;
+  assignedTrainerName?: string;
+  notes?: string;
+  tagsJson: string[];
+  duplicateGroupId?: string;
+  validationStatus: MigrationStagedMemberValidationStatus;
+  approved: boolean;
+  importedMemberId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface MigrationValidationErrorRecord {
+  id: string;
+  migrationBatchId: string;
+  migrationFileId: string;
+  stagedRecordType: string;
+  stagedRecordId?: string;
+  severity: "info" | "warning" | "critical";
+  errorCode: string;
+  message: string;
+  fieldName?: string;
+  resolved: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface MigrationStagedMembersResponse {
+  file: MigrationFileRecord;
+  stagedMembers: MigrationStagedMemberRecord[];
+  validationErrors: MigrationValidationErrorRecord[];
+  summary: {
+    total: number;
+    ready: number;
+    warnings: number;
+    critical: number;
+    skipped: number;
+    approved: number;
+    validationErrors: number;
+  };
+}
+
 interface PlanRecord {
   id: string;
   gymId: string;
@@ -1032,6 +1165,16 @@ interface AppState {
   memberCsvImport?: MigrationMemberCsvUpload;
   memberCsvPreview?: MigrationMemberCsvPreviewResponse;
   memberCsvAiSuggestion?: MigrationMemberCsvAiMappingResponse;
+  migrationBatches: MigrationBatchRecord[];
+  migrationFiles: MigrationFileRecord[];
+  migrationColumnMappings: Record<string, MigrationColumnMappingRecord[]>;
+  migrationMappingIssues: Record<string, MigrationMappingIssue[]>;
+  migrationMappingTargetFields: Record<string, string[]>;
+  migrationStagedMembers: Record<string, MigrationStagedMemberRecord[]>;
+  migrationValidationErrors: Record<string, MigrationValidationErrorRecord[]>;
+  migrationStagedMemberFilter: "all" | "ready" | "warnings" | "critical";
+  selectedMigrationBatchId: string;
+  migrationAssistantStep: "upload" | "detect" | "map" | "stage";
   roles: RoleRecord[];
   selectedRoleId: string;
   staffShifts: StaffShiftRecord[];
@@ -1075,6 +1218,7 @@ interface AppState {
     | "access_control"
     | "contracts"
     | "member_portal"
+    | "migration"
     | "marketing"
     | "reports"
     | "settings"
@@ -1164,6 +1308,16 @@ const state: AppState = {
   memberCsvImport: undefined,
   memberCsvPreview: undefined,
   memberCsvAiSuggestion: undefined,
+  migrationBatches: [],
+  migrationFiles: [],
+  migrationColumnMappings: {},
+  migrationMappingIssues: {},
+  migrationMappingTargetFields: {},
+  migrationStagedMembers: {},
+  migrationValidationErrors: {},
+  migrationStagedMemberFilter: "all",
+  selectedMigrationBatchId: "",
+  migrationAssistantStep: "upload",
   roles: [],
   selectedRoleId: "",
   staffShifts: [],
@@ -1372,6 +1526,7 @@ async function refreshDashboard(options: { silent?: boolean; renderAfter?: boole
       const canReadOwnShifts = hasPermission(Permission.GymRead);
       const canReadAccess = hasPermission(Permission.AccessRead);
       const canReadScheduler = hasPermission(Permission.ScheduleRead);
+      const canManageMigration = hasPermission(Permission.GymUpdate);
       const [gymSettings, consumers, plans, locations, checkIns, classTypes] = (await Promise.all([
         client.getGym(state.gym.id) as Promise<GymRecord>,
         loadPermittedDashboardData(
@@ -1425,6 +1580,47 @@ async function refreshDashboard(options: { silent?: boolean; renderAfter?: boole
       )) as FacilityReservationListResponse;
       state.facilityReservations = facilityReservations.reservations ?? [];
       state.classTypes = classTypes.classTypes;
+      if (canManageMigration) {
+        const migrationBatches = (await client.listMigrationBatches(state.gym.id)) as { batches: MigrationBatchRecord[] };
+        state.migrationBatches = migrationBatches.batches ?? [];
+        const selectedBatchId =
+          state.selectedMigrationBatchId && state.migrationBatches.some((batch) => batch.id === state.selectedMigrationBatchId)
+            ? state.selectedMigrationBatchId
+            : state.migrationBatches[0]?.id ?? "";
+        state.selectedMigrationBatchId = selectedBatchId;
+        if (selectedBatchId) {
+          const migrationFiles = (await client.listMigrationFiles(state.gym.id, selectedBatchId)) as { files: MigrationFileRecord[] };
+          state.migrationFiles = migrationFiles.files ?? [];
+          if (state.migrationAssistantStep === "map") {
+            await loadMigrationColumnMappings(selectedBatchId);
+          } else if (state.migrationAssistantStep === "stage") {
+            await loadMigrationColumnMappings(selectedBatchId);
+            await loadMigrationStagedMembers(selectedBatchId);
+          } else {
+            state.migrationColumnMappings = {};
+            state.migrationMappingIssues = {};
+            state.migrationMappingTargetFields = {};
+            state.migrationStagedMembers = {};
+            state.migrationValidationErrors = {};
+          }
+        } else {
+          state.migrationFiles = [];
+          state.migrationColumnMappings = {};
+          state.migrationMappingIssues = {};
+          state.migrationMappingTargetFields = {};
+          state.migrationStagedMembers = {};
+          state.migrationValidationErrors = {};
+        }
+      } else {
+        state.migrationBatches = [];
+        state.migrationFiles = [];
+        state.migrationColumnMappings = {};
+        state.migrationMappingIssues = {};
+        state.migrationMappingTargetFields = {};
+        state.migrationStagedMembers = {};
+        state.migrationValidationErrors = {};
+        state.selectedMigrationBatchId = "";
+      }
       try {
         state.posStripeConfig = (await client.getPosStripeConfig(state.gym.id)) as {
           enabled: boolean;
@@ -1962,6 +2158,9 @@ function renderDashboard() {
     case 'member_portal':
       content = renderMemberPortalView();
       break;
+    case 'migration':
+      content = renderMigrationAssistantView();
+      break;
     case 'marketing':
       content = renderMarketingView();
       break;
@@ -2025,6 +2224,7 @@ function renderDashboard() {
             ${dashboardTab("access_control", "Access")}
             ${dashboardTab("contracts", "Forms")}
             ${dashboardTab("member_portal", "Portal")}
+            ${dashboardTab("migration", "Migration")}
             ${dashboardTab("marketing", "Marketing")}
             ${dashboardTab("reports", "Reporting")}
             ${dashboardTab("settings", "Settings")}
@@ -2101,6 +2301,625 @@ function renderTopbarStaffClock() {
       </span>
     </button>
   `;
+}
+
+async function loadMigrationColumnMappings(batchId: string) {
+  if (!state.gym) {
+    return;
+  }
+  const mappingFiles = state.migrationFiles.filter((file) => isColumnMappingSupportedFile(file));
+  const responses = await Promise.all(
+    mappingFiles.map((file) =>
+      client.listMigrationColumnMappings(state.gym!.id, batchId, file.id) as Promise<MigrationColumnMappingResponse>
+    )
+  );
+  state.migrationColumnMappings = {};
+  state.migrationMappingIssues = {};
+  state.migrationMappingTargetFields = {};
+  responses.forEach((response) => {
+    state.migrationColumnMappings[response.file.id] = response.mappings;
+    state.migrationMappingIssues[response.file.id] = response.issues;
+    state.migrationMappingTargetFields[response.file.id] = response.targetFields;
+  });
+}
+
+async function loadMigrationStagedMembers(batchId: string) {
+  if (!state.gym) {
+    return;
+  }
+  const memberFiles = state.migrationFiles.filter((file) => file.status === "confirmed" && file.fileType === "members");
+  const responses = await Promise.all(
+    memberFiles.map((file) =>
+      client.listMigrationStagedMembers(state.gym!.id, batchId, file.id) as Promise<MigrationStagedMembersResponse>
+    )
+  );
+  state.migrationStagedMembers = {};
+  state.migrationValidationErrors = {};
+  responses.forEach((response) => {
+    state.migrationStagedMembers[response.file.id] = response.stagedMembers;
+    state.migrationValidationErrors[response.file.id] = response.validationErrors;
+  });
+}
+
+function renderMigrationAssistantView() {
+  if (!hasPermission(Permission.GymUpdate)) {
+    return `<section class="club-panel club-page"><div class="empty-state"><h3>Migration access needed</h3><p>Only gym owners or admins can manage migration uploads.</p></div></section>`;
+  }
+  const selectedBatch = state.migrationBatches.find((batch) => batch.id === state.selectedMigrationBatchId);
+  const files = state.migrationFiles.filter((file) => file.status !== "deleted");
+  const activeStep = state.migrationAssistantStep;
+  const allFilesConfirmed =
+    files.length > 0 && files.every((file) => file.status === "confirmed" && file.fileType !== "unknown");
+  return `
+    <section class="club-panel club-page migration-assistant-page">
+      <div class="card-head">
+        <div>
+          <p class="eyebrow">Migration Assistant</p>
+          <h2>Migration Assistant</h2>
+        </div>
+        <span class="club-kicker">${selectedBatch ? formatHeaderLabel(selectedBatch.status) : "No batch"}</span>
+      </div>
+
+      <div class="migration-stepper">
+        <span class="${activeStep === "upload" ? "active" : ""}">1. Upload Files</span>
+        <span class="${activeStep === "detect" ? "active" : ""}">2. File Type Detection</span>
+        <span class="${activeStep === "map" ? "active" : ""}">3. Column Mapping</span>
+        <span class="${activeStep === "stage" ? "active" : ""}">4. Staged Members</span>
+      </div>
+
+      <div class="migration-batch-bar">
+        ${state.migrationBatches.length > 0
+          ? `
+            <label class="field">
+              <span>Migration batch</span>
+              <select data-migration-batch-select>
+                ${state.migrationBatches
+                  .map(
+                    (batch) =>
+                      `<option value="${escapeAttribute(batch.id)}" ${batch.id === state.selectedMigrationBatchId ? "selected" : ""}>${escapeHtml(formatDateLabel(batch.createdAt))} - ${escapeHtml(formatHeaderLabel(batch.status))}</option>`
+                  )
+                  .join("")}
+              </select>
+            </label>
+          `
+          : `<div class="empty-state"><p>No migration batch has been created yet.</p></div>`}
+        <form id="migration-create-batch-form">
+          <button type="submit">${selectedBatch ? "Create another batch" : "Create migration batch"}</button>
+        </form>
+      </div>
+
+      ${selectedBatch
+        ? activeStep === "upload"
+          ? renderMigrationUploadStep(files)
+          : activeStep === "detect"
+            ? renderMigrationDetectionStep(files, allFilesConfirmed)
+            : activeStep === "map"
+              ? renderMigrationMappingStep(files)
+              : renderMigrationStagedMembersStep(files)
+        : ""}
+    </section>
+  `;
+}
+
+function renderMigrationUploadStep(files: MigrationFileRecord[]) {
+  return `
+    <div class="migration-assistant-grid">
+      <form id="migration-file-upload-form" class="form-card migration-upload-card">
+        <div class="card-head">
+          <h3>Upload files</h3>
+          <span>CSV or XLSX</span>
+        </div>
+        <label class="migration-dropzone">
+          <span>Choose CSV/XLSX files</span>
+          <input name="migrationFiles" type="file" multiple accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+        </label>
+        <button type="submit">Upload files</button>
+      </form>
+      <div class="migration-files-panel">
+        <div class="card-head">
+          <h3>Uploaded files</h3>
+          <span>${files.length} file${files.length === 1 ? "" : "s"}</span>
+        </div>
+        ${renderMigrationFilesTable(files, "upload")}
+        <div class="migration-assistant-actions">
+          <button type="button" data-migration-step="detect" ${files.length === 0 ? "disabled" : ""}>Continue to file type detection</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderMigrationDetectionStep(files: MigrationFileRecord[], allFilesConfirmed: boolean) {
+  return `
+    <div class="migration-files-panel">
+      <div class="card-head">
+        <div>
+          <h3>File type detection</h3>
+          <p class="muted">AI sees only the file name, column headers, first 10 sample rows, and allowed file types.</p>
+        </div>
+        <button type="button" class="ghost-button" data-migration-detect-all ${files.length === 0 ? "disabled" : ""}>Run AI detection</button>
+      </div>
+      ${renderMigrationFilesTable(files, "detect")}
+      <div class="migration-assistant-actions">
+        <button type="button" class="ghost-button" data-migration-step="upload">Back to uploads</button>
+        <button type="button" data-migration-step="map" ${!allFilesConfirmed ? "disabled" : ""}>Continue to column mapping</button>
+      </div>
+      ${!allFilesConfirmed
+        ? `<p class="muted">Every uploaded file needs a confirmed file type before staging can begin.</p>`
+        : `<p class="muted">Ready to map source columns into the staging fields.</p>`}
+    </div>
+  `;
+}
+
+function renderMigrationMappingStep(files: MigrationFileRecord[]) {
+  const mappingFiles = files.filter((file) => file.status === "confirmed" && isColumnMappingSupportedFile(file));
+  const unsupportedConfirmedFiles = files.filter((file) => file.status === "confirmed" && !isColumnMappingSupportedFile(file));
+  const allApproved = mappingFiles.length > 0 && mappingFiles.every((file) =>
+    migrationMappingRowsForFile(file).every((mapping) => mapping.approved)
+      && !(state.migrationMappingIssues[file.id] ?? []).some((issue) => issue.severity === "critical")
+  );
+  return `
+    <div class="migration-files-panel migration-mapping-panel">
+      <div class="card-head">
+        <div>
+          <h3>Column mapping</h3>
+          <p class="muted">Map old export columns into this system's staging fields. Nothing imports until a later staging step.</p>
+        </div>
+        <button type="button" class="ghost-button" data-migration-map-all ${mappingFiles.length === 0 ? "disabled" : ""}>AI map all files</button>
+      </div>
+      ${mappingFiles.length === 0
+        ? `<div class="empty-state"><p>No confirmed member, staff, or membership plan files are ready for column mapping.</p></div>`
+        : mappingFiles.map(renderMigrationMappingFile).join("")}
+      ${unsupportedConfirmedFiles.length > 0
+        ? `<p class="muted">Skipping ${unsupportedConfirmedFiles.length} confirmed file${unsupportedConfirmedFiles.length === 1 ? "" : "s"} because column mapping currently supports members, staff, and membership plans.</p>`
+        : ""}
+      <div class="migration-assistant-actions">
+        <button type="button" class="ghost-button" data-migration-step="detect">Back to file type detection</button>
+        <button type="button" data-migration-step="stage" ${!allApproved ? "disabled" : ""}>Continue to staging</button>
+      </div>
+      <p class="muted">${allApproved ? "Mappings are approved. Stage members next for review before any production import exists." : "Every supported file needs approved mappings before staging can begin."}</p>
+    </div>
+  `;
+}
+
+function renderMigrationMappingFile(file: MigrationFileRecord) {
+  const mappings = migrationMappingRowsForFile(file);
+  const issues = state.migrationMappingIssues[file.id] ?? [];
+  const targetFields = state.migrationMappingTargetFields[file.id] ?? migrationTargetFieldsForType(file.fileType);
+  const approved = mappings.length > 0 && mappings.every((mapping) => mapping.approved);
+  const criticalCount = issues.filter((issue) => issue.severity === "critical").length;
+  const warningCount = issues.filter((issue) => issue.severity === "warning").length;
+  return `
+    <article class="migration-file-card migration-mapping-card">
+      <div class="migration-file-main">
+        <div>
+          <strong>${escapeHtml(file.originalFilename)}</strong>
+          <span>${escapeHtml(formatHeaderLabel(file.fileType))} - ${file.columnHeaders.length} source columns</span>
+        </div>
+        <div class="migration-mapping-actions">
+          <span class="migration-file-status">${approved ? "Approved" : "Needs approval"}</span>
+          <button type="button" class="ghost-button" data-migration-map-file="${escapeAttribute(file.id)}">AI map</button>
+        </div>
+      </div>
+      ${issues.length > 0
+        ? `<div class="migration-issue-list">
+            ${issues.map((issue) => `
+              <span class="${issue.severity}">${escapeHtml(formatHeaderLabel(issue.severity))}: ${escapeHtml(issue.message)}</span>
+            `).join("")}
+          </div>`
+        : `<p class="muted">No mapping issues detected.</p>`}
+      <form class="migration-column-mapping-form" data-migration-mapping-form="${escapeAttribute(file.id)}">
+        <div class="table-wrap migration-column-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Source column</th>
+                <th>Sample values</th>
+                <th>Target field</th>
+                <th>Confidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${mappings.map((mapping) => renderMigrationMappingRow(file, mapping, targetFields)).join("")}
+            </tbody>
+          </table>
+        </div>
+        <div class="migration-assistant-actions">
+          <span class="muted">${criticalCount} critical - ${warningCount} warning</span>
+          <div>
+            <button type="submit" class="ghost-button" name="mappingAction" value="save">Save mappings</button>
+            <button type="submit" name="mappingAction" value="approve" ${criticalCount > 0 ? "disabled" : ""}>Approve mappings</button>
+          </div>
+        </div>
+      </form>
+    </article>
+  `;
+}
+
+function renderMigrationMappingRow(
+  file: MigrationFileRecord,
+  mapping: MigrationColumnMappingRecord,
+  targetFields: string[]
+) {
+  const confidence = mapping.confidence === undefined ? "-" : `${Math.round(mapping.confidence * 100)}%`;
+  const sourceIssues = (state.migrationMappingIssues[file.id] ?? [])
+    .filter((issue) => issue.sourceColumn === mapping.sourceColumn || issue.targetField === mapping.targetField);
+  return `
+    <tr>
+      <td>
+        <strong>${escapeHtml(mapping.sourceColumn)}</strong>
+        ${sourceIssues.length > 0
+          ? `<div class="migration-row-messages">${sourceIssues.map((issue) => `<span class="migration-row-${issue.severity === "critical" ? "error" : "warning"}">${escapeHtml(issue.message)}</span>`).join("")}</div>`
+          : ""}
+      </td>
+      <td>${sampleValuesForColumn(file, mapping.sourceColumn).map((value) => `<span class="migration-sample-chip">${escapeHtml(value)}</span>`).join("") || `<span class="muted">No sample</span>`}</td>
+      <td>
+        <select name="targetField_${escapeAttribute(mapping.sourceColumn)}">
+          ${targetFields.map((field) => `<option value="${escapeAttribute(field)}" ${field === (mapping.targetField ?? "ignore") ? "selected" : ""}>${escapeHtml(formatMigrationTargetField(field))}</option>`).join("")}
+        </select>
+      </td>
+      <td>${confidence}</td>
+    </tr>
+  `;
+}
+
+function renderMigrationStagedMembersStep(files: MigrationFileRecord[]) {
+  const memberFiles = files.filter((file) => file.status === "confirmed" && file.fileType === "members");
+  const filters: Array<{ value: AppState["migrationStagedMemberFilter"]; label: string }> = [
+    { value: "all", label: "All" },
+    { value: "ready", label: "Ready" },
+    { value: "warnings", label: "Warnings" },
+    { value: "critical", label: "Critical" }
+  ];
+  return `
+    <div class="migration-files-panel migration-staged-panel">
+      <div class="card-head">
+        <div>
+          <h3>Staged members</h3>
+          <p class="muted">Review transformed member records before any production import is built or run.</p>
+        </div>
+        <div class="migration-filter-pills">
+          ${filters.map((filter) => `
+            <button
+              type="button"
+              class="${state.migrationStagedMemberFilter === filter.value ? "active" : ""}"
+              data-migration-staged-filter="${filter.value}"
+            >${filter.label}</button>
+          `).join("")}
+        </div>
+      </div>
+      ${memberFiles.length === 0
+        ? `<div class="empty-state"><p>No confirmed members files are ready for staging.</p></div>`
+        : memberFiles.map(renderMigrationStagedMemberFile).join("")}
+      <div class="migration-assistant-actions">
+        <button type="button" class="ghost-button" data-migration-step="map">Back to column mapping</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderMigrationStagedMemberFile(file: MigrationFileRecord) {
+  const stagedMembers = state.migrationStagedMembers[file.id] ?? [];
+  const validationErrors = state.migrationValidationErrors[file.id] ?? [];
+  const summary = stagedMembersSummary(stagedMembers, validationErrors);
+  const filteredMembers = filterStagedMembers(stagedMembers);
+  const approvedMappings = migrationMappingRowsForFile(file).every((mapping) => mapping.approved);
+  return `
+    <article class="migration-file-card migration-staged-file">
+      <div class="migration-file-main">
+        <div>
+          <strong>${escapeHtml(file.originalFilename)}</strong>
+          <span>${summary.total} staged - ${summary.ready} ready - ${summary.warnings} warnings - ${summary.critical} critical - ${summary.approved} approved</span>
+        </div>
+        <div class="migration-mapping-actions">
+          <button type="button" class="ghost-button" data-migration-stage-file="${escapeAttribute(file.id)}" ${!approvedMappings ? "disabled" : ""}>
+            ${stagedMembers.length > 0 ? "Restage members" : "Stage members"}
+          </button>
+          <button type="button" data-migration-bulk-approve-file="${escapeAttribute(file.id)}" ${stagedMembers.length === 0 || summary.critical > 0 ? "disabled" : ""}>
+            Approve ready/warnings
+          </button>
+        </div>
+      </div>
+      ${!approvedMappings ? `<p class="muted">Approve column mappings before staging this file.</p>` : ""}
+      ${stagedMembers.length === 0
+        ? `<div class="empty-state"><p>No member rows staged yet. Stage this file to transform rows and run validation.</p></div>`
+        : `
+          <div class="migration-staged-list">
+            ${filteredMembers.length === 0
+              ? `<div class="empty-state"><p>No staged members match this filter.</p></div>`
+              : filteredMembers.map((member) => renderMigrationStagedMemberCard(file, member, validationErrors)).join("")}
+          </div>
+        `}
+    </article>
+  `;
+}
+
+function renderMigrationStagedMemberCard(
+  file: MigrationFileRecord,
+  member: MigrationStagedMemberRecord,
+  validationErrors: MigrationValidationErrorRecord[]
+) {
+  const memberErrors = validationErrors.filter((error) => error.stagedRecordId === member.id);
+  const name = member.fullName || [member.firstName, member.lastName].filter(Boolean).join(" ") || "Unnamed member";
+  const tags = member.tagsJson?.join(", ") ?? "";
+  const statusClass = member.approved ? "approved" : member.validationStatus;
+  return `
+    <section class="migration-staged-member ${statusClass}">
+      <div class="migration-staged-member-head">
+        <div>
+          <span class="migration-file-status">Row ${member.sourceRowNumber}</span>
+          <strong>${escapeHtml(name)}</strong>
+          <small>${escapeHtml([member.email, member.phone].filter(Boolean).join(" - ") || "No contact info")}</small>
+        </div>
+        <div class="migration-staged-actions">
+          <span class="migration-status-pill ${statusClass}">${member.approved ? "Approved" : formatHeaderLabel(member.validationStatus)}</span>
+          <button type="button" data-migration-approve-staged="${escapeAttribute(member.id)}" ${member.validationStatus === "critical" || member.validationStatus === "skipped" || member.approved ? "disabled" : ""}>Approve</button>
+          <button type="button" class="ghost-button danger" data-migration-skip-staged="${escapeAttribute(member.id)}" ${member.validationStatus === "skipped" ? "disabled" : ""}>Skip</button>
+        </div>
+      </div>
+      ${memberErrors.length > 0
+        ? `<div class="migration-issue-list">
+            ${memberErrors.map((error) => `<span class="${error.severity === "critical" ? "critical" : "warning"}">${escapeHtml(error.message)}</span>`).join("")}
+          </div>`
+        : `<p class="muted">No validation errors.</p>`}
+      <details class="migration-staged-edit">
+        <summary>Edit staged fields</summary>
+        <form data-migration-staged-member-form="${escapeAttribute(member.id)}">
+          <div class="migration-staged-edit-grid">
+            ${renderTextInput("firstName", "First name", member.firstName)}
+            ${renderTextInput("lastName", "Last name", member.lastName)}
+            ${renderTextInput("fullName", "Full name", member.fullName)}
+            ${renderTextInput("email", "Email", member.email)}
+            ${renderTextInput("phone", "Phone", member.phone)}
+            ${renderTextInput("dateOfBirth", "Date of birth", dateInputValue(member.dateOfBirth))}
+            ${renderTextInput("membershipStatus", "Membership status", member.membershipStatus)}
+            ${renderTextInput("membershipPlanName", "Membership plan", member.membershipPlanName)}
+            ${renderTextInput("startDate", "Start date", dateInputValue(member.startDate))}
+            ${renderTextInput("cancellationDate", "Cancellation date", dateInputValue(member.cancellationDate))}
+            ${renderTextInput("nextBillingDate", "Next billing date", dateInputValue(member.nextBillingDate))}
+            ${renderTextInput("assignedTrainerName", "Assigned trainer", member.assignedTrainerName)}
+            ${renderTextInput("address", "Address", member.address)}
+            ${renderTextInput("emergencyContact", "Emergency contact", member.emergencyContact)}
+            ${renderTextInput("tags", "Tags", tags)}
+            <label class="field migration-staged-notes">
+              <span>Notes</span>
+              <textarea name="notes">${escapeHtml(member.notes ?? "")}</textarea>
+            </label>
+          </div>
+          <div class="migration-assistant-actions">
+            <span class="muted">Saving re-runs validation for this file.</span>
+            <button type="submit">Save staged member</button>
+          </div>
+        </form>
+      </details>
+    </section>
+  `;
+}
+
+function renderTextInput(name: string, label: string, value: string | undefined) {
+  return `
+    <label class="field">
+      <span>${escapeHtml(label)}</span>
+      <input name="${escapeAttribute(name)}" value="${escapeAttribute(value ?? "")}" />
+    </label>
+  `;
+}
+
+function renderMigrationFilesTable(files: MigrationFileRecord[], mode: "upload" | "detect") {
+  if (files.length === 0) {
+    return `<div class="empty-state"><p>No files uploaded yet.</p></div>`;
+  }
+  return `
+    <div class="migration-files-list">
+      ${files.map((file) => renderMigrationFileCard(file, mode)).join("")}
+    </div>
+  `;
+}
+
+function renderMigrationFileCard(file: MigrationFileRecord, mode: "upload" | "detect") {
+  const confidence = file.fileTypeConfidence === undefined ? "-" : `${Math.round(file.fileTypeConfidence * 100)}%`;
+  const needsReview = file.status === "needs_review" || file.fileType === "unknown";
+  return `
+    <article class="migration-file-card ${needsReview ? "needs-review" : ""}">
+      <div class="migration-file-main">
+        <div>
+          <strong>${escapeHtml(file.originalFilename)}</strong>
+          <span>${file.rowCount} rows - ${file.columnHeaders.length} columns - ${formatFileSize(file.sizeBytes)}</span>
+        </div>
+        <span class="migration-file-status">${needsReview ? "Needs Review" : formatHeaderLabel(file.status)}</span>
+      </div>
+      <div class="migration-file-columns">
+        ${file.columnHeaders.slice(0, 8).map((header) => `<span>${escapeHtml(header)}</span>`).join("")}
+        ${file.columnHeaders.length > 8 ? `<span>+${file.columnHeaders.length - 8} more</span>` : ""}
+      </div>
+      ${mode === "detect"
+        ? `
+          <div class="migration-detection-row">
+            <div>
+              <span>Detected: ${escapeHtml(file.detectedFileType ? formatHeaderLabel(file.detectedFileType) : "-")}</span>
+              <span>Confidence: ${confidence}</span>
+            </div>
+            ${renderSelect(`migrationFileType_${file.id}`, "Confirmed file type", migrationFileTypeOptions(), file.fileType, false)}
+            <button type="button" class="ghost-button" data-migration-detect-file="${escapeAttribute(file.id)}">Detect</button>
+          </div>
+          ${file.detectionReason ? `<p class="muted">${escapeHtml(file.detectionReason)}</p>` : ""}
+        `
+        : ""}
+      <details class="migration-sample-details">
+        <summary>Sample rows</summary>
+        ${renderMigrationSampleRows(file)}
+      </details>
+      ${mode === "upload"
+        ? `<button type="button" class="ghost-button danger" data-migration-delete-file="${escapeAttribute(file.id)}">Delete file</button>`
+        : ""}
+    </article>
+  `;
+}
+
+function renderMigrationSampleRows(file: MigrationFileRecord) {
+  if (file.sampleRows.length === 0) {
+    return `<div class="empty-state"><p>No sample rows captured.</p></div>`;
+  }
+  const columns = file.columnHeaders.slice(0, 6);
+  return `
+    <div class="table-wrap migration-sample-table">
+      <table>
+        <thead><tr>${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("")}</tr></thead>
+        <tbody>
+          ${file.sampleRows.slice(0, 3).map((row) => `
+            <tr>${columns.map((column) => `<td>${escapeHtml(row[column] ?? "")}</td>`).join("")}</tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function migrationFileTypeOptions() {
+  return [
+    { value: "unknown", label: "Unknown / needs review" },
+    { value: "members", label: "Members" },
+    { value: "staff", label: "Staff" },
+    { value: "membership_plans", label: "Membership plans" },
+    { value: "classes", label: "Classes" },
+    { value: "attendance", label: "Attendance" },
+    { value: "billing", label: "Billing" },
+    { value: "appointments", label: "Appointments" }
+  ];
+}
+
+function isColumnMappingSupportedFile(file: MigrationFileRecord) {
+  return file.fileType === "members" || file.fileType === "staff" || file.fileType === "membership_plans";
+}
+
+function migrationTargetFieldsForType(fileType: MigrationFileType) {
+  const fields: Record<string, string[]> = {
+    members: [
+      "ignore",
+      "first_name",
+      "last_name",
+      "full_name",
+      "email",
+      "phone",
+      "date_of_birth",
+      "address",
+      "emergency_contact",
+      "membership_status",
+      "membership_plan_name",
+      "start_date",
+      "cancellation_date",
+      "next_billing_date",
+      "assigned_trainer_name",
+      "notes",
+      "tags"
+    ],
+    staff: [
+      "ignore",
+      "full_name",
+      "first_name",
+      "last_name",
+      "email",
+      "phone",
+      "old_role_name",
+      "employment_status",
+      "assigned_location",
+      "trainer_flag",
+      "instructor_flag",
+      "permission_level",
+      "pay_type",
+      "hourly_rate",
+      "notes"
+    ],
+    membership_plans: [
+      "ignore",
+      "plan_name",
+      "plan_type",
+      "price",
+      "billing_frequency",
+      "contract_length",
+      "class_limit",
+      "session_limit",
+      "active",
+      "notes"
+    ]
+  };
+  return fields[fileType] ?? ["ignore"];
+}
+
+function migrationMappingRowsForFile(file: MigrationFileRecord) {
+  const existing = state.migrationColumnMappings[file.id] ?? [];
+  return file.columnHeaders.map((sourceColumn) => {
+    const mapping = existing.find((candidate) => candidate.sourceColumn === sourceColumn);
+    if (mapping) {
+      return mapping;
+    }
+    return {
+      id: `pending-${sourceColumn}`,
+      migrationBatchId: file.migrationBatchId,
+      migrationFileId: file.id,
+      sourceColumn,
+      targetField: "ignore",
+      approved: false,
+      createdAt: file.createdAt,
+      updatedAt: file.updatedAt
+    };
+  });
+}
+
+function sampleValuesForColumn(file: MigrationFileRecord, sourceColumn: string) {
+  return [...new Set(file.sampleRows.map((row) => row[sourceColumn]?.trim()).filter((value): value is string => Boolean(value)))]
+    .slice(0, 3);
+}
+
+function filterStagedMembers(stagedMembers: MigrationStagedMemberRecord[]) {
+  const filter = state.migrationStagedMemberFilter;
+  if (filter === "all") {
+    return stagedMembers;
+  }
+  return stagedMembers.filter((member) => member.validationStatus === filter);
+}
+
+function stagedMembersSummary(
+  stagedMembers: MigrationStagedMemberRecord[],
+  validationErrors: MigrationValidationErrorRecord[]
+) {
+  return {
+    total: stagedMembers.length,
+    ready: stagedMembers.filter((member) => member.validationStatus === "ready").length,
+    warnings: stagedMembers.filter((member) => member.validationStatus === "warnings").length,
+    critical: stagedMembers.filter((member) => member.validationStatus === "critical").length,
+    skipped: stagedMembers.filter((member) => member.validationStatus === "skipped").length,
+    approved: stagedMembers.filter((member) => member.approved).length,
+    validationErrors: validationErrors.length
+  };
+}
+
+function dateInputValue(value: string | undefined) {
+  if (!value) {
+    return "";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+function formatMigrationTargetField(field: string) {
+  if (field === "ignore") {
+    return "Ignore this column";
+  }
+  return formatHeaderLabel(field);
+}
+
+function formatDateLabel(value: string) {
+  return new Date(value).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function renderStaffClockModal() {
@@ -9020,6 +9839,411 @@ function bindEvents() {
     void refreshDashboard({ silent: true });
   });
 
+  bindForm("migration-create-batch-form", async () => {
+    if (!state.gym) {
+      return;
+    }
+    const batch = (await client.createMigrationBatch(state.gym.id, {})) as MigrationBatchRecord;
+    state.selectedMigrationBatchId = batch.id;
+    state.migrationAssistantStep = "upload";
+    setBanner("success", "Migration batch created.");
+    await refreshDashboard({ silent: true });
+    render();
+  });
+
+  bindForm("migration-file-upload-form", async (form) => {
+    if (!state.gym || !state.selectedMigrationBatchId) {
+      throw new Error("Create a migration batch before uploading files.");
+    }
+    const input = form.querySelector<HTMLInputElement>('input[name="migrationFiles"]');
+    const files = Array.from(input?.files ?? []);
+    if (files.length === 0) {
+      throw new Error("Choose at least one CSV or XLSX file.");
+    }
+    for (const file of files) {
+      const upload = await migrationUploadPayloadFromFile(file);
+      await client.uploadMigrationFile(state.gym.id, state.selectedMigrationBatchId, upload);
+    }
+    setBanner("success", `${files.length} migration file${files.length === 1 ? "" : "s"} uploaded.`);
+    await refreshDashboard({ silent: true });
+    render();
+  });
+
+  const migrationBatchSelect = app.querySelector<HTMLSelectElement>("[data-migration-batch-select]");
+  if (migrationBatchSelect) {
+    migrationBatchSelect.addEventListener("change", () => {
+      state.selectedMigrationBatchId = migrationBatchSelect.value;
+      state.migrationAssistantStep = "upload";
+      state.migrationColumnMappings = {};
+      state.migrationMappingIssues = {};
+      state.migrationMappingTargetFields = {};
+      state.migrationStagedMembers = {};
+      state.migrationValidationErrors = {};
+      void refreshDashboard({ silent: true }).then(render).catch((error) => {
+        setBanner("error", describeError(error));
+        render();
+      });
+    });
+  }
+
+  app.querySelectorAll<HTMLButtonElement>("[data-migration-step]").forEach((button) => {
+    button.addEventListener("click", () => {
+      void (async () => {
+        const step = button.dataset.migrationStep;
+        if (step === "upload" || step === "detect" || step === "map" || step === "stage") {
+          state.migrationAssistantStep = step;
+          if (step === "map" && state.selectedMigrationBatchId) {
+            await loadMigrationColumnMappings(state.selectedMigrationBatchId);
+          }
+          if (step === "stage" && state.selectedMigrationBatchId) {
+            await loadMigrationColumnMappings(state.selectedMigrationBatchId);
+            await loadMigrationStagedMembers(state.selectedMigrationBatchId);
+          }
+          render();
+        }
+      })().catch((error) => {
+        setBanner("error", describeError(error));
+        render();
+      });
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-migration-delete-file]").forEach((button) => {
+    button.addEventListener("click", () => {
+      void (async () => {
+        if (!state.gym || !state.selectedMigrationBatchId) {
+          return;
+        }
+        const fileId = button.dataset.migrationDeleteFile;
+        if (!fileId) {
+          return;
+        }
+        await client.deleteMigrationFile(state.gym.id, state.selectedMigrationBatchId, fileId);
+        setBanner("success", "Migration file deleted.");
+        await refreshDashboard({ silent: true });
+        render();
+      })().catch((error) => {
+        setBanner("error", describeError(error));
+        render();
+      });
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-migration-detect-file]").forEach((button) => {
+    button.addEventListener("click", () => {
+      void (async () => {
+        if (!state.gym || !state.selectedMigrationBatchId) {
+          return;
+        }
+        const fileId = button.dataset.migrationDetectFile;
+        if (!fileId) {
+          return;
+        }
+        await client.detectMigrationFileType(state.gym.id, state.selectedMigrationBatchId, fileId);
+        setBanner("success", "File type detection completed.");
+        await refreshDashboard({ silent: true });
+        render();
+      })().catch((error) => {
+        setBanner("error", describeError(error));
+        render();
+      });
+    });
+  });
+
+  const detectAllButton = app.querySelector<HTMLButtonElement>("[data-migration-detect-all]");
+  if (detectAllButton) {
+    detectAllButton.addEventListener("click", () => {
+      void (async () => {
+        if (!state.gym || !state.selectedMigrationBatchId) {
+          return;
+        }
+        await client.detectMigrationBatchFileTypes(state.gym.id, state.selectedMigrationBatchId);
+        setBanner("success", "AI file type detection completed for uploaded files.");
+        await refreshDashboard({ silent: true });
+        render();
+      })().catch((error) => {
+        setBanner("error", describeError(error));
+        render();
+      });
+    });
+  }
+
+  app.querySelectorAll<HTMLSelectElement>('select[name^="migrationFileType_"]').forEach((select) => {
+    select.addEventListener("change", () => {
+      void (async () => {
+        if (!state.gym || !state.selectedMigrationBatchId) {
+          return;
+        }
+        const fileId = select.name.replace("migrationFileType_", "");
+        await client.updateMigrationFileType(state.gym.id, state.selectedMigrationBatchId, fileId, {
+          fileType: select.value as MigrationFileType
+        });
+        setBanner("success", "File type updated.");
+        await refreshDashboard({ silent: true });
+        state.migrationAssistantStep = "detect";
+        render();
+      })().catch((error) => {
+        setBanner("error", describeError(error));
+        render();
+      });
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-migration-map-file]").forEach((button) => {
+    button.addEventListener("click", () => {
+      void (async () => {
+        if (!state.gym || !state.selectedMigrationBatchId) {
+          return;
+        }
+        const fileId = button.dataset.migrationMapFile;
+        if (!fileId) {
+          return;
+        }
+        const response = (await client.detectMigrationColumnMappings(
+          state.gym.id,
+          state.selectedMigrationBatchId,
+          fileId
+        )) as MigrationColumnMappingResponse;
+        state.migrationColumnMappings[fileId] = response.mappings;
+        state.migrationMappingIssues[fileId] = response.issues;
+        state.migrationMappingTargetFields[fileId] = response.targetFields;
+        setBanner("success", "AI column mapping completed.");
+        render();
+      })().catch((error) => {
+        setBanner("error", describeError(error));
+        render();
+      });
+    });
+  });
+
+  const mapAllButton = app.querySelector<HTMLButtonElement>("[data-migration-map-all]");
+  if (mapAllButton) {
+    mapAllButton.addEventListener("click", () => {
+      void (async () => {
+        if (!state.gym || !state.selectedMigrationBatchId) {
+          return;
+        }
+        const response = (await client.detectMigrationBatchColumnMappings(
+          state.gym.id,
+          state.selectedMigrationBatchId
+        )) as { files: MigrationColumnMappingResponse[] };
+        response.files.forEach((mappingResponse) => {
+          state.migrationColumnMappings[mappingResponse.file.id] = mappingResponse.mappings;
+          state.migrationMappingIssues[mappingResponse.file.id] = mappingResponse.issues;
+          state.migrationMappingTargetFields[mappingResponse.file.id] = mappingResponse.targetFields;
+        });
+        setBanner("success", "AI column mapping completed for confirmed files.");
+        render();
+      })().catch((error) => {
+        setBanner("error", describeError(error));
+        render();
+      });
+    });
+  }
+
+  app.querySelectorAll<HTMLFormElement>("[data-migration-mapping-form]").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void (async () => {
+        if (!state.gym || !state.selectedMigrationBatchId) {
+          return;
+        }
+        const fileId = form.dataset.migrationMappingForm;
+        const file = state.migrationFiles.find((candidate) => candidate.id === fileId);
+        if (!fileId || !file) {
+          return;
+        }
+        const submitter = event instanceof SubmitEvent && event.submitter instanceof HTMLElement
+          ? event.submitter
+          : undefined;
+        const approve = submitter?.getAttribute("value") === "approve";
+        const formValues = new FormData(form);
+        const mappings = file.columnHeaders.map((sourceColumn) => ({
+          sourceColumn,
+          targetField: String(formValues.get(`targetField_${sourceColumn}`) ?? "ignore")
+        }));
+        const response = (await client.updateMigrationColumnMappings(
+          state.gym.id,
+          state.selectedMigrationBatchId,
+          fileId,
+          { mappings, approve }
+        )) as MigrationColumnMappingResponse;
+        state.migrationColumnMappings[fileId] = response.mappings;
+        state.migrationMappingIssues[fileId] = response.issues;
+        state.migrationMappingTargetFields[fileId] = response.targetFields;
+        setBanner("success", approve ? "Column mappings approved." : "Column mappings saved.");
+        render();
+      })().catch((error) => {
+        setBanner("error", describeError(error));
+        render();
+      });
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-migration-staged-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const filter = button.dataset.migrationStagedFilter;
+      if (filter === "all" || filter === "ready" || filter === "warnings" || filter === "critical") {
+        state.migrationStagedMemberFilter = filter;
+        render();
+      }
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-migration-stage-file]").forEach((button) => {
+    button.addEventListener("click", () => {
+      void (async () => {
+        if (!state.gym || !state.selectedMigrationBatchId) {
+          return;
+        }
+        const fileId = button.dataset.migrationStageFile;
+        if (!fileId) {
+          return;
+        }
+        const response = (await client.stageMigrationMembers(
+          state.gym.id,
+          state.selectedMigrationBatchId,
+          fileId
+        )) as MigrationStagedMembersResponse;
+        state.migrationStagedMembers[fileId] = response.stagedMembers;
+        state.migrationValidationErrors[fileId] = response.validationErrors;
+        setBanner("success", `Staged ${response.summary.total} member records.`);
+        render();
+      })().catch((error) => {
+        setBanner("error", describeError(error));
+        render();
+      });
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-migration-bulk-approve-file]").forEach((button) => {
+    button.addEventListener("click", () => {
+      void (async () => {
+        if (!state.gym || !state.selectedMigrationBatchId) {
+          return;
+        }
+        const fileId = button.dataset.migrationBulkApproveFile;
+        if (!fileId) {
+          return;
+        }
+        const response = (await client.approveMigrationStagedMembers(
+          state.gym.id,
+          state.selectedMigrationBatchId,
+          fileId,
+          {}
+        )) as MigrationStagedMembersResponse;
+        state.migrationStagedMembers[fileId] = response.stagedMembers;
+        state.migrationValidationErrors[fileId] = response.validationErrors;
+        setBanner("success", "Ready staged members approved.");
+        render();
+      })().catch((error) => {
+        setBanner("error", describeError(error));
+        render();
+      });
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-migration-approve-staged]").forEach((button) => {
+    button.addEventListener("click", () => {
+      void (async () => {
+        if (!state.gym || !state.selectedMigrationBatchId) {
+          return;
+        }
+        const stagedMemberId = button.dataset.migrationApproveStaged;
+        if (!stagedMemberId) {
+          return;
+        }
+        const response = (await client.approveMigrationStagedMember(
+          state.gym.id,
+          state.selectedMigrationBatchId,
+          stagedMemberId
+        )) as MigrationStagedMembersResponse;
+        state.migrationStagedMembers[response.file.id] = response.stagedMembers;
+        state.migrationValidationErrors[response.file.id] = response.validationErrors;
+        setBanner("success", "Staged member approved.");
+        render();
+      })().catch((error) => {
+        setBanner("error", describeError(error));
+        render();
+      });
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-migration-skip-staged]").forEach((button) => {
+    button.addEventListener("click", () => {
+      void (async () => {
+        if (!state.gym || !state.selectedMigrationBatchId) {
+          return;
+        }
+        const stagedMemberId = button.dataset.migrationSkipStaged;
+        if (!stagedMemberId) {
+          return;
+        }
+        const response = (await client.skipMigrationStagedMember(
+          state.gym.id,
+          state.selectedMigrationBatchId,
+          stagedMemberId
+        )) as MigrationStagedMembersResponse;
+        state.migrationStagedMembers[response.file.id] = response.stagedMembers;
+        state.migrationValidationErrors[response.file.id] = response.validationErrors;
+        setBanner("success", "Staged member skipped.");
+        render();
+      })().catch((error) => {
+        setBanner("error", describeError(error));
+        render();
+      });
+    });
+  });
+
+  app.querySelectorAll<HTMLFormElement>("[data-migration-staged-member-form]").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void (async () => {
+        if (!state.gym || !state.selectedMigrationBatchId) {
+          return;
+        }
+        const stagedMemberId = form.dataset.migrationStagedMemberForm;
+        if (!stagedMemberId) {
+          return;
+        }
+        const data = formData(form);
+        const tags = data.tags
+          ? data.tags.split(/[,;|]/).map((tag) => tag.trim()).filter(Boolean)
+          : [];
+        const response = (await client.updateMigrationStagedMember(
+          state.gym.id,
+          state.selectedMigrationBatchId,
+          stagedMemberId,
+          {
+            firstName: data.firstName,
+            lastName: data.lastName,
+            fullName: data.fullName,
+            email: data.email,
+            phone: data.phone,
+            dateOfBirth: data.dateOfBirth,
+            address: data.address,
+            emergencyContact: data.emergencyContact,
+            membershipStatus: data.membershipStatus,
+            membershipPlanName: data.membershipPlanName,
+            startDate: data.startDate,
+            cancellationDate: data.cancellationDate,
+            nextBillingDate: data.nextBillingDate,
+            assignedTrainerName: data.assignedTrainerName,
+            notes: data.notes,
+            tags
+          }
+        )) as MigrationStagedMembersResponse;
+        state.migrationStagedMembers[response.file.id] = response.stagedMembers;
+        state.migrationValidationErrors[response.file.id] = response.validationErrors;
+        setBanner("success", "Staged member saved and revalidated.");
+        render();
+      })().catch((error) => {
+        setBanner("error", describeError(error));
+        render();
+      });
+    });
+  });
+
   bindForm("member-csv-preview-form", async (form, submitter) => {
     if (!state.gym) {
       return;
@@ -9421,6 +10645,21 @@ async function memberCsvUploadFromForm(form: HTMLFormElement): Promise<Migration
     contentType: file.type || migrationContentTypeFromName(file.name),
     base64Data: arrayBufferToBase64(await file.arrayBuffer()),
     delimiter
+  };
+}
+
+async function migrationUploadPayloadFromFile(file: File) {
+  const lowerName = file.name.toLowerCase();
+  if (!lowerName.endsWith(".csv") && !lowerName.endsWith(".xlsx")) {
+    throw new Error(`${file.name} is not supported. Upload CSV or XLSX files only.`);
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error(`${file.name} is too large. Migration files must be 10 MB or smaller.`);
+  }
+  return {
+    fileName: file.name,
+    contentType: file.type || migrationContentTypeFromName(file.name),
+    base64Data: arrayBufferToBase64(await file.arrayBuffer())
   };
 }
 
@@ -10198,6 +11437,16 @@ function clearDashboardState() {
   state.memberCsvImport = undefined;
   state.memberCsvPreview = undefined;
   state.memberCsvAiSuggestion = undefined;
+  state.migrationBatches = [];
+  state.migrationFiles = [];
+  state.migrationColumnMappings = {};
+  state.migrationMappingIssues = {};
+  state.migrationMappingTargetFields = {};
+  state.migrationStagedMembers = {};
+  state.migrationValidationErrors = {};
+  state.migrationStagedMemberFilter = "all";
+  state.selectedMigrationBatchId = "";
+  state.migrationAssistantStep = "upload";
   state.posStripeConfig = undefined;
   state.posTerminalConnectionState = "not_connected";
   state.posTerminalPaymentState = "not_ready";
@@ -10335,6 +11584,9 @@ function parseDashboardRoute(segments: string[]) {
     case "member-portal":
     case "portal":
       return { dashboardView: "member_portal" as const, checkInRailExpanded: false };
+    case "migration":
+    case "migration-assistant":
+      return { dashboardView: "migration" as const, checkInRailExpanded: false };
     case "marketing":
       return { dashboardView: "marketing" as const, checkInRailExpanded: false };
     case "reporting":
@@ -10456,6 +11708,8 @@ function dashboardViewToHash(view: AppState["dashboardView"]) {
       return "#/dashboard/forms";
     case "member_portal":
       return "#/dashboard/member-portal";
+    case "migration":
+      return "#/dashboard/migration";
     case "marketing":
       return "#/dashboard/marketing";
     case "reports":

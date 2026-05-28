@@ -15,6 +15,12 @@ import type {
   Member,
   MemberMembership,
   MembershipPlan,
+  MigrationAuditLog,
+  MigrationBatch,
+  MigrationColumnMapping,
+  MigrationFile,
+  MigrationStagedMember,
+  MigrationValidationError,
   NotificationEvent,
   PurposeToken,
   ReservableResource,
@@ -44,6 +50,12 @@ import type {
   MemberRepository,
   MemberMembershipRepository,
   MembershipPlanRepository,
+  MigrationAuditLogRepository,
+  MigrationBatchRepository,
+  MigrationColumnMappingRepository,
+  MigrationFileRepository,
+  MigrationStagedMemberRepository,
+  MigrationValidationErrorRepository,
   CrmActivityRepository,
   NotificationRepository,
   ReservationResourceRepository,
@@ -77,6 +89,12 @@ export class InMemoryStore implements Repositories {
   private readonly crmActivityRecords = new Map<string, CrmActivity>();
   private readonly membershipPlanRecords = new Map<string, MembershipPlan>();
   private readonly memberMembershipRecords = new Map<string, MemberMembership>();
+  private readonly migrationBatchRecords = new Map<string, MigrationBatch>();
+  private readonly migrationFileRecords = new Map<string, MigrationFile>();
+  private readonly migrationColumnMappingRecords = new Map<string, MigrationColumnMapping>();
+  private readonly migrationStagedMemberRecords = new Map<string, MigrationStagedMember>();
+  private readonly migrationValidationErrorRecords = new Map<string, MigrationValidationError>();
+  private readonly migrationAuditLogRecords = new Map<string, MigrationAuditLog>();
   private readonly classTypeRecords = new Map<string, ClassType>();
   private readonly classSessionRecords = new Map<string, ClassSession>();
   private readonly classBookingRecords = new Map<string, ClassBooking>();
@@ -208,6 +226,48 @@ export class InMemoryStore implements Repositories {
     getMemberMembership: (membershipId) => this.getMemberMembership(membershipId),
     listMemberMembershipsForMember: (memberId) => this.listMemberMembershipsForMember(memberId),
     updateMemberMembership: (membership) => this.updateMemberMembership(membership)
+  };
+
+  readonly migrationBatches: MigrationBatchRepository = {
+    createMigrationBatch: (batch) => this.createMigrationBatch(batch),
+    getMigrationBatch: (batchId) => this.getMigrationBatch(batchId),
+    listMigrationBatchesForGym: (gymId) => this.listMigrationBatchesForGym(gymId),
+    updateMigrationBatch: (batch) => this.updateMigrationBatch(batch)
+  };
+
+  readonly migrationFiles: MigrationFileRepository = {
+    createMigrationFile: (file) => this.createMigrationFile(file),
+    getMigrationFile: (fileId) => this.getMigrationFile(fileId),
+    listMigrationFilesForBatch: (batchId) => this.listMigrationFilesForBatch(batchId),
+    updateMigrationFile: (file) => this.updateMigrationFile(file)
+  };
+
+  readonly migrationColumnMappings: MigrationColumnMappingRepository = {
+    createMigrationColumnMapping: (mapping) => this.createMigrationColumnMapping(mapping),
+    listMigrationColumnMappingsForFile: (fileId) => this.listMigrationColumnMappingsForFile(fileId),
+    replaceMigrationColumnMappingsForFile: (batchId, fileId, mappings) =>
+      this.replaceMigrationColumnMappingsForFile(batchId, fileId, mappings)
+  };
+
+  readonly migrationStagedMembers: MigrationStagedMemberRepository = {
+    createMigrationStagedMember: (member) => this.createMigrationStagedMember(member),
+    getMigrationStagedMember: (memberId) => this.getMigrationStagedMember(memberId),
+    listMigrationStagedMembersForFile: (fileId) => this.listMigrationStagedMembersForFile(fileId),
+    updateMigrationStagedMember: (member) => this.updateMigrationStagedMember(member),
+    replaceMigrationStagedMembersForFile: (batchId, fileId, members) =>
+      this.replaceMigrationStagedMembersForFile(batchId, fileId, members)
+  };
+
+  readonly migrationValidationErrors: MigrationValidationErrorRepository = {
+    createMigrationValidationError: (error) => this.createMigrationValidationError(error),
+    listMigrationValidationErrorsForFile: (fileId) => this.listMigrationValidationErrorsForFile(fileId),
+    replaceMigrationValidationErrorsForFile: (batchId, fileId, errors) =>
+      this.replaceMigrationValidationErrorsForFile(batchId, fileId, errors)
+  };
+
+  readonly migrationAuditLogs: MigrationAuditLogRepository = {
+    createMigrationAuditLog: (entry) => this.createMigrationAuditLog(entry),
+    listMigrationAuditLogsForBatch: (batchId) => this.listMigrationAuditLogsForBatch(batchId)
   };
 
   readonly classes: ClassRepository = {
@@ -669,6 +729,147 @@ export class InMemoryStore implements Repositories {
     return membership;
   }
 
+  async createMigrationBatch(batch: MigrationBatch) {
+    this.migrationBatchRecords.set(batch.id, batch);
+    return batch;
+  }
+
+  async getMigrationBatch(batchId: string) {
+    return this.migrationBatchRecords.get(batchId);
+  }
+
+  async listMigrationBatchesForGym(gymId: string) {
+    return [...this.migrationBatchRecords.values()]
+      .filter((batch) => batch.gymId === gymId)
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+  }
+
+  async updateMigrationBatch(batch: MigrationBatch) {
+    this.migrationBatchRecords.set(batch.id, batch);
+    return batch;
+  }
+
+  async createMigrationFile(file: MigrationFile) {
+    this.migrationFileRecords.set(file.id, file);
+    return file;
+  }
+
+  async getMigrationFile(fileId: string) {
+    return this.migrationFileRecords.get(fileId);
+  }
+
+  async listMigrationFilesForBatch(batchId: string) {
+    return [...this.migrationFileRecords.values()]
+      .filter((file) => file.migrationBatchId === batchId)
+      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
+  }
+
+  async updateMigrationFile(file: MigrationFile) {
+    this.migrationFileRecords.set(file.id, file);
+    return file;
+  }
+
+  async createMigrationColumnMapping(mapping: MigrationColumnMapping) {
+    this.migrationColumnMappingRecords.set(mapping.id, mapping);
+    return mapping;
+  }
+
+  async listMigrationColumnMappingsForFile(fileId: string) {
+    return [...this.migrationColumnMappingRecords.values()]
+      .filter((mapping) => mapping.migrationFileId === fileId)
+      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
+  }
+
+  async replaceMigrationColumnMappingsForFile(
+    batchId: string,
+    fileId: string,
+    mappings: MigrationColumnMapping[]
+  ) {
+    for (const [id, mapping] of this.migrationColumnMappingRecords) {
+      if (mapping.migrationBatchId === batchId && mapping.migrationFileId === fileId) {
+        this.migrationColumnMappingRecords.delete(id);
+      }
+    }
+    for (const mapping of mappings) {
+      this.migrationColumnMappingRecords.set(mapping.id, mapping);
+    }
+    return mappings;
+  }
+
+  async createMigrationStagedMember(member: MigrationStagedMember) {
+    this.migrationStagedMemberRecords.set(member.id, member);
+    return member;
+  }
+
+  async getMigrationStagedMember(memberId: string) {
+    return this.migrationStagedMemberRecords.get(memberId);
+  }
+
+  async listMigrationStagedMembersForFile(fileId: string) {
+    return [...this.migrationStagedMemberRecords.values()]
+      .filter((member) => member.migrationFileId === fileId)
+      .sort((left, right) => left.sourceRowNumber - right.sourceRowNumber);
+  }
+
+  async updateMigrationStagedMember(member: MigrationStagedMember) {
+    this.migrationStagedMemberRecords.set(member.id, member);
+    return member;
+  }
+
+  async replaceMigrationStagedMembersForFile(
+    batchId: string,
+    fileId: string,
+    members: MigrationStagedMember[]
+  ) {
+    for (const [id, member] of this.migrationStagedMemberRecords) {
+      if (member.migrationBatchId === batchId && member.migrationFileId === fileId) {
+        this.migrationStagedMemberRecords.delete(id);
+      }
+    }
+    for (const member of members) {
+      this.migrationStagedMemberRecords.set(member.id, member);
+    }
+    return members;
+  }
+
+  async createMigrationValidationError(error: MigrationValidationError) {
+    this.migrationValidationErrorRecords.set(error.id, error);
+    return error;
+  }
+
+  async listMigrationValidationErrorsForFile(fileId: string) {
+    return [...this.migrationValidationErrorRecords.values()]
+      .filter((error) => error.migrationFileId === fileId)
+      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
+  }
+
+  async replaceMigrationValidationErrorsForFile(
+    batchId: string,
+    fileId: string,
+    errors: MigrationValidationError[]
+  ) {
+    for (const [id, error] of this.migrationValidationErrorRecords) {
+      if (error.migrationBatchId === batchId && error.migrationFileId === fileId) {
+        this.migrationValidationErrorRecords.delete(id);
+      }
+    }
+    for (const error of errors) {
+      this.migrationValidationErrorRecords.set(error.id, error);
+    }
+    return errors;
+  }
+
+  async createMigrationAuditLog(entry: MigrationAuditLog) {
+    this.migrationAuditLogRecords.set(entry.id, entry);
+    return entry;
+  }
+
+  async listMigrationAuditLogsForBatch(batchId: string) {
+    return [...this.migrationAuditLogRecords.values()]
+      .filter((entry) => entry.migrationBatchId === batchId)
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+  }
+
   async createClassType(classType: ClassType) {
     this.classTypeRecords.set(classType.id, classType);
     return classType;
@@ -937,6 +1138,12 @@ export class InMemoryStore implements Repositories {
       crmActivities: [...this.crmActivityRecords.values()],
       membershipPlans: [...this.membershipPlanRecords.values()],
       memberMemberships: [...this.memberMembershipRecords.values()],
+      migrationBatches: [...this.migrationBatchRecords.values()],
+      migrationFiles: [...this.migrationFileRecords.values()],
+      migrationColumnMappings: [...this.migrationColumnMappingRecords.values()],
+      migrationStagedMembers: [...this.migrationStagedMemberRecords.values()],
+      migrationValidationErrors: [...this.migrationValidationErrorRecords.values()],
+      migrationAuditLogs: [...this.migrationAuditLogRecords.values()],
       classTypes: [...this.classTypeRecords.values()],
       classSessions: [...this.classSessionRecords.values()],
       classBookings: [...this.classBookingRecords.values()],

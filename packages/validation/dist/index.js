@@ -337,32 +337,74 @@ export const consumerProfileImageUploadSchema = z.object({
     contentType: trimmed.regex(/^image\/[a-z0-9.+-]+$/i),
     base64Data: trimmed.min(16).max(8_000_000)
 });
-export const migrationMemberCsvImportSchema = z.object({
+export const migrationCsvImportSchema = z.object({
     fileName: trimmed.min(1).max(180),
     contentType: trimmed.max(120).optional(),
     base64Data: trimmed.min(1).max(8_000_000),
     delimiter: z.enum(["auto", "comma", "tab"]).default("auto"),
-    mapping: z
-        .object({
-        firstName: trimmed.max(160).optional(),
-        lastName: trimmed.max(160).optional(),
-        fullName: trimmed.max(160).optional(),
-        email: trimmed.max(160).optional(),
-        phone: trimmed.max(160).optional(),
-        barcode: trimmed.max(160).optional(),
-        status: trimmed.max(160).optional(),
-        leadStage: trimmed.max(160).optional(),
-        notes: trimmed.max(160).optional(),
-        tags: trimmed.max(160).optional(),
-        emergencyContactName: trimmed.max(160).optional(),
-        emergencyContactPhone: trimmed.max(160).optional(),
-        emergencyContactRelationship: trimmed.max(160).optional()
-    })
-        .partial()
-        .optional()
+    mapping: z.record(z.string(), trimmed.max(160)).optional()
 });
+export const migrationFileTypeSchema = z.enum([
+    "members",
+    "staff",
+    "membership_plans",
+    "classes",
+    "attendance",
+    "billing",
+    "appointments",
+    "unknown"
+]);
+export const migrationBatchCreateSchema = z.object({});
+export const migrationFileUploadSchema = z.object({
+    fileName: trimmed.min(1).max(180),
+    contentType: trimmed.max(120).optional(),
+    base64Data: trimmed.min(1).max(14_000_000)
+});
+export const migrationFileTypeOverrideSchema = z.object({
+    fileType: migrationFileTypeSchema
+});
+export const migrationColumnMappingsUpdateSchema = z.object({
+    mappings: z.array(z.object({
+        sourceColumn: trimmed.min(1).max(180),
+        targetField: trimmed.min(1).max(120)
+    })).min(1),
+    approve: z.boolean().optional()
+});
+export const migrationStagedMemberUpdateSchema = z
+    .object({
+    firstName: trimmed.max(80).optional(),
+    lastName: trimmed.max(80).optional(),
+    fullName: trimmed.max(160).optional(),
+    email: trimmed.max(160).optional(),
+    phone: trimmed.max(40).optional(),
+    dateOfBirth: trimmed.max(40).optional(),
+    address: trimmed.max(300).optional(),
+    emergencyContact: trimmed.max(300).optional(),
+    membershipStatus: trimmed.max(80).optional(),
+    membershipPlanName: trimmed.max(160).optional(),
+    startDate: trimmed.max(40).optional(),
+    cancellationDate: trimmed.max(40).optional(),
+    nextBillingDate: trimmed.max(40).optional(),
+    assignedTrainerName: trimmed.max(160).optional(),
+    notes: trimmed.max(2000).optional(),
+    tags: z.array(trimmed.min(1).max(80)).max(30).optional()
+})
+    .refine((value) => Object.keys(value).length > 0, "At least one staged member field must be provided.");
+export const migrationStagedMemberBulkApproveSchema = z.object({
+    memberIds: z.array(id).optional()
+});
+export const migrationMemberCsvImportSchema = migrationCsvImportSchema;
+export const migrationMembershipPlanCsvImportSchema = migrationCsvImportSchema;
+export const migrationStaffRoleCsvImportSchema = migrationCsvImportSchema;
+export const migrationStaffListCsvImportSchema = migrationCsvImportSchema;
 export const migrationMemberCsvPreviewSchema = migrationMemberCsvImportSchema;
+export const migrationMembershipPlanCsvPreviewSchema = migrationMembershipPlanCsvImportSchema;
+export const migrationStaffRoleCsvPreviewSchema = migrationStaffRoleCsvImportSchema;
+export const migrationStaffListCsvPreviewSchema = migrationStaffListCsvImportSchema;
 export const migrationMemberCsvAiMapSchema = migrationMemberCsvImportSchema;
+export const migrationMembershipPlanCsvAiMapSchema = migrationMembershipPlanCsvImportSchema;
+export const migrationStaffRoleCsvAiMapSchema = migrationStaffRoleCsvImportSchema;
+export const migrationStaffListCsvAiMapSchema = migrationStaffListCsvImportSchema;
 export const crmActivityTypeSchema = z.enum([
     "note",
     "call",

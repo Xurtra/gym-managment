@@ -2323,272 +2323,392 @@ export declare const consumerProfileImageUploadSchema: z.ZodObject<{
     base64Data: string;
     consumerId?: string | undefined;
 }>;
-export declare const migrationMemberCsvImportSchema: z.ZodObject<{
+export declare const migrationCsvImportSchema: z.ZodObject<{
     fileName: z.ZodString;
     contentType: z.ZodOptional<z.ZodString>;
     base64Data: z.ZodString;
     delimiter: z.ZodDefault<z.ZodEnum<["auto", "comma", "tab"]>>;
-    mapping: z.ZodOptional<z.ZodObject<{
-        firstName: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        lastName: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        fullName: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        email: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        phone: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        barcode: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        status: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        leadStage: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        notes: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        tags: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        emergencyContactName: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        emergencyContactPhone: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        emergencyContactRelationship: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-    }, "strip", z.ZodTypeAny, {
-        notes?: string | undefined;
-        status?: string | undefined;
-        email?: string | undefined;
-        firstName?: string | undefined;
-        lastName?: string | undefined;
-        phone?: string | undefined;
-        barcode?: string | undefined;
-        leadStage?: string | undefined;
-        fullName?: string | undefined;
-        tags?: string | undefined;
-        emergencyContactName?: string | undefined;
-        emergencyContactPhone?: string | undefined;
-        emergencyContactRelationship?: string | undefined;
-    }, {
-        notes?: string | undefined;
-        status?: string | undefined;
-        email?: string | undefined;
-        firstName?: string | undefined;
-        lastName?: string | undefined;
-        phone?: string | undefined;
-        barcode?: string | undefined;
-        leadStage?: string | undefined;
-        fullName?: string | undefined;
-        tags?: string | undefined;
-        emergencyContactName?: string | undefined;
-        emergencyContactPhone?: string | undefined;
-        emergencyContactRelationship?: string | undefined;
-    }>>;
+    mapping: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
 }, "strip", z.ZodTypeAny, {
     fileName: string;
     base64Data: string;
     delimiter: "auto" | "comma" | "tab";
     contentType?: string | undefined;
-    mapping?: {
-        notes?: string | undefined;
-        status?: string | undefined;
-        email?: string | undefined;
-        firstName?: string | undefined;
-        lastName?: string | undefined;
-        phone?: string | undefined;
-        barcode?: string | undefined;
-        leadStage?: string | undefined;
-        fullName?: string | undefined;
-        tags?: string | undefined;
-        emergencyContactName?: string | undefined;
-        emergencyContactPhone?: string | undefined;
-        emergencyContactRelationship?: string | undefined;
-    } | undefined;
+    mapping?: Record<string, string> | undefined;
 }, {
     fileName: string;
     base64Data: string;
     contentType?: string | undefined;
     delimiter?: "auto" | "comma" | "tab" | undefined;
-    mapping?: {
-        notes?: string | undefined;
-        status?: string | undefined;
-        email?: string | undefined;
-        firstName?: string | undefined;
-        lastName?: string | undefined;
-        phone?: string | undefined;
-        barcode?: string | undefined;
-        leadStage?: string | undefined;
-        fullName?: string | undefined;
-        tags?: string | undefined;
-        emergencyContactName?: string | undefined;
-        emergencyContactPhone?: string | undefined;
-        emergencyContactRelationship?: string | undefined;
-    } | undefined;
+    mapping?: Record<string, string> | undefined;
+}>;
+export declare const migrationFileTypeSchema: z.ZodEnum<["members", "staff", "membership_plans", "classes", "attendance", "billing", "appointments", "unknown"]>;
+export declare const migrationBatchCreateSchema: z.ZodObject<{}, "strip", z.ZodTypeAny, {}, {}>;
+export declare const migrationFileUploadSchema: z.ZodObject<{
+    fileName: z.ZodString;
+    contentType: z.ZodOptional<z.ZodString>;
+    base64Data: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    fileName: string;
+    base64Data: string;
+    contentType?: string | undefined;
+}, {
+    fileName: string;
+    base64Data: string;
+    contentType?: string | undefined;
+}>;
+export declare const migrationFileTypeOverrideSchema: z.ZodObject<{
+    fileType: z.ZodEnum<["members", "staff", "membership_plans", "classes", "attendance", "billing", "appointments", "unknown"]>;
+}, "strip", z.ZodTypeAny, {
+    fileType: "appointments" | "unknown" | "members" | "staff" | "membership_plans" | "classes" | "attendance" | "billing";
+}, {
+    fileType: "appointments" | "unknown" | "members" | "staff" | "membership_plans" | "classes" | "attendance" | "billing";
+}>;
+export declare const migrationColumnMappingsUpdateSchema: z.ZodObject<{
+    mappings: z.ZodArray<z.ZodObject<{
+        sourceColumn: z.ZodString;
+        targetField: z.ZodString;
+    }, "strip", z.ZodTypeAny, {
+        sourceColumn: string;
+        targetField: string;
+    }, {
+        sourceColumn: string;
+        targetField: string;
+    }>, "many">;
+    approve: z.ZodOptional<z.ZodBoolean>;
+}, "strip", z.ZodTypeAny, {
+    mappings: {
+        sourceColumn: string;
+        targetField: string;
+    }[];
+    approve?: boolean | undefined;
+}, {
+    mappings: {
+        sourceColumn: string;
+        targetField: string;
+    }[];
+    approve?: boolean | undefined;
+}>;
+export declare const migrationStagedMemberUpdateSchema: z.ZodEffects<z.ZodObject<{
+    firstName: z.ZodOptional<z.ZodString>;
+    lastName: z.ZodOptional<z.ZodString>;
+    fullName: z.ZodOptional<z.ZodString>;
+    email: z.ZodOptional<z.ZodString>;
+    phone: z.ZodOptional<z.ZodString>;
+    dateOfBirth: z.ZodOptional<z.ZodString>;
+    address: z.ZodOptional<z.ZodString>;
+    emergencyContact: z.ZodOptional<z.ZodString>;
+    membershipStatus: z.ZodOptional<z.ZodString>;
+    membershipPlanName: z.ZodOptional<z.ZodString>;
+    startDate: z.ZodOptional<z.ZodString>;
+    cancellationDate: z.ZodOptional<z.ZodString>;
+    nextBillingDate: z.ZodOptional<z.ZodString>;
+    assignedTrainerName: z.ZodOptional<z.ZodString>;
+    notes: z.ZodOptional<z.ZodString>;
+    tags: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+}, "strip", z.ZodTypeAny, {
+    notes?: string | undefined;
+    email?: string | undefined;
+    firstName?: string | undefined;
+    lastName?: string | undefined;
+    phone?: string | undefined;
+    address?: string | undefined;
+    emergencyContact?: string | undefined;
+    fullName?: string | undefined;
+    dateOfBirth?: string | undefined;
+    membershipStatus?: string | undefined;
+    membershipPlanName?: string | undefined;
+    startDate?: string | undefined;
+    cancellationDate?: string | undefined;
+    nextBillingDate?: string | undefined;
+    assignedTrainerName?: string | undefined;
+    tags?: string[] | undefined;
+}, {
+    notes?: string | undefined;
+    email?: string | undefined;
+    firstName?: string | undefined;
+    lastName?: string | undefined;
+    phone?: string | undefined;
+    address?: string | undefined;
+    emergencyContact?: string | undefined;
+    fullName?: string | undefined;
+    dateOfBirth?: string | undefined;
+    membershipStatus?: string | undefined;
+    membershipPlanName?: string | undefined;
+    startDate?: string | undefined;
+    cancellationDate?: string | undefined;
+    nextBillingDate?: string | undefined;
+    assignedTrainerName?: string | undefined;
+    tags?: string[] | undefined;
+}>, {
+    notes?: string | undefined;
+    email?: string | undefined;
+    firstName?: string | undefined;
+    lastName?: string | undefined;
+    phone?: string | undefined;
+    address?: string | undefined;
+    emergencyContact?: string | undefined;
+    fullName?: string | undefined;
+    dateOfBirth?: string | undefined;
+    membershipStatus?: string | undefined;
+    membershipPlanName?: string | undefined;
+    startDate?: string | undefined;
+    cancellationDate?: string | undefined;
+    nextBillingDate?: string | undefined;
+    assignedTrainerName?: string | undefined;
+    tags?: string[] | undefined;
+}, {
+    notes?: string | undefined;
+    email?: string | undefined;
+    firstName?: string | undefined;
+    lastName?: string | undefined;
+    phone?: string | undefined;
+    address?: string | undefined;
+    emergencyContact?: string | undefined;
+    fullName?: string | undefined;
+    dateOfBirth?: string | undefined;
+    membershipStatus?: string | undefined;
+    membershipPlanName?: string | undefined;
+    startDate?: string | undefined;
+    cancellationDate?: string | undefined;
+    nextBillingDate?: string | undefined;
+    assignedTrainerName?: string | undefined;
+    tags?: string[] | undefined;
+}>;
+export declare const migrationStagedMemberBulkApproveSchema: z.ZodObject<{
+    memberIds: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+}, "strip", z.ZodTypeAny, {
+    memberIds?: string[] | undefined;
+}, {
+    memberIds?: string[] | undefined;
+}>;
+export declare const migrationMemberCsvImportSchema: z.ZodObject<{
+    fileName: z.ZodString;
+    contentType: z.ZodOptional<z.ZodString>;
+    base64Data: z.ZodString;
+    delimiter: z.ZodDefault<z.ZodEnum<["auto", "comma", "tab"]>>;
+    mapping: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
+}, "strip", z.ZodTypeAny, {
+    fileName: string;
+    base64Data: string;
+    delimiter: "auto" | "comma" | "tab";
+    contentType?: string | undefined;
+    mapping?: Record<string, string> | undefined;
+}, {
+    fileName: string;
+    base64Data: string;
+    contentType?: string | undefined;
+    delimiter?: "auto" | "comma" | "tab" | undefined;
+    mapping?: Record<string, string> | undefined;
+}>;
+export declare const migrationMembershipPlanCsvImportSchema: z.ZodObject<{
+    fileName: z.ZodString;
+    contentType: z.ZodOptional<z.ZodString>;
+    base64Data: z.ZodString;
+    delimiter: z.ZodDefault<z.ZodEnum<["auto", "comma", "tab"]>>;
+    mapping: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
+}, "strip", z.ZodTypeAny, {
+    fileName: string;
+    base64Data: string;
+    delimiter: "auto" | "comma" | "tab";
+    contentType?: string | undefined;
+    mapping?: Record<string, string> | undefined;
+}, {
+    fileName: string;
+    base64Data: string;
+    contentType?: string | undefined;
+    delimiter?: "auto" | "comma" | "tab" | undefined;
+    mapping?: Record<string, string> | undefined;
+}>;
+export declare const migrationStaffRoleCsvImportSchema: z.ZodObject<{
+    fileName: z.ZodString;
+    contentType: z.ZodOptional<z.ZodString>;
+    base64Data: z.ZodString;
+    delimiter: z.ZodDefault<z.ZodEnum<["auto", "comma", "tab"]>>;
+    mapping: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
+}, "strip", z.ZodTypeAny, {
+    fileName: string;
+    base64Data: string;
+    delimiter: "auto" | "comma" | "tab";
+    contentType?: string | undefined;
+    mapping?: Record<string, string> | undefined;
+}, {
+    fileName: string;
+    base64Data: string;
+    contentType?: string | undefined;
+    delimiter?: "auto" | "comma" | "tab" | undefined;
+    mapping?: Record<string, string> | undefined;
+}>;
+export declare const migrationStaffListCsvImportSchema: z.ZodObject<{
+    fileName: z.ZodString;
+    contentType: z.ZodOptional<z.ZodString>;
+    base64Data: z.ZodString;
+    delimiter: z.ZodDefault<z.ZodEnum<["auto", "comma", "tab"]>>;
+    mapping: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
+}, "strip", z.ZodTypeAny, {
+    fileName: string;
+    base64Data: string;
+    delimiter: "auto" | "comma" | "tab";
+    contentType?: string | undefined;
+    mapping?: Record<string, string> | undefined;
+}, {
+    fileName: string;
+    base64Data: string;
+    contentType?: string | undefined;
+    delimiter?: "auto" | "comma" | "tab" | undefined;
+    mapping?: Record<string, string> | undefined;
 }>;
 export declare const migrationMemberCsvPreviewSchema: z.ZodObject<{
     fileName: z.ZodString;
     contentType: z.ZodOptional<z.ZodString>;
     base64Data: z.ZodString;
     delimiter: z.ZodDefault<z.ZodEnum<["auto", "comma", "tab"]>>;
-    mapping: z.ZodOptional<z.ZodObject<{
-        firstName: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        lastName: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        fullName: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        email: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        phone: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        barcode: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        status: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        leadStage: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        notes: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        tags: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        emergencyContactName: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        emergencyContactPhone: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        emergencyContactRelationship: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-    }, "strip", z.ZodTypeAny, {
-        notes?: string | undefined;
-        status?: string | undefined;
-        email?: string | undefined;
-        firstName?: string | undefined;
-        lastName?: string | undefined;
-        phone?: string | undefined;
-        barcode?: string | undefined;
-        leadStage?: string | undefined;
-        fullName?: string | undefined;
-        tags?: string | undefined;
-        emergencyContactName?: string | undefined;
-        emergencyContactPhone?: string | undefined;
-        emergencyContactRelationship?: string | undefined;
-    }, {
-        notes?: string | undefined;
-        status?: string | undefined;
-        email?: string | undefined;
-        firstName?: string | undefined;
-        lastName?: string | undefined;
-        phone?: string | undefined;
-        barcode?: string | undefined;
-        leadStage?: string | undefined;
-        fullName?: string | undefined;
-        tags?: string | undefined;
-        emergencyContactName?: string | undefined;
-        emergencyContactPhone?: string | undefined;
-        emergencyContactRelationship?: string | undefined;
-    }>>;
+    mapping: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
 }, "strip", z.ZodTypeAny, {
     fileName: string;
     base64Data: string;
     delimiter: "auto" | "comma" | "tab";
     contentType?: string | undefined;
-    mapping?: {
-        notes?: string | undefined;
-        status?: string | undefined;
-        email?: string | undefined;
-        firstName?: string | undefined;
-        lastName?: string | undefined;
-        phone?: string | undefined;
-        barcode?: string | undefined;
-        leadStage?: string | undefined;
-        fullName?: string | undefined;
-        tags?: string | undefined;
-        emergencyContactName?: string | undefined;
-        emergencyContactPhone?: string | undefined;
-        emergencyContactRelationship?: string | undefined;
-    } | undefined;
+    mapping?: Record<string, string> | undefined;
 }, {
     fileName: string;
     base64Data: string;
     contentType?: string | undefined;
     delimiter?: "auto" | "comma" | "tab" | undefined;
-    mapping?: {
-        notes?: string | undefined;
-        status?: string | undefined;
-        email?: string | undefined;
-        firstName?: string | undefined;
-        lastName?: string | undefined;
-        phone?: string | undefined;
-        barcode?: string | undefined;
-        leadStage?: string | undefined;
-        fullName?: string | undefined;
-        tags?: string | undefined;
-        emergencyContactName?: string | undefined;
-        emergencyContactPhone?: string | undefined;
-        emergencyContactRelationship?: string | undefined;
-    } | undefined;
+    mapping?: Record<string, string> | undefined;
+}>;
+export declare const migrationMembershipPlanCsvPreviewSchema: z.ZodObject<{
+    fileName: z.ZodString;
+    contentType: z.ZodOptional<z.ZodString>;
+    base64Data: z.ZodString;
+    delimiter: z.ZodDefault<z.ZodEnum<["auto", "comma", "tab"]>>;
+    mapping: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
+}, "strip", z.ZodTypeAny, {
+    fileName: string;
+    base64Data: string;
+    delimiter: "auto" | "comma" | "tab";
+    contentType?: string | undefined;
+    mapping?: Record<string, string> | undefined;
+}, {
+    fileName: string;
+    base64Data: string;
+    contentType?: string | undefined;
+    delimiter?: "auto" | "comma" | "tab" | undefined;
+    mapping?: Record<string, string> | undefined;
+}>;
+export declare const migrationStaffRoleCsvPreviewSchema: z.ZodObject<{
+    fileName: z.ZodString;
+    contentType: z.ZodOptional<z.ZodString>;
+    base64Data: z.ZodString;
+    delimiter: z.ZodDefault<z.ZodEnum<["auto", "comma", "tab"]>>;
+    mapping: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
+}, "strip", z.ZodTypeAny, {
+    fileName: string;
+    base64Data: string;
+    delimiter: "auto" | "comma" | "tab";
+    contentType?: string | undefined;
+    mapping?: Record<string, string> | undefined;
+}, {
+    fileName: string;
+    base64Data: string;
+    contentType?: string | undefined;
+    delimiter?: "auto" | "comma" | "tab" | undefined;
+    mapping?: Record<string, string> | undefined;
+}>;
+export declare const migrationStaffListCsvPreviewSchema: z.ZodObject<{
+    fileName: z.ZodString;
+    contentType: z.ZodOptional<z.ZodString>;
+    base64Data: z.ZodString;
+    delimiter: z.ZodDefault<z.ZodEnum<["auto", "comma", "tab"]>>;
+    mapping: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
+}, "strip", z.ZodTypeAny, {
+    fileName: string;
+    base64Data: string;
+    delimiter: "auto" | "comma" | "tab";
+    contentType?: string | undefined;
+    mapping?: Record<string, string> | undefined;
+}, {
+    fileName: string;
+    base64Data: string;
+    contentType?: string | undefined;
+    delimiter?: "auto" | "comma" | "tab" | undefined;
+    mapping?: Record<string, string> | undefined;
 }>;
 export declare const migrationMemberCsvAiMapSchema: z.ZodObject<{
     fileName: z.ZodString;
     contentType: z.ZodOptional<z.ZodString>;
     base64Data: z.ZodString;
     delimiter: z.ZodDefault<z.ZodEnum<["auto", "comma", "tab"]>>;
-    mapping: z.ZodOptional<z.ZodObject<{
-        firstName: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        lastName: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        fullName: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        email: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        phone: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        barcode: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        status: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        leadStage: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        notes: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        tags: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        emergencyContactName: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        emergencyContactPhone: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-        emergencyContactRelationship: z.ZodOptional<z.ZodOptional<z.ZodString>>;
-    }, "strip", z.ZodTypeAny, {
-        notes?: string | undefined;
-        status?: string | undefined;
-        email?: string | undefined;
-        firstName?: string | undefined;
-        lastName?: string | undefined;
-        phone?: string | undefined;
-        barcode?: string | undefined;
-        leadStage?: string | undefined;
-        fullName?: string | undefined;
-        tags?: string | undefined;
-        emergencyContactName?: string | undefined;
-        emergencyContactPhone?: string | undefined;
-        emergencyContactRelationship?: string | undefined;
-    }, {
-        notes?: string | undefined;
-        status?: string | undefined;
-        email?: string | undefined;
-        firstName?: string | undefined;
-        lastName?: string | undefined;
-        phone?: string | undefined;
-        barcode?: string | undefined;
-        leadStage?: string | undefined;
-        fullName?: string | undefined;
-        tags?: string | undefined;
-        emergencyContactName?: string | undefined;
-        emergencyContactPhone?: string | undefined;
-        emergencyContactRelationship?: string | undefined;
-    }>>;
+    mapping: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
 }, "strip", z.ZodTypeAny, {
     fileName: string;
     base64Data: string;
     delimiter: "auto" | "comma" | "tab";
     contentType?: string | undefined;
-    mapping?: {
-        notes?: string | undefined;
-        status?: string | undefined;
-        email?: string | undefined;
-        firstName?: string | undefined;
-        lastName?: string | undefined;
-        phone?: string | undefined;
-        barcode?: string | undefined;
-        leadStage?: string | undefined;
-        fullName?: string | undefined;
-        tags?: string | undefined;
-        emergencyContactName?: string | undefined;
-        emergencyContactPhone?: string | undefined;
-        emergencyContactRelationship?: string | undefined;
-    } | undefined;
+    mapping?: Record<string, string> | undefined;
 }, {
     fileName: string;
     base64Data: string;
     contentType?: string | undefined;
     delimiter?: "auto" | "comma" | "tab" | undefined;
-    mapping?: {
-        notes?: string | undefined;
-        status?: string | undefined;
-        email?: string | undefined;
-        firstName?: string | undefined;
-        lastName?: string | undefined;
-        phone?: string | undefined;
-        barcode?: string | undefined;
-        leadStage?: string | undefined;
-        fullName?: string | undefined;
-        tags?: string | undefined;
-        emergencyContactName?: string | undefined;
-        emergencyContactPhone?: string | undefined;
-        emergencyContactRelationship?: string | undefined;
-    } | undefined;
+    mapping?: Record<string, string> | undefined;
+}>;
+export declare const migrationMembershipPlanCsvAiMapSchema: z.ZodObject<{
+    fileName: z.ZodString;
+    contentType: z.ZodOptional<z.ZodString>;
+    base64Data: z.ZodString;
+    delimiter: z.ZodDefault<z.ZodEnum<["auto", "comma", "tab"]>>;
+    mapping: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
+}, "strip", z.ZodTypeAny, {
+    fileName: string;
+    base64Data: string;
+    delimiter: "auto" | "comma" | "tab";
+    contentType?: string | undefined;
+    mapping?: Record<string, string> | undefined;
+}, {
+    fileName: string;
+    base64Data: string;
+    contentType?: string | undefined;
+    delimiter?: "auto" | "comma" | "tab" | undefined;
+    mapping?: Record<string, string> | undefined;
+}>;
+export declare const migrationStaffRoleCsvAiMapSchema: z.ZodObject<{
+    fileName: z.ZodString;
+    contentType: z.ZodOptional<z.ZodString>;
+    base64Data: z.ZodString;
+    delimiter: z.ZodDefault<z.ZodEnum<["auto", "comma", "tab"]>>;
+    mapping: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
+}, "strip", z.ZodTypeAny, {
+    fileName: string;
+    base64Data: string;
+    delimiter: "auto" | "comma" | "tab";
+    contentType?: string | undefined;
+    mapping?: Record<string, string> | undefined;
+}, {
+    fileName: string;
+    base64Data: string;
+    contentType?: string | undefined;
+    delimiter?: "auto" | "comma" | "tab" | undefined;
+    mapping?: Record<string, string> | undefined;
+}>;
+export declare const migrationStaffListCsvAiMapSchema: z.ZodObject<{
+    fileName: z.ZodString;
+    contentType: z.ZodOptional<z.ZodString>;
+    base64Data: z.ZodString;
+    delimiter: z.ZodDefault<z.ZodEnum<["auto", "comma", "tab"]>>;
+    mapping: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
+}, "strip", z.ZodTypeAny, {
+    fileName: string;
+    base64Data: string;
+    delimiter: "auto" | "comma" | "tab";
+    contentType?: string | undefined;
+    mapping?: Record<string, string> | undefined;
+}, {
+    fileName: string;
+    base64Data: string;
+    contentType?: string | undefined;
+    delimiter?: "auto" | "comma" | "tab" | undefined;
+    mapping?: Record<string, string> | undefined;
 }>;
 export declare const crmActivityTypeSchema: z.ZodEnum<["note", "call", "email", "text", "reply", "tour_booked", "tour_completed", "trial_started", "trial_attended", "follow_up", "follow_up_outcome", "cancellation_reason"]>;
 export declare const crmActivityCreateSchema: z.ZodObject<{
@@ -3733,9 +3853,25 @@ export type SchedulerRequestResolveInput = z.infer<typeof schedulerRequestResolv
 export type ConsumerCreateInput = z.input<typeof consumerCreateSchema>;
 export type ConsumerUpdateInput = z.input<typeof consumerUpdateSchema>;
 export type ConsumerProfileImageUploadInput = z.infer<typeof consumerProfileImageUploadSchema>;
+export type MigrationBatchCreateInput = z.infer<typeof migrationBatchCreateSchema>;
+export type MigrationFileType = z.infer<typeof migrationFileTypeSchema>;
+export type MigrationFileUploadInput = z.infer<typeof migrationFileUploadSchema>;
+export type MigrationFileTypeOverrideInput = z.infer<typeof migrationFileTypeOverrideSchema>;
+export type MigrationColumnMappingsUpdateInput = z.infer<typeof migrationColumnMappingsUpdateSchema>;
+export type MigrationStagedMemberUpdateInput = z.infer<typeof migrationStagedMemberUpdateSchema>;
+export type MigrationStagedMemberBulkApproveInput = z.infer<typeof migrationStagedMemberBulkApproveSchema>;
 export type MigrationMemberCsvImportInput = z.infer<typeof migrationMemberCsvImportSchema>;
+export type MigrationMembershipPlanCsvImportInput = z.infer<typeof migrationMembershipPlanCsvImportSchema>;
+export type MigrationStaffRoleCsvImportInput = z.infer<typeof migrationStaffRoleCsvImportSchema>;
+export type MigrationStaffListCsvImportInput = z.infer<typeof migrationStaffListCsvImportSchema>;
 export type MigrationMemberCsvPreviewInput = z.infer<typeof migrationMemberCsvPreviewSchema>;
+export type MigrationMembershipPlanCsvPreviewInput = z.infer<typeof migrationMembershipPlanCsvPreviewSchema>;
+export type MigrationStaffRoleCsvPreviewInput = z.infer<typeof migrationStaffRoleCsvPreviewSchema>;
+export type MigrationStaffListCsvPreviewInput = z.infer<typeof migrationStaffListCsvPreviewSchema>;
 export type MigrationMemberCsvAiMapInput = z.infer<typeof migrationMemberCsvAiMapSchema>;
+export type MigrationMembershipPlanCsvAiMapInput = z.infer<typeof migrationMembershipPlanCsvAiMapSchema>;
+export type MigrationStaffRoleCsvAiMapInput = z.infer<typeof migrationStaffRoleCsvAiMapSchema>;
+export type MigrationStaffListCsvAiMapInput = z.infer<typeof migrationStaffListCsvAiMapSchema>;
 export type CrmActivityCreateInput = z.input<typeof crmActivityCreateSchema>;
 export type PosPurchaseInput = z.infer<typeof posPurchaseSchema>;
 export type PosStripeFinalizeInput = z.infer<typeof posStripeFinalizeSchema>;

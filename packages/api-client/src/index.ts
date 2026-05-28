@@ -26,6 +26,12 @@ import type {
   MemberUpdateInput,
   MembershipPlanCreateInput,
   MembershipPlanUpdateInput,
+  MigrationBatchCreateInput,
+  MigrationColumnMappingsUpdateInput,
+  MigrationFileTypeOverrideInput,
+  MigrationFileUploadInput,
+  MigrationStagedMemberBulkApproveInput,
+  MigrationStagedMemberUpdateInput,
   MigrationMemberCsvAiMapInput,
   MigrationMemberCsvImportInput,
   MigrationMemberCsvPreviewInput,
@@ -365,6 +371,106 @@ export class GymApiClient {
 
   importMemberCsv(gymId: string, input: MigrationMemberCsvImportInput) {
     return this.request("POST", `/gyms/${gymId}/migrations/member-list/import`, input);
+  }
+
+  createMigrationBatch(gymId: string, input: MigrationBatchCreateInput = {}) {
+    return this.request("POST", `/gyms/${gymId}/migration-batches`, input);
+  }
+
+  listMigrationBatches(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/migration-batches`);
+  }
+
+  getMigrationBatch(gymId: string, batchId: string) {
+    return this.request("GET", `/gyms/${gymId}/migration-batches/${batchId}`);
+  }
+
+  uploadMigrationFile(gymId: string, batchId: string, input: MigrationFileUploadInput) {
+    return this.request("POST", `/gyms/${gymId}/migration-batches/${batchId}/files`, input);
+  }
+
+  listMigrationFiles(gymId: string, batchId: string) {
+    return this.request("GET", `/gyms/${gymId}/migration-batches/${batchId}/files`);
+  }
+
+  deleteMigrationFile(gymId: string, batchId: string, fileId: string) {
+    return this.request("DELETE", `/gyms/${gymId}/migration-batches/${batchId}/files/${fileId}`);
+  }
+
+  detectMigrationFileType(gymId: string, batchId: string, fileId: string) {
+    return this.request("POST", `/gyms/${gymId}/migration-batches/${batchId}/files/${fileId}/detect-type`, {});
+  }
+
+  detectMigrationBatchFileTypes(gymId: string, batchId: string) {
+    return this.request("POST", `/gyms/${gymId}/migration-batches/${batchId}/detect-types`, {});
+  }
+
+  updateMigrationFileType(
+    gymId: string,
+    batchId: string,
+    fileId: string,
+    input: MigrationFileTypeOverrideInput
+  ) {
+    return this.request("PATCH", `/gyms/${gymId}/migration-batches/${batchId}/files/${fileId}/file-type`, input);
+  }
+
+  listMigrationColumnMappings(gymId: string, batchId: string, fileId: string) {
+    return this.request("GET", `/gyms/${gymId}/migration-batches/${batchId}/files/${fileId}/column-mappings`);
+  }
+
+  detectMigrationColumnMappings(gymId: string, batchId: string, fileId: string) {
+    return this.request("POST", `/gyms/${gymId}/migration-batches/${batchId}/files/${fileId}/column-mappings/detect`, {});
+  }
+
+  detectMigrationBatchColumnMappings(gymId: string, batchId: string) {
+    return this.request("POST", `/gyms/${gymId}/migration-batches/${batchId}/detect-column-mappings`, {});
+  }
+
+  updateMigrationColumnMappings(
+    gymId: string,
+    batchId: string,
+    fileId: string,
+    input: MigrationColumnMappingsUpdateInput
+  ) {
+    return this.request("PATCH", `/gyms/${gymId}/migration-batches/${batchId}/files/${fileId}/column-mappings`, input);
+  }
+
+  stageMigrationMembers(gymId: string, batchId: string, fileId: string) {
+    return this.request("POST", `/gyms/${gymId}/migration-batches/${batchId}/files/${fileId}/stage-members`, {});
+  }
+
+  listMigrationStagedMembers(gymId: string, batchId: string, fileId: string) {
+    return this.request("GET", `/gyms/${gymId}/migration-batches/${batchId}/files/${fileId}/staged-members`);
+  }
+
+  updateMigrationStagedMember(
+    gymId: string,
+    batchId: string,
+    stagedMemberId: string,
+    input: MigrationStagedMemberUpdateInput
+  ) {
+    return this.request("PATCH", `/gyms/${gymId}/migration-batches/${batchId}/staged-members/${stagedMemberId}`, input);
+  }
+
+  skipMigrationStagedMember(gymId: string, batchId: string, stagedMemberId: string) {
+    return this.request("POST", `/gyms/${gymId}/migration-batches/${batchId}/staged-members/${stagedMemberId}/skip`, {});
+  }
+
+  approveMigrationStagedMember(gymId: string, batchId: string, stagedMemberId: string) {
+    return this.request("POST", `/gyms/${gymId}/migration-batches/${batchId}/staged-members/${stagedMemberId}/approve`, {});
+  }
+
+  approveMigrationStagedMembers(
+    gymId: string,
+    batchId: string,
+    fileId: string,
+    input: MigrationStagedMemberBulkApproveInput = {}
+  ) {
+    return this.request(
+      "POST",
+      `/gyms/${gymId}/migration-batches/${batchId}/files/${fileId}/staged-members/approve`,
+      input
+    );
   }
 
   uploadConsumerProfileImage(gymId: string, input: ConsumerProfileImageUploadInput) {

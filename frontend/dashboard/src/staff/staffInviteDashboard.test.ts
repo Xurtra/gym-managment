@@ -1709,7 +1709,7 @@ describe("staff invite dashboard flow", () => {
     expect(createScreen.nameField.required).toBe(true);
     expect(createScreen.selectedPermissions).toEqual([Permission.GymRead, Permission.MemberRead]);
     expect(createScreen.selectedPermissionCount).toBe(2);
-    expect(createScreen.availablePermissionCount).toBe(23);
+    expect(createScreen.availablePermissionCount).toBe(29);
     expect(createScreen.disabledPermissionCount).toBe(1);
     expect(createScreen.summaryLabel).toBe("2 permissions selected");
     expect(createScreen.action.label).toBe("Create role");
@@ -1720,6 +1720,7 @@ describe("staff invite dashboard flow", () => {
       "staff",
       "members",
       "classes",
+      "scheduler",
       "operations"
     ]);
     expect(createScreen.permissionGroups.map((group) => group.label)).toEqual([
@@ -1728,6 +1729,7 @@ describe("staff invite dashboard flow", () => {
       "Staff",
       "Members",
       "Classes",
+      "Scheduler",
       "Operations"
     ]);
     expect(createScreen.permissionGroups.find((group) => group.key === "gym")?.availableCount).toBe(2);
@@ -1767,7 +1769,7 @@ describe("staff invite dashboard flow", () => {
     expect(lockedSystemRole.action.disabled).toBe(true);
     expect(lockedSystemRole.nameField.error).toContain("System");
     expect(lockedSystemRole.lockedReason).toContain("System");
-    expect(lockedSystemRole.disabledPermissionCount).toBe(24);
+    expect(lockedSystemRole.disabledPermissionCount).toBe(30);
     expect(
       lockedSystemRole.permissionGroups.every((group) => group.toggles.every((toggle) => toggle.disabled))
     ).toBe(true);
@@ -1795,6 +1797,7 @@ describe("staff invite dashboard flow", () => {
     expect(trainerView.permissions).toEqual([
       Permission.GymRead,
       Permission.LocationRead,
+      Permission.StaffDirectoryView,
       Permission.MemberRead,
       Permission.ClassRead,
       Permission.ClassWrite,
@@ -1833,6 +1836,7 @@ describe("staff invite dashboard flow", () => {
     expect(frontDeskView.permissions).toEqual([
       Permission.GymRead,
       Permission.LocationRead,
+      Permission.StaffDirectoryView,
       Permission.MemberRead,
       Permission.MemberWrite,
       Permission.ClassRead,

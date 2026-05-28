@@ -1,4 +1,4 @@
-import type { AccessDeviceCreateInput, AccessDeviceEventInput, AccessDeviceHeartbeatInput, AccessRuleCreateInput, ClassBookingCreateInput, ClassSessionResourceAllocationInput, CheckInCreateInput, ClassSessionCreateInput, ClassTypeCreateInput, ConsumerCreateInput, CrmActivityCreateInput, ConsumerProfileImageUploadInput, ConsumerUpdateInput, CustomRoleCreateInput, CustomRoleUpdateInput, FacilityReservationCancelInput, FacilityReservationCreateInput, GymCreateInput, GymUpdateInput, LocationCreateInput, LocationUpdateInput, LoginInput, MemberCreateInput, MemberMembershipAssignInput, MemberUpdateInput, MembershipPlanCreateInput, MembershipPlanUpdateInput, MigrationMemberCsvAiMapInput, MigrationMemberCsvImportInput, MigrationMemberCsvPreviewInput, PosPurchaseInput, StripeConnectOnboardingLinkInput, PublicSignupInput, RegisterInput, ResetPasswordInput, ResourceCreateInput, ResourceUpdateInput, RoleAssignmentInput, SchedulerAvailabilityCreateInput, SchedulerCoverageRuleCreateInput, SchedulerGenerateInput, SchedulerPreferenceRequestCreateInput, SchedulerPreferenceRequestResolveInput, SchedulerPublishInput, SchedulerRequestCreateInput, SchedulerRequestResolveInput, SchedulerSettingsUpdateInput, StaffAccessRemoveInput, StaffClockInInput, StaffClockOutInput, StaffInviteAcceptInput, StaffInviteCreateInput, StaffShiftCreateInput, StaffSelfClockInInput, StaffSelfClockOutInput, StaffManualBookingInput } from "@gym-platform/validation";
+import type { AccessDeviceCreateInput, AccessDeviceEventInput, AccessDeviceHeartbeatInput, AccessRuleCreateInput, ClassBookingCreateInput, ClassSessionResourceAllocationInput, CheckInCreateInput, ClassSessionCreateInput, ClassTypeCreateInput, ConsumerCreateInput, CrmActivityCreateInput, ConsumerProfileImageUploadInput, ConsumerUpdateInput, CustomRoleCreateInput, CustomRoleUpdateInput, FacilityReservationCancelInput, FacilityReservationCreateInput, GymCreateInput, GymUpdateInput, LocationCreateInput, LocationUpdateInput, LoginInput, MemberCreateInput, MemberMembershipAssignInput, MemberUpdateInput, MembershipPlanCreateInput, MembershipPlanUpdateInput, MigrationBatchCreateInput, MigrationColumnMappingsUpdateInput, MigrationFileTypeOverrideInput, MigrationFileUploadInput, MigrationStagedMemberBulkApproveInput, MigrationStagedMemberUpdateInput, MigrationMemberCsvAiMapInput, MigrationMemberCsvImportInput, MigrationMemberCsvPreviewInput, PosPurchaseInput, StripeConnectOnboardingLinkInput, PublicSignupInput, RegisterInput, ResetPasswordInput, ResourceCreateInput, ResourceUpdateInput, RoleAssignmentInput, SchedulerAvailabilityCreateInput, SchedulerCoverageRuleCreateInput, SchedulerGenerateInput, SchedulerPreferenceRequestCreateInput, SchedulerPreferenceRequestResolveInput, SchedulerPublishInput, SchedulerRequestCreateInput, SchedulerRequestResolveInput, SchedulerSettingsUpdateInput, StaffAccessRemoveInput, StaffClockInInput, StaffClockOutInput, StaffInviteAcceptInput, StaffInviteCreateInput, StaffShiftCreateInput, StaffSelfClockInInput, StaffSelfClockOutInput, StaffManualBookingInput } from "@gym-platform/validation";
 export interface ApiClientOptions {
     baseUrl: string;
     accessToken?: string;
@@ -96,6 +96,25 @@ export declare class GymApiClient {
     previewMemberCsvImport(gymId: string, input: MigrationMemberCsvPreviewInput): Promise<unknown>;
     suggestMemberCsvAiMapping(gymId: string, input: MigrationMemberCsvAiMapInput): Promise<unknown>;
     importMemberCsv(gymId: string, input: MigrationMemberCsvImportInput): Promise<unknown>;
+    createMigrationBatch(gymId: string, input?: MigrationBatchCreateInput): Promise<unknown>;
+    listMigrationBatches(gymId: string): Promise<unknown>;
+    getMigrationBatch(gymId: string, batchId: string): Promise<unknown>;
+    uploadMigrationFile(gymId: string, batchId: string, input: MigrationFileUploadInput): Promise<unknown>;
+    listMigrationFiles(gymId: string, batchId: string): Promise<unknown>;
+    deleteMigrationFile(gymId: string, batchId: string, fileId: string): Promise<unknown>;
+    detectMigrationFileType(gymId: string, batchId: string, fileId: string): Promise<unknown>;
+    detectMigrationBatchFileTypes(gymId: string, batchId: string): Promise<unknown>;
+    updateMigrationFileType(gymId: string, batchId: string, fileId: string, input: MigrationFileTypeOverrideInput): Promise<unknown>;
+    listMigrationColumnMappings(gymId: string, batchId: string, fileId: string): Promise<unknown>;
+    detectMigrationColumnMappings(gymId: string, batchId: string, fileId: string): Promise<unknown>;
+    detectMigrationBatchColumnMappings(gymId: string, batchId: string): Promise<unknown>;
+    updateMigrationColumnMappings(gymId: string, batchId: string, fileId: string, input: MigrationColumnMappingsUpdateInput): Promise<unknown>;
+    stageMigrationMembers(gymId: string, batchId: string, fileId: string): Promise<unknown>;
+    listMigrationStagedMembers(gymId: string, batchId: string, fileId: string): Promise<unknown>;
+    updateMigrationStagedMember(gymId: string, batchId: string, stagedMemberId: string, input: MigrationStagedMemberUpdateInput): Promise<unknown>;
+    skipMigrationStagedMember(gymId: string, batchId: string, stagedMemberId: string): Promise<unknown>;
+    approveMigrationStagedMember(gymId: string, batchId: string, stagedMemberId: string): Promise<unknown>;
+    approveMigrationStagedMembers(gymId: string, batchId: string, fileId: string, input?: MigrationStagedMemberBulkApproveInput): Promise<unknown>;
     uploadConsumerProfileImage(gymId: string, input: ConsumerProfileImageUploadInput): Promise<unknown>;
     updateConsumer(gymId: string, consumerId: string, input: ConsumerUpdateInput): Promise<unknown>;
     archiveConsumer(gymId: string, consumerId: string): Promise<unknown>;

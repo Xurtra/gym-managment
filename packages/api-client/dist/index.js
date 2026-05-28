@@ -211,6 +211,63 @@ export class GymApiClient {
     importMemberCsv(gymId, input) {
         return this.request("POST", `/gyms/${gymId}/migrations/member-list/import`, input);
     }
+    createMigrationBatch(gymId, input = {}) {
+        return this.request("POST", `/gyms/${gymId}/migration-batches`, input);
+    }
+    listMigrationBatches(gymId) {
+        return this.request("GET", `/gyms/${gymId}/migration-batches`);
+    }
+    getMigrationBatch(gymId, batchId) {
+        return this.request("GET", `/gyms/${gymId}/migration-batches/${batchId}`);
+    }
+    uploadMigrationFile(gymId, batchId, input) {
+        return this.request("POST", `/gyms/${gymId}/migration-batches/${batchId}/files`, input);
+    }
+    listMigrationFiles(gymId, batchId) {
+        return this.request("GET", `/gyms/${gymId}/migration-batches/${batchId}/files`);
+    }
+    deleteMigrationFile(gymId, batchId, fileId) {
+        return this.request("DELETE", `/gyms/${gymId}/migration-batches/${batchId}/files/${fileId}`);
+    }
+    detectMigrationFileType(gymId, batchId, fileId) {
+        return this.request("POST", `/gyms/${gymId}/migration-batches/${batchId}/files/${fileId}/detect-type`, {});
+    }
+    detectMigrationBatchFileTypes(gymId, batchId) {
+        return this.request("POST", `/gyms/${gymId}/migration-batches/${batchId}/detect-types`, {});
+    }
+    updateMigrationFileType(gymId, batchId, fileId, input) {
+        return this.request("PATCH", `/gyms/${gymId}/migration-batches/${batchId}/files/${fileId}/file-type`, input);
+    }
+    listMigrationColumnMappings(gymId, batchId, fileId) {
+        return this.request("GET", `/gyms/${gymId}/migration-batches/${batchId}/files/${fileId}/column-mappings`);
+    }
+    detectMigrationColumnMappings(gymId, batchId, fileId) {
+        return this.request("POST", `/gyms/${gymId}/migration-batches/${batchId}/files/${fileId}/column-mappings/detect`, {});
+    }
+    detectMigrationBatchColumnMappings(gymId, batchId) {
+        return this.request("POST", `/gyms/${gymId}/migration-batches/${batchId}/detect-column-mappings`, {});
+    }
+    updateMigrationColumnMappings(gymId, batchId, fileId, input) {
+        return this.request("PATCH", `/gyms/${gymId}/migration-batches/${batchId}/files/${fileId}/column-mappings`, input);
+    }
+    stageMigrationMembers(gymId, batchId, fileId) {
+        return this.request("POST", `/gyms/${gymId}/migration-batches/${batchId}/files/${fileId}/stage-members`, {});
+    }
+    listMigrationStagedMembers(gymId, batchId, fileId) {
+        return this.request("GET", `/gyms/${gymId}/migration-batches/${batchId}/files/${fileId}/staged-members`);
+    }
+    updateMigrationStagedMember(gymId, batchId, stagedMemberId, input) {
+        return this.request("PATCH", `/gyms/${gymId}/migration-batches/${batchId}/staged-members/${stagedMemberId}`, input);
+    }
+    skipMigrationStagedMember(gymId, batchId, stagedMemberId) {
+        return this.request("POST", `/gyms/${gymId}/migration-batches/${batchId}/staged-members/${stagedMemberId}/skip`, {});
+    }
+    approveMigrationStagedMember(gymId, batchId, stagedMemberId) {
+        return this.request("POST", `/gyms/${gymId}/migration-batches/${batchId}/staged-members/${stagedMemberId}/approve`, {});
+    }
+    approveMigrationStagedMembers(gymId, batchId, fileId, input = {}) {
+        return this.request("POST", `/gyms/${gymId}/migration-batches/${batchId}/files/${fileId}/staged-members/approve`, input);
+    }
     uploadConsumerProfileImage(gymId, input) {
         return this.request("POST", `/gyms/${gymId}/consumers/profile-image`, input);
     }
