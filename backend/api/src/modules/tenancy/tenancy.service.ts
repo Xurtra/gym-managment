@@ -22,7 +22,7 @@ export class TenancyService {
       }
       const slug = await this.uniqueSlug(input.slug ?? slugify(input.name), repositories);
       const now = this.clock.now();
-      const gym = {
+      const gym: Gym = {
         id: randomUUID(),
         name: input.name,
         slug,
@@ -31,6 +31,13 @@ export class TenancyService {
         timezone: input.timezone,
         locale: input.locale,
         ...(input.migrationChecklist ? { migrationChecklist: cleanMigrationChecklist(input.migrationChecklist) } : {}),
+        studioSettings: {
+          resourceTypesUsed: []
+        },
+        setupWizard: {
+          currentStep: "profile",
+          completedSteps: []
+        },
         operatingHours: {},
         featureFlags: input.featureFlags.length > 0 ? input.featureFlags : defaultFeatureFlags(),
         onboardingCompletedSteps: input.migrationChecklist ? ["gym-details", "migration-checklist"] : ["gym-details"],
@@ -130,6 +137,12 @@ export class TenancyService {
     }
     if (input.brandColors) updated.brandColors = cleanBrandColors(input.brandColors);
     if (input.businessInfo) updated.businessInfo = cleanBusinessInfo(input.businessInfo);
+    if (input.studioSettings) {
+      updated.studioSettings = { ...(updated.studioSettings ?? {}), ...cleanStudioSettings(input.studioSettings) };
+    }
+    if (input.setupWizard) {
+      updated.setupWizard = { ...(updated.setupWizard ?? {}), ...cleanSetupWizard(input.setupWizard) };
+    }
     if (input.operatingHours) updated.operatingHours = input.operatingHours;
     if (input.featureFlags) updated.featureFlags = input.featureFlags;
     if (input.onboardingCompletedSteps) {
@@ -180,6 +193,43 @@ function cleanBusinessInfo(input: NonNullable<GymUpdateInput["businessInfo"]>): 
     }
   }
   return business;
+}
+
+function cleanStudioSettings(input: NonNullable<GymUpdateInput["studioSettings"]>): NonNullable<Gym["studioSettings"]> {
+  const settings: NonNullable<Gym["studioSettings"]> = {};
+  if (Object.prototype.hasOwnProperty.call(input, "resourceTypesUsed")) {
+    settings.resourceTypesUsed = [...new Set(input.resourceTypesUsed ?? [])];
+  }
+  if (input.businessType?.trim()) {
+    settings.businessType = input.businessType.trim();
+  }
+  if (typeof input.defaultBufferMinutes === "number") {
+    settings.defaultBufferMinutes = input.defaultBufferMinutes;
+  }
+  if (typeof input.averageSessionPriceCents === "number") {
+    settings.averageSessionPriceCents = input.averageSessionPriceCents;
+  }
+  if (typeof input.softwareMonthlyCostCents === "number") {
+    settings.softwareMonthlyCostCents = input.softwareMonthlyCostCents;
+  }
+  if (typeof input.targetMonthlyRevenueCents === "number") {
+    settings.targetMonthlyRevenueCents = input.targetMonthlyRevenueCents;
+  }
+  return settings;
+}
+
+function cleanSetupWizard(input: NonNullable<GymUpdateInput["setupWizard"]>): NonNullable<Gym["setupWizard"]> {
+  const wizard: NonNullable<Gym["setupWizard"]> = {};
+  if (input.currentStep) {
+    wizard.currentStep = input.currentStep;
+  }
+  if (Object.prototype.hasOwnProperty.call(input, "completedSteps")) {
+    wizard.completedSteps = [...new Set(input.completedSteps ?? [])];
+  }
+  if (input.completedAt) {
+    wizard.completedAt = input.completedAt;
+  }
+  return wizard;
 }
 
 function cleanMigrationChecklist(

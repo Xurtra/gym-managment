@@ -202,6 +202,73 @@ export class GymApiClient {
     createConsumer(gymId, input) {
         return this.request("POST", `/gyms/${gymId}/consumers`, input);
     }
+    listCampaignImports(gymId) {
+        return this.request("GET", `/gyms/${gymId}/campaign-layer/imports`);
+    }
+    previewCampaignCsvImport(gymId, input) {
+        return this.request("POST", `/gyms/${gymId}/campaign-layer/imports/preview`, input);
+    }
+    confirmCampaignCsvImport(gymId, input) {
+        return this.request("POST", `/gyms/${gymId}/campaign-layer/imports/confirm`, input);
+    }
+    listRevenueOpportunities(gymId, query = {}) {
+        const params = new URLSearchParams();
+        if (query.from) {
+            params.set("from", query.from);
+        }
+        if (query.to) {
+            params.set("to", query.to);
+        }
+        const suffix = params.toString() ? `?${params.toString()}` : "";
+        return this.request("GET", `/gyms/${gymId}/campaign-layer/opportunities${suffix}`);
+    }
+    listRoomDeviceUtilization(gymId, query = {}) {
+        const params = new URLSearchParams();
+        if (query.from) {
+            params.set("from", query.from);
+        }
+        if (query.to) {
+            params.set("to", query.to);
+        }
+        if (query.resourceType) {
+            params.set("resourceType", query.resourceType);
+        }
+        if (query.serviceCategory) {
+            params.set("serviceCategory", query.serviceCategory);
+        }
+        const suffix = params.toString() ? `?${params.toString()}` : "";
+        return this.request("GET", `/gyms/${gymId}/campaign-layer/utilization${suffix}`);
+    }
+    listClientSegments(gymId) {
+        return this.request("GET", `/gyms/${gymId}/campaign-layer/client-segments`);
+    }
+    listGeneratedCampaigns(gymId) {
+        return this.request("GET", `/gyms/${gymId}/campaign-layer/campaigns`);
+    }
+    generateCampaign(gymId, input) {
+        return this.request("POST", `/gyms/${gymId}/campaign-layer/campaigns/generate`, input);
+    }
+    listPremiumRecoveryPrograms(gymId) {
+        return this.request("GET", `/gyms/${gymId}/campaign-layer/programs`);
+    }
+    suggestPremiumRecoveryPrograms(gymId) {
+        return this.request("GET", `/gyms/${gymId}/campaign-layer/programs/suggestions`);
+    }
+    createPremiumRecoveryProgram(gymId, input) {
+        return this.request("POST", `/gyms/${gymId}/campaign-layer/programs`, input);
+    }
+    getWeeklyRevenuePlan(gymId) {
+        return this.request("GET", `/gyms/${gymId}/weekly-revenue-plan/current`);
+    }
+    updateWeeklyRevenuePlanAction(gymId, actionId, input) {
+        return this.request("PATCH", `/gyms/${gymId}/weekly-revenue-plan/current/actions/${actionId}`, input);
+    }
+    listRoiTracking(gymId) {
+        return this.request("GET", `/gyms/${gymId}/roi-tracking`);
+    }
+    createRoiTrackingEntry(gymId, input) {
+        return this.request("POST", `/gyms/${gymId}/roi-tracking`, input);
+    }
     previewMemberCsvImport(gymId, input) {
         return this.request("POST", `/gyms/${gymId}/migrations/member-list/preview`, input);
     }

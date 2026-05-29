@@ -795,6 +795,43 @@ export declare const operatingHoursSchema: z.ZodRecord<z.ZodEnum<["mon", "tue", 
     opensAt: string;
     closesAt: string;
 }>, "many">>;
+export declare const studioResourceTypeSchema: z.ZodEnum<["sauna", "cold_plunge", "red_light", "compression", "float", "stretch_table", "recovery_room", "other"]>;
+export declare const studioSetupStepSchema: z.ZodEnum<["profile", "rooms_devices", "services", "first_csv", "first_revenue_plan"]>;
+export declare const studioSettingsSchema: z.ZodObject<{
+    businessType: z.ZodOptional<z.ZodString>;
+    defaultBufferMinutes: z.ZodOptional<z.ZodNumber>;
+    averageSessionPriceCents: z.ZodOptional<z.ZodNumber>;
+    softwareMonthlyCostCents: z.ZodOptional<z.ZodNumber>;
+    targetMonthlyRevenueCents: z.ZodOptional<z.ZodNumber>;
+    resourceTypesUsed: z.ZodOptional<z.ZodArray<z.ZodEnum<["sauna", "cold_plunge", "red_light", "compression", "float", "stretch_table", "recovery_room", "other"]>, "many">>;
+}, "strip", z.ZodTypeAny, {
+    businessType?: string | undefined;
+    defaultBufferMinutes?: number | undefined;
+    averageSessionPriceCents?: number | undefined;
+    softwareMonthlyCostCents?: number | undefined;
+    targetMonthlyRevenueCents?: number | undefined;
+    resourceTypesUsed?: ("float" | "sauna" | "cold_plunge" | "red_light" | "compression" | "stretch_table" | "recovery_room" | "other")[] | undefined;
+}, {
+    businessType?: string | undefined;
+    defaultBufferMinutes?: number | undefined;
+    averageSessionPriceCents?: number | undefined;
+    softwareMonthlyCostCents?: number | undefined;
+    targetMonthlyRevenueCents?: number | undefined;
+    resourceTypesUsed?: ("float" | "sauna" | "cold_plunge" | "red_light" | "compression" | "stretch_table" | "recovery_room" | "other")[] | undefined;
+}>;
+export declare const studioSetupWizardSchema: z.ZodObject<{
+    currentStep: z.ZodOptional<z.ZodEnum<["profile", "rooms_devices", "services", "first_csv", "first_revenue_plan"]>>;
+    completedSteps: z.ZodOptional<z.ZodArray<z.ZodEnum<["profile", "rooms_devices", "services", "first_csv", "first_revenue_plan"]>, "many">>;
+    completedAt: z.ZodOptional<z.ZodDate>;
+}, "strip", z.ZodTypeAny, {
+    currentStep?: "profile" | "rooms_devices" | "services" | "first_csv" | "first_revenue_plan" | undefined;
+    completedSteps?: ("profile" | "rooms_devices" | "services" | "first_csv" | "first_revenue_plan")[] | undefined;
+    completedAt?: Date | undefined;
+}, {
+    currentStep?: "profile" | "rooms_devices" | "services" | "first_csv" | "first_revenue_plan" | undefined;
+    completedSteps?: ("profile" | "rooms_devices" | "services" | "first_csv" | "first_revenue_plan")[] | undefined;
+    completedAt?: Date | undefined;
+}>;
 export declare const gymBusinessInfoSchema: z.ZodObject<{
     legalName: z.ZodOptional<z.ZodString>;
     phone: z.ZodOptional<z.ZodString>;
@@ -927,6 +964,41 @@ export declare const gymUpdateSchema: z.ZodEffects<z.ZodObject<{
             country: string;
             line2?: string | undefined;
         } | undefined;
+    }>>;
+    studioSettings: z.ZodOptional<z.ZodObject<{
+        businessType: z.ZodOptional<z.ZodString>;
+        defaultBufferMinutes: z.ZodOptional<z.ZodNumber>;
+        averageSessionPriceCents: z.ZodOptional<z.ZodNumber>;
+        softwareMonthlyCostCents: z.ZodOptional<z.ZodNumber>;
+        targetMonthlyRevenueCents: z.ZodOptional<z.ZodNumber>;
+        resourceTypesUsed: z.ZodOptional<z.ZodArray<z.ZodEnum<["sauna", "cold_plunge", "red_light", "compression", "float", "stretch_table", "recovery_room", "other"]>, "many">>;
+    }, "strip", z.ZodTypeAny, {
+        businessType?: string | undefined;
+        defaultBufferMinutes?: number | undefined;
+        averageSessionPriceCents?: number | undefined;
+        softwareMonthlyCostCents?: number | undefined;
+        targetMonthlyRevenueCents?: number | undefined;
+        resourceTypesUsed?: ("float" | "sauna" | "cold_plunge" | "red_light" | "compression" | "stretch_table" | "recovery_room" | "other")[] | undefined;
+    }, {
+        businessType?: string | undefined;
+        defaultBufferMinutes?: number | undefined;
+        averageSessionPriceCents?: number | undefined;
+        softwareMonthlyCostCents?: number | undefined;
+        targetMonthlyRevenueCents?: number | undefined;
+        resourceTypesUsed?: ("float" | "sauna" | "cold_plunge" | "red_light" | "compression" | "stretch_table" | "recovery_room" | "other")[] | undefined;
+    }>>;
+    setupWizard: z.ZodOptional<z.ZodObject<{
+        currentStep: z.ZodOptional<z.ZodEnum<["profile", "rooms_devices", "services", "first_csv", "first_revenue_plan"]>>;
+        completedSteps: z.ZodOptional<z.ZodArray<z.ZodEnum<["profile", "rooms_devices", "services", "first_csv", "first_revenue_plan"]>, "many">>;
+        completedAt: z.ZodOptional<z.ZodDate>;
+    }, "strip", z.ZodTypeAny, {
+        currentStep?: "profile" | "rooms_devices" | "services" | "first_csv" | "first_revenue_plan" | undefined;
+        completedSteps?: ("profile" | "rooms_devices" | "services" | "first_csv" | "first_revenue_plan")[] | undefined;
+        completedAt?: Date | undefined;
+    }, {
+        currentStep?: "profile" | "rooms_devices" | "services" | "first_csv" | "first_revenue_plan" | undefined;
+        completedSteps?: ("profile" | "rooms_devices" | "services" | "first_csv" | "first_revenue_plan")[] | undefined;
+        completedAt?: Date | undefined;
     }>>;
     operatingHours: z.ZodOptional<z.ZodRecord<z.ZodEnum<["mon", "tue", "wed", "thu", "fri", "sat", "sun"]>, z.ZodArray<z.ZodObject<{
         opensAt: z.ZodString;
@@ -1166,6 +1238,19 @@ export declare const gymUpdateSchema: z.ZodEffects<z.ZodObject<{
             line2?: string | undefined;
         } | undefined;
     } | undefined;
+    studioSettings?: {
+        businessType?: string | undefined;
+        defaultBufferMinutes?: number | undefined;
+        averageSessionPriceCents?: number | undefined;
+        softwareMonthlyCostCents?: number | undefined;
+        targetMonthlyRevenueCents?: number | undefined;
+        resourceTypesUsed?: ("float" | "sauna" | "cold_plunge" | "red_light" | "compression" | "stretch_table" | "recovery_room" | "other")[] | undefined;
+    } | undefined;
+    setupWizard?: {
+        currentStep?: "profile" | "rooms_devices" | "services" | "first_csv" | "first_revenue_plan" | undefined;
+        completedSteps?: ("profile" | "rooms_devices" | "services" | "first_csv" | "first_revenue_plan")[] | undefined;
+        completedAt?: Date | undefined;
+    } | undefined;
     operatingHours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
         opensAt: string;
         closesAt: string;
@@ -1229,6 +1314,19 @@ export declare const gymUpdateSchema: z.ZodEffects<z.ZodObject<{
             country: string;
             line2?: string | undefined;
         } | undefined;
+    } | undefined;
+    studioSettings?: {
+        businessType?: string | undefined;
+        defaultBufferMinutes?: number | undefined;
+        averageSessionPriceCents?: number | undefined;
+        softwareMonthlyCostCents?: number | undefined;
+        targetMonthlyRevenueCents?: number | undefined;
+        resourceTypesUsed?: ("float" | "sauna" | "cold_plunge" | "red_light" | "compression" | "stretch_table" | "recovery_room" | "other")[] | undefined;
+    } | undefined;
+    setupWizard?: {
+        currentStep?: "profile" | "rooms_devices" | "services" | "first_csv" | "first_revenue_plan" | undefined;
+        completedSteps?: ("profile" | "rooms_devices" | "services" | "first_csv" | "first_revenue_plan")[] | undefined;
+        completedAt?: Date | undefined;
     } | undefined;
     operatingHours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
         opensAt: string;
@@ -1294,6 +1392,19 @@ export declare const gymUpdateSchema: z.ZodEffects<z.ZodObject<{
             line2?: string | undefined;
         } | undefined;
     } | undefined;
+    studioSettings?: {
+        businessType?: string | undefined;
+        defaultBufferMinutes?: number | undefined;
+        averageSessionPriceCents?: number | undefined;
+        softwareMonthlyCostCents?: number | undefined;
+        targetMonthlyRevenueCents?: number | undefined;
+        resourceTypesUsed?: ("float" | "sauna" | "cold_plunge" | "red_light" | "compression" | "stretch_table" | "recovery_room" | "other")[] | undefined;
+    } | undefined;
+    setupWizard?: {
+        currentStep?: "profile" | "rooms_devices" | "services" | "first_csv" | "first_revenue_plan" | undefined;
+        completedSteps?: ("profile" | "rooms_devices" | "services" | "first_csv" | "first_revenue_plan")[] | undefined;
+        completedAt?: Date | undefined;
+    } | undefined;
     operatingHours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
         opensAt: string;
         closesAt: string;
@@ -1357,6 +1468,19 @@ export declare const gymUpdateSchema: z.ZodEffects<z.ZodObject<{
             country: string;
             line2?: string | undefined;
         } | undefined;
+    } | undefined;
+    studioSettings?: {
+        businessType?: string | undefined;
+        defaultBufferMinutes?: number | undefined;
+        averageSessionPriceCents?: number | undefined;
+        softwareMonthlyCostCents?: number | undefined;
+        targetMonthlyRevenueCents?: number | undefined;
+        resourceTypesUsed?: ("float" | "sauna" | "cold_plunge" | "red_light" | "compression" | "stretch_table" | "recovery_room" | "other")[] | undefined;
+    } | undefined;
+    setupWizard?: {
+        currentStep?: "profile" | "rooms_devices" | "services" | "first_csv" | "first_revenue_plan" | undefined;
+        completedSteps?: ("profile" | "rooms_devices" | "services" | "first_csv" | "first_revenue_plan")[] | undefined;
+        completedAt?: Date | undefined;
     } | undefined;
     operatingHours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
         opensAt: string;
@@ -2710,6 +2834,144 @@ export declare const migrationStaffListCsvAiMapSchema: z.ZodObject<{
     delimiter?: "auto" | "comma" | "tab" | undefined;
     mapping?: Record<string, string> | undefined;
 }>;
+export declare const campaignImportTypeSchema: z.ZodEnum<["clients", "bookings", "services", "memberships_packages", "payments", "rooms_devices"]>;
+export declare const campaignCsvPreviewSchema: z.ZodObject<{
+    importType: z.ZodEnum<["clients", "bookings", "services", "memberships_packages", "payments", "rooms_devices"]>;
+    fileName: z.ZodString;
+    contentType: z.ZodOptional<z.ZodString>;
+    base64Data: z.ZodString;
+    delimiter: z.ZodDefault<z.ZodEnum<["auto", "comma", "tab"]>>;
+}, "strip", z.ZodTypeAny, {
+    fileName: string;
+    base64Data: string;
+    delimiter: "auto" | "comma" | "tab";
+    importType: "rooms_devices" | "services" | "clients" | "bookings" | "memberships_packages" | "payments";
+    contentType?: string | undefined;
+}, {
+    fileName: string;
+    base64Data: string;
+    importType: "rooms_devices" | "services" | "clients" | "bookings" | "memberships_packages" | "payments";
+    contentType?: string | undefined;
+    delimiter?: "auto" | "comma" | "tab" | undefined;
+}>;
+export declare const campaignCsvConfirmSchema: z.ZodObject<{
+    importType: z.ZodEnum<["clients", "bookings", "services", "memberships_packages", "payments", "rooms_devices"]>;
+    fileName: z.ZodString;
+    contentType: z.ZodOptional<z.ZodString>;
+    base64Data: z.ZodString;
+    delimiter: z.ZodDefault<z.ZodEnum<["auto", "comma", "tab"]>>;
+} & {
+    mappings: z.ZodArray<z.ZodObject<{
+        sourceColumn: z.ZodString;
+        targetField: z.ZodString;
+    }, "strip", z.ZodTypeAny, {
+        sourceColumn: string;
+        targetField: string;
+    }, {
+        sourceColumn: string;
+        targetField: string;
+    }>, "many">;
+}, "strip", z.ZodTypeAny, {
+    fileName: string;
+    base64Data: string;
+    delimiter: "auto" | "comma" | "tab";
+    mappings: {
+        sourceColumn: string;
+        targetField: string;
+    }[];
+    importType: "rooms_devices" | "services" | "clients" | "bookings" | "memberships_packages" | "payments";
+    contentType?: string | undefined;
+}, {
+    fileName: string;
+    base64Data: string;
+    mappings: {
+        sourceColumn: string;
+        targetField: string;
+    }[];
+    importType: "rooms_devices" | "services" | "clients" | "bookings" | "memberships_packages" | "payments";
+    contentType?: string | undefined;
+    delimiter?: "auto" | "comma" | "tab" | undefined;
+}>;
+export declare const campaignGeneratorTypeSchema: z.ZodEnum<["unused_credit_reminder", "inactive_member_win_back", "first_visit_follow_up", "off_peak_room_fill", "premium_program_launch", "review_request", "membership_upgrade"]>;
+export declare const campaignGenerateSchema: z.ZodObject<{
+    campaignType: z.ZodEnum<["unused_credit_reminder", "inactive_member_win_back", "first_visit_follow_up", "off_peak_room_fill", "premium_program_launch", "review_request", "membership_upgrade"]>;
+}, "strip", z.ZodTypeAny, {
+    campaignType: "unused_credit_reminder" | "inactive_member_win_back" | "first_visit_follow_up" | "off_peak_room_fill" | "premium_program_launch" | "review_request" | "membership_upgrade";
+}, {
+    campaignType: "unused_credit_reminder" | "inactive_member_win_back" | "first_visit_follow_up" | "off_peak_room_fill" | "premium_program_launch" | "review_request" | "membership_upgrade";
+}>;
+export declare const premiumRecoveryProgramCreateSchema: z.ZodObject<{
+    title: z.ZodString;
+    description: z.ZodString;
+    targetAudience: z.ZodString;
+    includedServices: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+    recommendedPriceCents: z.ZodNumber;
+    capacity: z.ZodNumber;
+    schedule: z.ZodString;
+    durationWeeks: z.ZodNumber;
+    campaignCopy: z.ZodString;
+    postProgramUpsell: z.ZodString;
+    sourceJson: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+}, "strip", z.ZodTypeAny, {
+    title: string;
+    description: string;
+    targetAudience: string;
+    includedServices: string[];
+    recommendedPriceCents: number;
+    capacity: number;
+    schedule: string;
+    durationWeeks: number;
+    campaignCopy: string;
+    postProgramUpsell: string;
+    sourceJson?: Record<string, unknown> | undefined;
+}, {
+    title: string;
+    description: string;
+    targetAudience: string;
+    recommendedPriceCents: number;
+    capacity: number;
+    schedule: string;
+    durationWeeks: number;
+    campaignCopy: string;
+    postProgramUpsell: string;
+    includedServices?: string[] | undefined;
+    sourceJson?: Record<string, unknown> | undefined;
+}>;
+export declare const weeklyRevenuePlanActionUpdateSchema: z.ZodObject<{
+    done: z.ZodBoolean;
+}, "strip", z.ZodTypeAny, {
+    done: boolean;
+}, {
+    done: boolean;
+}>;
+export declare const roiTrackingEntryCreateSchema: z.ZodObject<{
+    sourceType: z.ZodEnum<["campaign", "weekly_action"]>;
+    sourceId: z.ZodString;
+    sourceLabel: z.ZodString;
+    bookingsGenerated: z.ZodNumber;
+    revenueGeneratedCents: z.ZodNumber;
+    membershipsSold: z.ZodNumber;
+    packagesSold: z.ZodNumber;
+    notes: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    sourceType: "campaign" | "weekly_action";
+    sourceId: string;
+    sourceLabel: string;
+    bookingsGenerated: number;
+    revenueGeneratedCents: number;
+    membershipsSold: number;
+    packagesSold: number;
+    notes?: string | undefined;
+}, {
+    sourceType: "campaign" | "weekly_action";
+    sourceId: string;
+    sourceLabel: string;
+    bookingsGenerated: number;
+    revenueGeneratedCents: number;
+    membershipsSold: number;
+    packagesSold: number;
+    notes?: string | undefined;
+}>;
 export declare const crmActivityTypeSchema: z.ZodEnum<["note", "call", "email", "text", "reply", "tour_booked", "tour_completed", "trial_started", "trial_attended", "follow_up", "follow_up_outcome", "cancellation_reason"]>;
 export declare const crmActivityCreateSchema: z.ZodObject<{
     type: z.ZodDefault<z.ZodEnum<["note", "call", "email", "text", "reply", "tour_booked", "tour_completed", "trial_started", "trial_attended", "follow_up", "follow_up_outcome", "cancellation_reason"]>>;
@@ -3119,8 +3381,8 @@ export declare const classSessionCreateSchema: z.ZodObject<{
     locationId: string;
     startsAt: string;
     endsAt: string;
-    classTypeId: string;
     capacity: number;
+    classTypeId: string;
     waitlistCapacity: number;
     cancellationCutoffMinutes: number;
     lateCancellationFeeCents: number;
@@ -3130,8 +3392,8 @@ export declare const classSessionCreateSchema: z.ZodObject<{
     locationId: string;
     startsAt: string;
     endsAt: string;
-    classTypeId: string;
     capacity: number;
+    classTypeId: string;
     trainerUserId?: string | undefined;
     roomName?: string | undefined;
     waitlistCapacity?: number | undefined;
@@ -3971,6 +4233,14 @@ export type MigrationMemberCsvAiMapInput = z.infer<typeof migrationMemberCsvAiMa
 export type MigrationMembershipPlanCsvAiMapInput = z.infer<typeof migrationMembershipPlanCsvAiMapSchema>;
 export type MigrationStaffRoleCsvAiMapInput = z.infer<typeof migrationStaffRoleCsvAiMapSchema>;
 export type MigrationStaffListCsvAiMapInput = z.infer<typeof migrationStaffListCsvAiMapSchema>;
+export type CampaignImportType = z.infer<typeof campaignImportTypeSchema>;
+export type CampaignCsvPreviewInput = z.infer<typeof campaignCsvPreviewSchema>;
+export type CampaignCsvConfirmInput = z.infer<typeof campaignCsvConfirmSchema>;
+export type CampaignGeneratorType = z.infer<typeof campaignGeneratorTypeSchema>;
+export type CampaignGenerateInput = z.infer<typeof campaignGenerateSchema>;
+export type PremiumRecoveryProgramCreateInput = z.infer<typeof premiumRecoveryProgramCreateSchema>;
+export type WeeklyRevenuePlanActionUpdateInput = z.infer<typeof weeklyRevenuePlanActionUpdateSchema>;
+export type RoiTrackingEntryCreateInput = z.infer<typeof roiTrackingEntryCreateSchema>;
 export type CrmActivityCreateInput = z.input<typeof crmActivityCreateSchema>;
 export type PosPurchaseInput = z.infer<typeof posPurchaseSchema>;
 export type PosStripeFinalizeInput = z.infer<typeof posStripeFinalizeSchema>;

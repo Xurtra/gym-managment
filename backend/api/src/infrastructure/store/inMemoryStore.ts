@@ -3,6 +3,9 @@ import type {
   AccessDevice,
   AccessEvent,
   AccessRule,
+  CampaignImportBatch,
+  CampaignImportRecord,
+  GeneratedCampaign,
   Gym,
   GymUser,
   ClassBooking,
@@ -24,10 +27,12 @@ import type {
   MigrationStagedMember,
   MigrationValidationError,
   NotificationEvent,
+  PremiumRecoveryProgram,
   PurposeToken,
   ReservableResource,
   RefreshToken,
   ResourceAllocation,
+  RoiTrackingEntry,
   Role,
   SchedulerAvailability,
   SchedulerCoverageRule,
@@ -39,7 +44,8 @@ import type {
   StaffShift,
   StaffTimeEntry,
   StoreSnapshot,
-  User
+  User,
+  WeeklyRevenuePlan
 } from "./entities.js";
 import type {
   GymRepository,
@@ -55,14 +61,18 @@ import type {
   MigrationRepository,
   MigrationAuditLogRepository,
   MigrationBatchRepository,
+  CampaignImportRepository,
+  GeneratedCampaignRepository,
   MigrationColumnMappingRepository,
   MigrationFileRepository,
   MigrationStagedMemberRepository,
   MigrationValidationErrorRepository,
   CrmActivityRepository,
   NotificationRepository,
+  PremiumRecoveryProgramRepository,
   ReservationResourceRepository,
   Repositories,
+  RoiTrackingRepository,
   RoleRepository,
   SchedulerRepository,
   StaffAuditLogRepository,
@@ -70,6 +80,7 @@ import type {
   StaffShiftRepository,
   StaffTimeEntryRepository,
   TokenRepository,
+  WeeklyRevenuePlanRepository,
   UserRepository
 } from "./repositories.js";
 
@@ -99,6 +110,12 @@ export class InMemoryStore implements Repositories {
   private readonly migrationPlanMappingRecords = new Map<string, MigrationPlanMapping>();
   private readonly migrationValidationErrorRecords = new Map<string, MigrationValidationError>();
   private readonly migrationAuditLogRecords = new Map<string, MigrationAuditLog>();
+  private readonly campaignImportBatchRecords = new Map<string, CampaignImportBatch>();
+  private readonly campaignImportRecordRecords = new Map<string, CampaignImportRecord>();
+  private readonly generatedCampaignRecords = new Map<string, GeneratedCampaign>();
+  private readonly premiumRecoveryProgramRecords = new Map<string, PremiumRecoveryProgram>();
+  private readonly weeklyRevenuePlanRecords = new Map<string, WeeklyRevenuePlan>();
+  private readonly roiTrackingEntryRecords = new Map<string, RoiTrackingEntry>();
   private readonly memberMembershipRecords = new Map<string, MemberMembership>();
   private readonly migrationStagedMemberRecords = new Map<string, MigrationStagedMember>();
   private readonly classTypeRecords = new Map<string, ClassType>();
@@ -301,6 +318,34 @@ export class InMemoryStore implements Repositories {
   readonly migrationAuditLogs: MigrationAuditLogRepository = {
     createMigrationAuditLog: (entry) => this.createMigrationAuditLog(entry),
     listMigrationAuditLogsForBatch: (batchId) => this.listMigrationAuditLogsForBatch(batchId)
+  };
+
+  readonly campaignImports: CampaignImportRepository = {
+    createBatch: (batch) => this.createCampaignImportBatch(batch),
+    createRecords: (records) => this.createCampaignImportRecords(records),
+    listBatchesForGym: (gymId) => this.listCampaignImportBatchesForGym(gymId),
+    listRecordsForBatch: (batchId) => this.listCampaignImportRecordsForBatch(batchId)
+  };
+
+  readonly generatedCampaigns: GeneratedCampaignRepository = {
+    createCampaign: (campaign) => this.createGeneratedCampaign(campaign),
+    listCampaignsForGym: (gymId) => this.listGeneratedCampaignsForGym(gymId)
+  };
+
+  readonly premiumRecoveryPrograms: PremiumRecoveryProgramRepository = {
+    createProgram: (program) => this.createPremiumRecoveryProgram(program),
+    listProgramsForGym: (gymId) => this.listPremiumRecoveryProgramsForGym(gymId)
+  };
+
+  readonly weeklyRevenuePlans: WeeklyRevenuePlanRepository = {
+    createPlan: (plan) => this.createWeeklyRevenuePlan(plan),
+    getPlanForWeek: (gymId, weekStartDate) => this.getWeeklyRevenuePlanForWeek(gymId, weekStartDate),
+    updatePlan: (plan) => this.updateWeeklyRevenuePlan(plan)
+  };
+
+  readonly roiTracking: RoiTrackingRepository = {
+    createEntry: (entry) => this.createRoiTrackingEntry(entry),
+    listEntriesForGym: (gymId) => this.listRoiTrackingEntriesForGym(gymId)
   };
 
   readonly classes: ClassRepository = {
@@ -990,6 +1035,82 @@ export class InMemoryStore implements Repositories {
       .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
   }
 
+  async createCampaignImportBatch(batch: CampaignImportBatch) {
+    this.campaignImportBatchRecords.set(batch.id, batch);
+    return batch;
+  }
+
+  async createCampaignImportRecords(records: CampaignImportRecord[]) {
+    for (const record of records) {
+      this.campaignImportRecordRecords.set(record.id, record);
+    }
+    return records;
+  }
+
+  async listCampaignImportBatchesForGym(gymId: string) {
+    return [...this.campaignImportBatchRecords.values()]
+      .filter((batch) => batch.gymId === gymId)
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+  }
+
+  async listCampaignImportRecordsForBatch(batchId: string) {
+    return [...this.campaignImportRecordRecords.values()]
+      .filter((record) => record.campaignImportBatchId === batchId)
+      .sort((left, right) => left.sourceRowNumber - right.sourceRowNumber);
+  }
+
+  async createGeneratedCampaign(campaign: GeneratedCampaign) {
+    this.generatedCampaignRecords.set(campaign.id, campaign);
+    return campaign;
+  }
+
+  async listGeneratedCampaignsForGym(gymId: string) {
+    return [...this.generatedCampaignRecords.values()]
+      .filter((campaign) => campaign.gymId === gymId)
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+  }
+
+  async createPremiumRecoveryProgram(program: PremiumRecoveryProgram) {
+    this.premiumRecoveryProgramRecords.set(program.id, program);
+    return program;
+  }
+
+  async listPremiumRecoveryProgramsForGym(gymId: string) {
+    return [...this.premiumRecoveryProgramRecords.values()]
+      .filter((program) => program.gymId === gymId)
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+  }
+
+  async createWeeklyRevenuePlan(plan: WeeklyRevenuePlan) {
+    this.weeklyRevenuePlanRecords.set(plan.id, plan);
+    return plan;
+  }
+
+  async getWeeklyRevenuePlanForWeek(gymId: string, weekStartDate: Date) {
+    const weekKey = weekStartDate.toISOString().slice(0, 10);
+    return [...this.weeklyRevenuePlanRecords.values()].find(
+      (plan) =>
+        plan.gymId === gymId &&
+        plan.weekStartDate.toISOString().slice(0, 10) === weekKey
+    );
+  }
+
+  async updateWeeklyRevenuePlan(plan: WeeklyRevenuePlan) {
+    this.weeklyRevenuePlanRecords.set(plan.id, plan);
+    return plan;
+  }
+
+  async createRoiTrackingEntry(entry: RoiTrackingEntry) {
+    this.roiTrackingEntryRecords.set(entry.id, entry);
+    return entry;
+  }
+
+  async listRoiTrackingEntriesForGym(gymId: string) {
+    return [...this.roiTrackingEntryRecords.values()]
+      .filter((entry) => entry.gymId === gymId)
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+  }
+
   async createClassType(classType: ClassType) {
     this.classTypeRecords.set(classType.id, classType);
     return classType;
@@ -1266,6 +1387,12 @@ export class InMemoryStore implements Repositories {
       migrationPlanMappings: [...this.migrationPlanMappingRecords.values()],
       migrationValidationErrors: [...this.migrationValidationErrorRecords.values()],
       migrationAuditLogs: [...this.migrationAuditLogRecords.values()],
+      campaignImportBatches: [...this.campaignImportBatchRecords.values()],
+      campaignImportRecords: [...this.campaignImportRecordRecords.values()],
+      generatedCampaigns: [...this.generatedCampaignRecords.values()],
+      premiumRecoveryPrograms: [...this.premiumRecoveryProgramRecords.values()],
+      weeklyRevenuePlans: [...this.weeklyRevenuePlanRecords.values()],
+      roiTrackingEntries: [...this.roiTrackingEntryRecords.values()],
       classTypes: [...this.classTypeRecords.values()],
       classSessions: [...this.classSessionRecords.values()],
       classBookings: [...this.classBookingRecords.values()],

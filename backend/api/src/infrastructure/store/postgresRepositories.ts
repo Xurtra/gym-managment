@@ -4,6 +4,9 @@ import type {
   AccessEvent,
   AccessRule,
   Address,
+  CampaignImportBatch,
+  CampaignImportRecord,
+  GeneratedCampaign,
   Gym,
   GymUser,
   ClassBooking,
@@ -26,9 +29,11 @@ import type {
   MigrationValidationError,
   NotificationEvent,
   OperatingHours,
+  PremiumRecoveryProgram,
   PurposeToken,
   ReservableResource,
   RefreshToken,
+  RoiTrackingEntry,
   ResourceAllocation,
   ResourceCancellationPolicy,
   ResourcePricingConfig,
@@ -43,7 +48,11 @@ import type {
   StaffInvite,
   StaffShift,
   StaffTimeEntry,
-  User
+  User,
+  WeeklyRevenuePlan,
+  WeeklyRevenuePlanAction,
+  WeeklyRevenuePlanClient,
+  WeeklyRevenuePlanResource
 } from "./entities.js";
 import type { Repositories } from "./repositories.js";
 
@@ -90,6 +99,8 @@ interface GymRow extends QueryResultRow {
   brand_colors: unknown;
   business_info: unknown;
   migration_checklist: unknown;
+  studio_settings: unknown;
+  setup_wizard: unknown;
   operating_hours: unknown;
   feature_flags: unknown;
   onboarding_completed_steps: unknown;
@@ -466,6 +477,106 @@ interface MigrationAuditLogRow extends QueryResultRow {
   after_json: unknown;
   message: string | null;
   created_at: Date;
+}
+
+interface CampaignImportBatchRow extends QueryResultRow {
+  id: string;
+  gym_id: string;
+  import_type: CampaignImportBatch["importType"];
+  original_filename: string;
+  row_count: number;
+  imported_count: number;
+  skipped_count: number;
+  error_count: number;
+  mappings_json: unknown;
+  sample_rows_json: unknown;
+  summary_json: unknown;
+  created_by_user_id: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface CampaignImportRecordRow extends QueryResultRow {
+  id: string;
+  campaign_import_batch_id: string;
+  gym_id: string;
+  import_type: CampaignImportRecord["importType"];
+  source_row_number: number;
+  source_row_json: unknown;
+  normalized_json: unknown;
+  validation_status: CampaignImportRecord["validationStatus"];
+  errors_json: unknown;
+  imported_entity_type: string | null;
+  imported_entity_id: string | null;
+  created_at: Date;
+}
+
+interface GeneratedCampaignRow extends QueryResultRow {
+  id: string;
+  gym_id: string;
+  campaign_type: GeneratedCampaign["campaignType"];
+  name: string;
+  target_segment: string;
+  sms_message: string;
+  email_subject: string;
+  email_body: string;
+  recommended_send_time: Date;
+  expected_goal: string;
+  estimated_revenue_cents: number;
+  status: GeneratedCampaign["status"];
+  delivery_json: unknown;
+  created_by_user_id: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface PremiumRecoveryProgramRow extends QueryResultRow {
+  id: string;
+  gym_id: string;
+  title: string;
+  description: string;
+  target_audience: string;
+  included_services_json: unknown;
+  recommended_price_cents: number;
+  capacity: number;
+  schedule: string;
+  duration_weeks: number;
+  campaign_copy: string;
+  post_program_upsell: string;
+  source_json: unknown;
+  status: PremiumRecoveryProgram["status"];
+  created_by_user_id: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface WeeklyRevenuePlanRow extends QueryResultRow {
+  id: string;
+  gym_id: string;
+  week_start_date: Date;
+  summary: string;
+  revenue_leaks_json: unknown;
+  total_estimated_revenue_cents: number;
+  actions_json: unknown;
+  source_json: unknown;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface RoiTrackingEntryRow extends QueryResultRow {
+  id: string;
+  gym_id: string;
+  source_type: RoiTrackingEntry["sourceType"];
+  source_id: string;
+  source_label: string;
+  bookings_generated: number;
+  revenue_generated_cents: number;
+  memberships_sold: number;
+  packages_sold: number;
+  notes: string | null;
+  created_by_user_id: string;
+  created_at: Date;
+  updated_at: Date;
 }
 
 interface ClassTypeRow extends QueryResultRow {
@@ -912,6 +1023,36 @@ export class PostgresRepositories implements Repositories {
     listMigrationAuditLogsForBatch: (batchId: string) => this.listMigrationAuditLogsForBatch(batchId)
   };
 
+  readonly campaignImports = {
+    createBatch: (batch: CampaignImportBatch) => this.createCampaignImportBatch(batch),
+    createRecords: (records: CampaignImportRecord[]) => this.createCampaignImportRecords(records),
+    listBatchesForGym: (gymId: string) => this.listCampaignImportBatchesForGym(gymId),
+    listRecordsForBatch: (batchId: string) => this.listCampaignImportRecordsForBatch(batchId)
+  };
+
+  readonly generatedCampaigns = {
+    createCampaign: (campaign: GeneratedCampaign) => this.createGeneratedCampaign(campaign),
+    listCampaignsForGym: (gymId: string) => this.listGeneratedCampaignsForGym(gymId)
+  };
+
+  readonly premiumRecoveryPrograms = {
+    createProgram: (program: PremiumRecoveryProgram) =>
+      this.createPremiumRecoveryProgram(program),
+    listProgramsForGym: (gymId: string) => this.listPremiumRecoveryProgramsForGym(gymId)
+  };
+
+  readonly weeklyRevenuePlans = {
+    createPlan: (plan: WeeklyRevenuePlan) => this.createWeeklyRevenuePlan(plan),
+    getPlanForWeek: (gymId: string, weekStartDate: Date) =>
+      this.getWeeklyRevenuePlanForWeek(gymId, weekStartDate),
+    updatePlan: (plan: WeeklyRevenuePlan) => this.updateWeeklyRevenuePlan(plan)
+  };
+
+  readonly roiTracking = {
+    createEntry: (entry: RoiTrackingEntry) => this.createRoiTrackingEntry(entry),
+    listEntriesForGym: (gymId: string) => this.listRoiTrackingEntriesForGym(gymId)
+  };
+
   readonly classes = {
     createClassType: (classType: ClassType) => this.createClassType(classType),
     getClassType: (classTypeId: string) => this.getClassType(classTypeId),
@@ -1089,8 +1230,9 @@ export class PostgresRepositories implements Repositories {
     const result = await this.executor.query<GymRow>(
       `INSERT INTO gyms (
         id, name, slug, owner_user_id, status, timezone, locale, logo_url, stripe_account_id, brand_colors,
-        business_info, migration_checklist, operating_hours, feature_flags, onboarding_completed_steps, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb, $15::jsonb, $16, $17)
+        business_info, migration_checklist, studio_settings, setup_wizard, operating_hours, feature_flags,
+        onboarding_completed_steps, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb, $15::jsonb, $16::jsonb, $17::jsonb, $18, $19)
       RETURNING *`,
       [
         gym.id,
@@ -1105,6 +1247,8 @@ export class PostgresRepositories implements Repositories {
         JSON.stringify(gym.brandColors ?? {}),
         JSON.stringify(gym.businessInfo ?? {}),
         JSON.stringify(gym.migrationChecklist ?? {}),
+        JSON.stringify(gym.studioSettings ?? {}),
+        JSON.stringify(gym.setupWizard ?? {}),
         JSON.stringify(gym.operatingHours),
         JSON.stringify(gym.featureFlags),
         JSON.stringify(gym.onboardingCompletedSteps),
@@ -1141,11 +1285,13 @@ export class PostgresRepositories implements Repositories {
            brand_colors = $7::jsonb,
            business_info = $8::jsonb,
            migration_checklist = $9::jsonb,
-           operating_hours = $10::jsonb,
-           feature_flags = $11::jsonb,
-           onboarding_completed_steps = $12::jsonb,
-           status = $13,
-           updated_at = $14
+           studio_settings = $10::jsonb,
+           setup_wizard = $11::jsonb,
+           operating_hours = $12::jsonb,
+           feature_flags = $13::jsonb,
+           onboarding_completed_steps = $14::jsonb,
+           status = $15,
+           updated_at = $16
        WHERE id = $1
        RETURNING *`,
       [
@@ -1158,6 +1304,8 @@ export class PostgresRepositories implements Repositories {
         JSON.stringify(gym.brandColors ?? {}),
         JSON.stringify(gym.businessInfo ?? {}),
         JSON.stringify(gym.migrationChecklist ?? {}),
+        JSON.stringify(gym.studioSettings ?? {}),
+        JSON.stringify(gym.setupWizard ?? {}),
         JSON.stringify(gym.operatingHours),
         JSON.stringify(gym.featureFlags),
         JSON.stringify(gym.onboardingCompletedSteps),
@@ -1781,6 +1929,248 @@ export class PostgresRepositories implements Repositories {
       [batchId]
     );
     return result.rows.map(mapMigrationAuditLog);
+  }
+
+  async createCampaignImportBatch(batch: CampaignImportBatch) {
+    const result = await this.executor.query<CampaignImportBatchRow>(
+      `INSERT INTO campaign_import_batches (
+        id, gym_id, import_type, original_filename, row_count, imported_count,
+        skipped_count, error_count, mappings_json, sample_rows_json, summary_json,
+        created_by_user_id, created_at, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12,$13,$14)
+      RETURNING *`,
+      [
+        batch.id,
+        batch.gymId,
+        batch.importType,
+        batch.originalFilename,
+        batch.rowCount,
+        batch.importedCount,
+        batch.skippedCount,
+        batch.errorCount,
+        JSON.stringify(batch.mappingsJson),
+        JSON.stringify(batch.sampleRowsJson),
+        JSON.stringify(batch.summaryJson),
+        batch.createdByUserId,
+        batch.createdAt,
+        batch.updatedAt
+      ]
+    );
+    return mapCampaignImportBatch(one(result));
+  }
+
+  async createCampaignImportRecords(records: CampaignImportRecord[]) {
+    const created: CampaignImportRecord[] = [];
+    for (const record of records) {
+      const result = await this.executor.query<CampaignImportRecordRow>(
+        `INSERT INTO campaign_import_records (
+          id, campaign_import_batch_id, gym_id, import_type, source_row_number,
+          source_row_json, normalized_json, validation_status, errors_json,
+          imported_entity_type, imported_entity_id, created_at
+        ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9::jsonb,$10,$11,$12)
+        RETURNING *`,
+        [
+          record.id,
+          record.campaignImportBatchId,
+          record.gymId,
+          record.importType,
+          record.sourceRowNumber,
+          JSON.stringify(record.sourceRowJson),
+          JSON.stringify(record.normalizedJson),
+          record.validationStatus,
+          JSON.stringify(record.errorsJson),
+          record.importedEntityType ?? null,
+          record.importedEntityId ?? null,
+          record.createdAt
+        ]
+      );
+      created.push(mapCampaignImportRecord(one(result)));
+    }
+    return created;
+  }
+
+  async listCampaignImportBatchesForGym(gymId: string) {
+    const result = await this.executor.query<CampaignImportBatchRow>(
+      "SELECT * FROM campaign_import_batches WHERE gym_id = $1 ORDER BY created_at DESC",
+      [gymId]
+    );
+    return result.rows.map(mapCampaignImportBatch);
+  }
+
+  async listCampaignImportRecordsForBatch(batchId: string) {
+    const result = await this.executor.query<CampaignImportRecordRow>(
+      "SELECT * FROM campaign_import_records WHERE campaign_import_batch_id = $1 ORDER BY source_row_number",
+      [batchId]
+    );
+    return result.rows.map(mapCampaignImportRecord);
+  }
+
+  async createGeneratedCampaign(campaign: GeneratedCampaign) {
+    const result = await this.executor.query<GeneratedCampaignRow>(
+      `INSERT INTO campaign_layer_campaigns (
+        id, gym_id, campaign_type, name, target_segment, sms_message, email_subject,
+        email_body, recommended_send_time, expected_goal, estimated_revenue_cents,
+        status, delivery_json, created_by_user_id, created_at, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16)
+      RETURNING *`,
+      [
+        campaign.id,
+        campaign.gymId,
+        campaign.campaignType,
+        campaign.name,
+        campaign.targetSegment,
+        campaign.smsMessage,
+        campaign.emailSubject,
+        campaign.emailBody,
+        campaign.recommendedSendTime,
+        campaign.expectedGoal,
+        campaign.estimatedRevenueCents,
+        campaign.status,
+        JSON.stringify(campaign.deliveryJson),
+        campaign.createdByUserId,
+        campaign.createdAt,
+        campaign.updatedAt
+      ]
+    );
+    return mapGeneratedCampaign(one(result));
+  }
+
+  async listGeneratedCampaignsForGym(gymId: string) {
+    const result = await this.executor.query<GeneratedCampaignRow>(
+      "SELECT * FROM campaign_layer_campaigns WHERE gym_id = $1 ORDER BY created_at DESC",
+      [gymId]
+    );
+    return result.rows.map(mapGeneratedCampaign);
+  }
+
+  async createPremiumRecoveryProgram(program: PremiumRecoveryProgram) {
+    const result = await this.executor.query<PremiumRecoveryProgramRow>(
+      `INSERT INTO campaign_layer_programs (
+        id, gym_id, title, description, target_audience, included_services_json,
+        recommended_price_cents, capacity, schedule, duration_weeks, campaign_copy,
+        post_program_upsell, source_json, status, created_by_user_id, created_at, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16,$17)
+      RETURNING *`,
+      [
+        program.id,
+        program.gymId,
+        program.title,
+        program.description,
+        program.targetAudience,
+        JSON.stringify(program.includedServices),
+        program.recommendedPriceCents,
+        program.capacity,
+        program.schedule,
+        program.durationWeeks,
+        program.campaignCopy,
+        program.postProgramUpsell,
+        JSON.stringify(program.sourceJson),
+        program.status,
+        program.createdByUserId,
+        program.createdAt,
+        program.updatedAt
+      ]
+    );
+    return mapPremiumRecoveryProgram(one(result));
+  }
+
+  async listPremiumRecoveryProgramsForGym(gymId: string) {
+    const result = await this.executor.query<PremiumRecoveryProgramRow>(
+      "SELECT * FROM campaign_layer_programs WHERE gym_id = $1 ORDER BY created_at DESC",
+      [gymId]
+    );
+    return result.rows.map(mapPremiumRecoveryProgram);
+  }
+
+  async createWeeklyRevenuePlan(plan: WeeklyRevenuePlan) {
+    const result = await this.executor.query<WeeklyRevenuePlanRow>(
+      `INSERT INTO weekly_revenue_plans (
+        id, gym_id, week_start_date, summary, revenue_leaks_json,
+        total_estimated_revenue_cents, actions_json, source_json, created_at, updated_at
+      ) VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7::jsonb,$8::jsonb,$9,$10)
+      RETURNING *`,
+      [
+        plan.id,
+        plan.gymId,
+        plan.weekStartDate,
+        plan.summary,
+        JSON.stringify(plan.revenueLeaks),
+        plan.totalEstimatedRevenueCents,
+        JSON.stringify(plan.actions),
+        JSON.stringify(plan.sourceJson),
+        plan.createdAt,
+        plan.updatedAt
+      ]
+    );
+    return mapWeeklyRevenuePlan(one(result));
+  }
+
+  async getWeeklyRevenuePlanForWeek(gymId: string, weekStartDate: Date) {
+    const result = await this.executor.query<WeeklyRevenuePlanRow>(
+      "SELECT * FROM weekly_revenue_plans WHERE gym_id = $1 AND week_start_date = $2::date LIMIT 1",
+      [gymId, weekStartDate]
+    );
+    return result.rows[0] ? mapWeeklyRevenuePlan(result.rows[0]) : undefined;
+  }
+
+  async updateWeeklyRevenuePlan(plan: WeeklyRevenuePlan) {
+    const result = await this.executor.query<WeeklyRevenuePlanRow>(
+      `UPDATE weekly_revenue_plans
+       SET summary = $3,
+           revenue_leaks_json = $4::jsonb,
+           total_estimated_revenue_cents = $5,
+           actions_json = $6::jsonb,
+           source_json = $7::jsonb,
+           updated_at = $8
+       WHERE id = $1 AND gym_id = $2
+       RETURNING *`,
+      [
+        plan.id,
+        plan.gymId,
+        plan.summary,
+        JSON.stringify(plan.revenueLeaks),
+        plan.totalEstimatedRevenueCents,
+        JSON.stringify(plan.actions),
+        JSON.stringify(plan.sourceJson),
+        plan.updatedAt
+      ]
+    );
+    return mapWeeklyRevenuePlan(one(result));
+  }
+
+  async createRoiTrackingEntry(entry: RoiTrackingEntry) {
+    const result = await this.executor.query<RoiTrackingEntryRow>(
+      `INSERT INTO roi_tracking_entries (
+        id, gym_id, source_type, source_id, source_label, bookings_generated,
+        revenue_generated_cents, memberships_sold, packages_sold, notes,
+        created_by_user_id, created_at, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      RETURNING *`,
+      [
+        entry.id,
+        entry.gymId,
+        entry.sourceType,
+        entry.sourceId,
+        entry.sourceLabel,
+        entry.bookingsGenerated,
+        entry.revenueGeneratedCents,
+        entry.membershipsSold,
+        entry.packagesSold,
+        entry.notes ?? null,
+        entry.createdByUserId,
+        entry.createdAt,
+        entry.updatedAt
+      ]
+    );
+    return mapRoiTrackingEntry(one(result));
+  }
+
+  async listRoiTrackingEntriesForGym(gymId: string) {
+    const result = await this.executor.query<RoiTrackingEntryRow>(
+      "SELECT * FROM roi_tracking_entries WHERE gym_id = $1 ORDER BY created_at DESC",
+      [gymId]
+    );
+    return result.rows.map(mapRoiTrackingEntry);
   }
 
   async createStaffShift(shift: StaffShift) {
@@ -3631,6 +4021,12 @@ function mapGym(row: GymRow): Gym {
   if (isRecord(row.migration_checklist) && Object.keys(row.migration_checklist).length > 0) {
     gym.migrationChecklist = row.migration_checklist as unknown as NonNullable<Gym["migrationChecklist"]>;
   }
+  if (isRecord(row.studio_settings) && Object.keys(row.studio_settings).length > 0) {
+    gym.studioSettings = studioSettings(row.studio_settings);
+  }
+  if (isRecord(row.setup_wizard) && Object.keys(row.setup_wizard).length > 0) {
+    gym.setupWizard = setupWizard(row.setup_wizard);
+  }
   return gym;
 }
 
@@ -4215,6 +4611,217 @@ function mapMigrationAuditLog(row: MigrationAuditLogRow): MigrationAuditLog {
   return entry;
 }
 
+function mapCampaignImportBatch(row: CampaignImportBatchRow): CampaignImportBatch {
+  return {
+    id: row.id,
+    gymId: row.gym_id,
+    importType: row.import_type,
+    originalFilename: row.original_filename,
+    rowCount: row.row_count,
+    importedCount: row.imported_count,
+    skippedCount: row.skipped_count,
+    errorCount: row.error_count,
+    mappingsJson: stringRecord(row.mappings_json),
+    sampleRowsJson: recordArray(row.sample_rows_json),
+    summaryJson: isRecord(row.summary_json) ? row.summary_json : {},
+    createdByUserId: row.created_by_user_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function mapCampaignImportRecord(row: CampaignImportRecordRow): CampaignImportRecord {
+  const record: CampaignImportRecord = {
+    id: row.id,
+    campaignImportBatchId: row.campaign_import_batch_id,
+    gymId: row.gym_id,
+    importType: row.import_type,
+    sourceRowNumber: row.source_row_number,
+    sourceRowJson: sourceRow(row.source_row_json),
+    normalizedJson: isRecord(row.normalized_json) ? row.normalized_json : {},
+    validationStatus: row.validation_status,
+    errorsJson: stringArray(row.errors_json),
+    createdAt: row.created_at
+  };
+  if (row.imported_entity_type) {
+    record.importedEntityType = row.imported_entity_type;
+  }
+  if (row.imported_entity_id) {
+    record.importedEntityId = row.imported_entity_id;
+  }
+  return record;
+}
+
+function mapGeneratedCampaign(row: GeneratedCampaignRow): GeneratedCampaign {
+  return {
+    id: row.id,
+    gymId: row.gym_id,
+    campaignType: row.campaign_type,
+    name: row.name,
+    targetSegment: row.target_segment,
+    smsMessage: row.sms_message,
+    emailSubject: row.email_subject,
+    emailBody: row.email_body,
+    recommendedSendTime: row.recommended_send_time,
+    expectedGoal: row.expected_goal,
+    estimatedRevenueCents: row.estimated_revenue_cents,
+    status: row.status,
+    deliveryJson: isRecord(row.delivery_json) ? row.delivery_json : {},
+    createdByUserId: row.created_by_user_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function mapPremiumRecoveryProgram(row: PremiumRecoveryProgramRow): PremiumRecoveryProgram {
+  return {
+    id: row.id,
+    gymId: row.gym_id,
+    title: row.title,
+    description: row.description,
+    targetAudience: row.target_audience,
+    includedServices: stringArray(row.included_services_json),
+    recommendedPriceCents: row.recommended_price_cents,
+    capacity: row.capacity,
+    schedule: row.schedule,
+    durationWeeks: row.duration_weeks,
+    campaignCopy: row.campaign_copy,
+    postProgramUpsell: row.post_program_upsell,
+    sourceJson: isRecord(row.source_json) ? row.source_json : {},
+    status: row.status,
+    createdByUserId: row.created_by_user_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function mapWeeklyRevenuePlan(row: WeeklyRevenuePlanRow): WeeklyRevenuePlan {
+  return {
+    id: row.id,
+    gymId: row.gym_id,
+    weekStartDate: row.week_start_date,
+    summary: row.summary,
+    revenueLeaks: stringArray(row.revenue_leaks_json),
+    totalEstimatedRevenueCents: row.total_estimated_revenue_cents,
+    actions: weeklyRevenuePlanActions(row.actions_json),
+    sourceJson: isRecord(row.source_json) ? row.source_json : {},
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function mapRoiTrackingEntry(row: RoiTrackingEntryRow): RoiTrackingEntry {
+  const entry: RoiTrackingEntry = {
+    id: row.id,
+    gymId: row.gym_id,
+    sourceType: row.source_type,
+    sourceId: row.source_id,
+    sourceLabel: row.source_label,
+    bookingsGenerated: row.bookings_generated,
+    revenueGeneratedCents: row.revenue_generated_cents,
+    membershipsSold: row.memberships_sold,
+    packagesSold: row.packages_sold,
+    createdByUserId: row.created_by_user_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+  if (row.notes) {
+    entry.notes = row.notes;
+  }
+  return entry;
+}
+
+function weeklyRevenuePlanActions(value: unknown): WeeklyRevenuePlanAction[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter(isRecord).map((action) => {
+    const mapped: WeeklyRevenuePlanAction = {
+      id: stringFromUnknown(action.id),
+      title: stringFromUnknown(action.title),
+      description: stringFromUnknown(action.description),
+      estimatedRevenueCents: numberFromUnknown(action.estimatedRevenueCents),
+      ownerNote: stringFromUnknown(action.ownerNote),
+      clients: weeklyRevenuePlanClients(action.clients),
+      resources: weeklyRevenuePlanResources(action.resources),
+      done: Boolean(action.done)
+    };
+    if (isRecord(action.campaign)) {
+      mapped.campaign = {
+        name: stringFromUnknown(action.campaign.name),
+        targetSegment: stringFromUnknown(action.campaign.targetSegment),
+        smsMessage: stringFromUnknown(action.campaign.smsMessage),
+        emailSubject: stringFromUnknown(action.campaign.emailSubject),
+        emailBody: stringFromUnknown(action.campaign.emailBody)
+      };
+    }
+    if (isRecord(action.premiumProgramIdea)) {
+      mapped.premiumProgramIdea = {
+        title: stringFromUnknown(action.premiumProgramIdea.title),
+        description: stringFromUnknown(action.premiumProgramIdea.description),
+        schedule: stringFromUnknown(action.premiumProgramIdea.schedule),
+        recommendedPriceCents: numberFromUnknown(action.premiumProgramIdea.recommendedPriceCents)
+      };
+    }
+    const completedAt = dateFromUnknown(action.completedAt);
+    if (completedAt) {
+      mapped.completedAt = completedAt;
+    }
+    return mapped;
+  });
+}
+
+function weeklyRevenuePlanClients(value: unknown): WeeklyRevenuePlanClient[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter(isRecord).map((client) => {
+    const mapped: WeeklyRevenuePlanClient = {
+      id: stringFromUnknown(client.id),
+      name: stringFromUnknown(client.name),
+      reason: stringFromUnknown(client.reason)
+    };
+    const email = stringFromUnknown(client.email);
+    const phone = stringFromUnknown(client.phone);
+    if (email) {
+      mapped.email = email;
+    }
+    if (phone) {
+      mapped.phone = phone;
+    }
+    return mapped;
+  });
+}
+
+function weeklyRevenuePlanResources(value: unknown): WeeklyRevenuePlanResource[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter(isRecord).map((resource) => ({
+    id: stringFromUnknown(resource.id),
+    name: stringFromUnknown(resource.name),
+    type: stringFromUnknown(resource.type),
+    weakestTimeBlock: stringFromUnknown(resource.weakestTimeBlock),
+    utilizationPercentage: numberFromUnknown(resource.utilizationPercentage)
+  }));
+}
+
+function stringFromUnknown(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+function numberFromUnknown(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function dateFromUnknown(value: unknown) {
+  if (!value) {
+    return undefined;
+  }
+  const date = new Date(String(value));
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
 function mapClassType(row: ClassTypeRow): ClassType {
   const classType: ClassType = {
     id: row.id,
@@ -4637,6 +5244,81 @@ function emergencyContact(record: Record<string, unknown>) {
 
 function operatingHours(value: unknown): OperatingHours {
   return isRecord(value) ? (value as OperatingHours) : {};
+}
+
+const studioResourceTypes = new Set([
+  "sauna",
+  "cold_plunge",
+  "red_light",
+  "compression",
+  "float",
+  "stretch_table",
+  "recovery_room",
+  "other"
+]);
+
+const studioSetupSteps = new Set([
+  "profile",
+  "rooms_devices",
+  "services",
+  "first_csv",
+  "first_revenue_plan"
+]);
+
+function isStudioResourceType(value: string): value is NonNullable<NonNullable<Gym["studioSettings"]>["resourceTypesUsed"]>[number] {
+  return studioResourceTypes.has(value);
+}
+
+function isStudioSetupStep(value: string): value is NonNullable<NonNullable<Gym["setupWizard"]>["completedSteps"]>[number] {
+  return studioSetupSteps.has(value);
+}
+
+function studioSettings(value: unknown): NonNullable<Gym["studioSettings"]> {
+  const record = isRecord(value) ? value : {};
+  const settings: NonNullable<Gym["studioSettings"]> = {};
+  const businessType = stringFromUnknown(record.businessType).trim();
+  if (businessType) {
+    settings.businessType = businessType;
+  }
+  const defaultBufferMinutes = numberFromUnknown(record.defaultBufferMinutes);
+  if (defaultBufferMinutes > 0 || record.defaultBufferMinutes === 0) {
+    settings.defaultBufferMinutes = defaultBufferMinutes;
+  }
+  const averageSessionPriceCents = numberFromUnknown(record.averageSessionPriceCents);
+  if (averageSessionPriceCents > 0 || record.averageSessionPriceCents === 0) {
+    settings.averageSessionPriceCents = averageSessionPriceCents;
+  }
+  const softwareMonthlyCostCents = numberFromUnknown(record.softwareMonthlyCostCents);
+  if (softwareMonthlyCostCents > 0 || record.softwareMonthlyCostCents === 0) {
+    settings.softwareMonthlyCostCents = softwareMonthlyCostCents;
+  }
+  const targetMonthlyRevenueCents = numberFromUnknown(record.targetMonthlyRevenueCents);
+  if (targetMonthlyRevenueCents > 0 || record.targetMonthlyRevenueCents === 0) {
+    settings.targetMonthlyRevenueCents = targetMonthlyRevenueCents;
+  }
+  const resourceTypesUsed = stringArray(record.resourceTypesUsed).filter(isStudioResourceType);
+  if (resourceTypesUsed.length > 0) {
+    settings.resourceTypesUsed = resourceTypesUsed;
+  }
+  return settings;
+}
+
+function setupWizard(value: unknown): NonNullable<Gym["setupWizard"]> {
+  const record = isRecord(value) ? value : {};
+  const wizard: NonNullable<Gym["setupWizard"]> = {};
+  const currentStep = stringFromUnknown(record.currentStep);
+  if (isStudioSetupStep(currentStep)) {
+    wizard.currentStep = currentStep;
+  }
+  const completedSteps = stringArray(record.completedSteps).filter(isStudioSetupStep);
+  if (completedSteps.length > 0) {
+    wizard.completedSteps = completedSteps;
+  }
+  const completedAt = dateFromUnknown(record.completedAt);
+  if (completedAt) {
+    wizard.completedAt = completedAt;
+  }
+  return wizard;
 }
 
 function resourceSlotRules(value: unknown): ResourceSlotRules {

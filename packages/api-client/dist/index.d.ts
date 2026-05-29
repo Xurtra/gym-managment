@@ -1,4 +1,4 @@
-import type { AccessDeviceCreateInput, AccessDeviceEventInput, AccessDeviceHeartbeatInput, AccessRuleCreateInput, ClassBookingCreateInput, ClassSessionResourceAllocationInput, CheckInCreateInput, ClassSessionCreateInput, ClassTypeCreateInput, ConsumerCreateInput, CrmActivityCreateInput, ConsumerProfileImageUploadInput, ConsumerUpdateInput, CustomRoleCreateInput, CustomRoleUpdateInput, FacilityReservationCancelInput, FacilityReservationCreateInput, GymCreateInput, GymUpdateInput, LocationCreateInput, LocationUpdateInput, LoginInput, MemberCreateInput, MemberMembershipAssignInput, MemberUpdateInput, MigrationColumnMappingSaveInput, MigrationFileUploadInput, MigrationPlanMappingApproveInput, MigrationStagedPlansApproveInput, MigrationStagedPlanUpdateInput, MembershipPlanCreateInput, MembershipPlanUpdateInput, MigrationBatchCreateInput, MigrationColumnMappingsUpdateInput, MigrationFileTypeOverrideInput, MigrationStagedMemberBulkApproveInput, MigrationStagedMemberUpdateInput, MigrationMemberCsvAiMapInput, MigrationMemberCsvImportInput, MigrationMemberCsvPreviewInput, PosPurchaseInput, StripeConnectOnboardingLinkInput, PublicSignupInput, RegisterInput, ResetPasswordInput, ResourceCreateInput, ResourceUpdateInput, RoleAssignmentInput, SchedulerAvailabilityCreateInput, SchedulerCoverageRuleCreateInput, SchedulerGenerateInput, SchedulerPreferenceRequestCreateInput, SchedulerPreferenceRequestResolveInput, SchedulerPublishInput, SchedulerRequestCreateInput, SchedulerRequestResolveInput, SchedulerSettingsUpdateInput, StaffAccessRemoveInput, StaffClockInInput, StaffClockOutInput, StaffInviteAcceptInput, StaffInviteCreateInput, StaffShiftCreateInput, StaffSelfClockInInput, StaffSelfClockOutInput, StaffManualBookingInput } from "@gym-platform/validation";
+import type { AccessDeviceCreateInput, AccessDeviceEventInput, AccessDeviceHeartbeatInput, AccessRuleCreateInput, CampaignCsvConfirmInput, CampaignCsvPreviewInput, CampaignGenerateInput, ClassBookingCreateInput, ClassSessionResourceAllocationInput, CheckInCreateInput, ClassSessionCreateInput, ClassTypeCreateInput, ConsumerCreateInput, CrmActivityCreateInput, ConsumerProfileImageUploadInput, ConsumerUpdateInput, CustomRoleCreateInput, CustomRoleUpdateInput, FacilityReservationCancelInput, FacilityReservationCreateInput, GymCreateInput, GymUpdateInput, LocationCreateInput, LocationUpdateInput, LoginInput, MemberCreateInput, MemberMembershipAssignInput, MemberUpdateInput, MigrationColumnMappingSaveInput, MigrationFileUploadInput, MigrationPlanMappingApproveInput, MigrationStagedPlansApproveInput, MigrationStagedPlanUpdateInput, MembershipPlanCreateInput, MembershipPlanUpdateInput, MigrationBatchCreateInput, MigrationColumnMappingsUpdateInput, MigrationFileTypeOverrideInput, MigrationStagedMemberBulkApproveInput, MigrationStagedMemberUpdateInput, MigrationMemberCsvAiMapInput, MigrationMemberCsvImportInput, MigrationMemberCsvPreviewInput, PosPurchaseInput, PremiumRecoveryProgramCreateInput, StripeConnectOnboardingLinkInput, PublicSignupInput, RegisterInput, ResetPasswordInput, ResourceCreateInput, ResourceUpdateInput, RoiTrackingEntryCreateInput, RoleAssignmentInput, SchedulerAvailabilityCreateInput, SchedulerCoverageRuleCreateInput, SchedulerGenerateInput, SchedulerPreferenceRequestCreateInput, SchedulerPreferenceRequestResolveInput, SchedulerPublishInput, SchedulerRequestCreateInput, SchedulerRequestResolveInput, SchedulerSettingsUpdateInput, StaffAccessRemoveInput, StaffClockInInput, StaffClockOutInput, StaffInviteAcceptInput, StaffInviteCreateInput, StaffShiftCreateInput, StaffSelfClockInInput, StaffSelfClockOutInput, StaffManualBookingInput, WeeklyRevenuePlanActionUpdateInput } from "@gym-platform/validation";
 export interface ApiClientOptions {
     baseUrl: string;
     accessToken?: string;
@@ -93,6 +93,29 @@ export declare class GymApiClient {
     listMembers(gymId: string): Promise<unknown>;
     listConsumers(gymId: string): Promise<unknown>;
     createConsumer(gymId: string, input: ConsumerCreateInput): Promise<unknown>;
+    listCampaignImports(gymId: string): Promise<unknown>;
+    previewCampaignCsvImport(gymId: string, input: CampaignCsvPreviewInput): Promise<unknown>;
+    confirmCampaignCsvImport(gymId: string, input: CampaignCsvConfirmInput): Promise<unknown>;
+    listRevenueOpportunities(gymId: string, query?: {
+        from?: string;
+        to?: string;
+    }): Promise<unknown>;
+    listRoomDeviceUtilization(gymId: string, query?: {
+        from?: string;
+        to?: string;
+        resourceType?: string;
+        serviceCategory?: string;
+    }): Promise<unknown>;
+    listClientSegments(gymId: string): Promise<unknown>;
+    listGeneratedCampaigns(gymId: string): Promise<unknown>;
+    generateCampaign(gymId: string, input: CampaignGenerateInput): Promise<unknown>;
+    listPremiumRecoveryPrograms(gymId: string): Promise<unknown>;
+    suggestPremiumRecoveryPrograms(gymId: string): Promise<unknown>;
+    createPremiumRecoveryProgram(gymId: string, input: PremiumRecoveryProgramCreateInput): Promise<unknown>;
+    getWeeklyRevenuePlan(gymId: string): Promise<unknown>;
+    updateWeeklyRevenuePlanAction(gymId: string, actionId: string, input: WeeklyRevenuePlanActionUpdateInput): Promise<unknown>;
+    listRoiTracking(gymId: string): Promise<unknown>;
+    createRoiTrackingEntry(gymId: string, input: RoiTrackingEntryCreateInput): Promise<unknown>;
     previewMemberCsvImport(gymId: string, input: MigrationMemberCsvPreviewInput): Promise<unknown>;
     suggestMemberCsvAiMapping(gymId: string, input: MigrationMemberCsvAiMapInput): Promise<unknown>;
     importMemberCsv(gymId: string, input: MigrationMemberCsvImportInput): Promise<unknown>;

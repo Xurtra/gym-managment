@@ -4,6 +4,9 @@ import {
   accessDeviceEventSchema,
   accessDeviceHeartbeatSchema,
   accessRuleCreateSchema,
+  campaignCsvConfirmSchema,
+  campaignCsvPreviewSchema,
+  campaignGenerateSchema,
   classBookingCreateSchema,
   classSessionResourceAllocationSchema,
   checkInCreateSchema,
@@ -43,6 +46,7 @@ import {
   membershipPlanUpdateSchema,
   logoutSchema,
   posStripeFinalizeSchema,
+  premiumRecoveryProgramCreateSchema,
   publicSignupSchema,
   posPurchaseSchema,
   refreshTokenSchema,
@@ -51,6 +55,7 @@ import {
   resetPasswordSchema,
   resourceCreateSchema,
   resourceUpdateSchema,
+  roiTrackingEntryCreateSchema,
   roleAssignmentSchema,
   schedulerAvailabilityCreateSchema,
   schedulerCoverageRuleCreateSchema,
@@ -73,7 +78,8 @@ import {
   staffManualBookingSchema,
   twoFactorVerifySchema,
   waitlistJoinSchema,
-  verifyEmailSchema
+  verifyEmailSchema,
+  weeklyRevenuePlanActionUpdateSchema
 } from "@gym-platform/validation";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Pool } from "pg";
@@ -92,6 +98,12 @@ import type { Repositories } from "./infrastructure/store/repositories.js";
 import { AccessControlService } from "./modules/accessControl/accessControl.service.js";
 import { AuthService } from "./modules/auth/auth.service.js";
 import { BookingService } from "./modules/bookings/booking.service.js";
+import { CampaignGeneratorService } from "./modules/campaignLayer/campaignGenerator.service.js";
+import { CampaignImportService } from "./modules/campaignLayer/campaignImport.service.js";
+import { PremiumRecoveryProgramService } from "./modules/campaignLayer/premiumRecoveryProgram.service.js";
+import { RevenueOpportunityService } from "./modules/campaignLayer/revenueOpportunity.service.js";
+import { RoiTrackingService } from "./modules/campaignLayer/roiTracking.service.js";
+import { WeeklyRevenuePlanService } from "./modules/campaignLayer/weeklyRevenuePlan.service.js";
 import { CheckInService } from "./modules/checkIns/checkIn.service.js";
 import { ClassScheduleService } from "./modules/classes/classSchedule.service.js";
 import { CrmActivityService } from "./modules/crm/crmActivity.service.js";
@@ -164,6 +176,12 @@ export interface Services {
   reservationResourceService: ReservationResourceService;
   classScheduleService: ClassScheduleService;
   bookingService: BookingService;
+  campaignImportService: CampaignImportService;
+  campaignGeneratorService: CampaignGeneratorService;
+  premiumRecoveryProgramService: PremiumRecoveryProgramService;
+  weeklyRevenuePlanService: WeeklyRevenuePlanService;
+  roiTrackingService: RoiTrackingService;
+  revenueOpportunityService: RevenueOpportunityService;
   checkInService: CheckInService;
   accessControlService: AccessControlService;
 }
@@ -209,6 +227,25 @@ export function createServices(
   const reservationResourceService = new ReservationResourceService(repositories, clock);
   const classScheduleService = new ClassScheduleService(repositories, clock);
   const bookingService = new BookingService(repositories, clock);
+  const campaignImportService = new CampaignImportService(repositories, clock);
+  const revenueOpportunityService = new RevenueOpportunityService(repositories, clock);
+  const campaignGeneratorService = new CampaignGeneratorService(
+    repositories,
+    clock,
+    revenueOpportunityService
+  );
+  const premiumRecoveryProgramService = new PremiumRecoveryProgramService(
+    repositories,
+    clock,
+    revenueOpportunityService
+  );
+  const weeklyRevenuePlanService = new WeeklyRevenuePlanService(
+    repositories,
+    clock,
+    revenueOpportunityService,
+    premiumRecoveryProgramService
+  );
+  const roiTrackingService = new RoiTrackingService(repositories, clock);
   const checkInService = new CheckInService(repositories, clock);
   const accessControlService = new AccessControlService(repositories, clock);
   const services: Services = {
@@ -233,6 +270,12 @@ export function createServices(
     reservationResourceService,
     classScheduleService,
     bookingService,
+    campaignImportService,
+    campaignGeneratorService,
+    premiumRecoveryProgramService,
+    weeklyRevenuePlanService,
+    roiTrackingService,
+    revenueOpportunityService,
     checkInService,
     accessControlService
   };
@@ -254,6 +297,12 @@ export function createServices(
   bootstrapServices.reservationResourceService = services.reservationResourceService;
   bootstrapServices.classScheduleService = services.classScheduleService;
   bootstrapServices.bookingService = services.bookingService;
+  bootstrapServices.campaignImportService = services.campaignImportService;
+  bootstrapServices.campaignGeneratorService = services.campaignGeneratorService;
+  bootstrapServices.premiumRecoveryProgramService = services.premiumRecoveryProgramService;
+  bootstrapServices.weeklyRevenuePlanService = services.weeklyRevenuePlanService;
+  bootstrapServices.roiTrackingService = services.roiTrackingService;
+  bootstrapServices.revenueOpportunityService = services.revenueOpportunityService;
   bootstrapServices.checkInService = services.checkInService;
   bootstrapServices.accessControlService = services.accessControlService;
   services.posStripeService = new PosStripeService(config, services);
@@ -1137,6 +1186,144 @@ function createRoutes() {
     await context.services.roleService.requirePermission(gymId, auth.sub, Permission.MemberWrite);
     const input = parseWith(consumerCreateSchema, context.body);
     return context.services.memberService.create(gymId, input);
+  });
+
+  add("GET", "/gyms/:gymId/campaign-layer/imports", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymUpdate);
+    return context.services.campaignImportService.listImports(gymId);
+  });
+
+  add("POST", "/gyms/:gymId/campaign-layer/imports/preview", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymUpdate);
+    const input = parseWith(campaignCsvPreviewSchema, context.body);
+    return context.services.campaignImportService.previewCsv(gymId, input);
+  });
+
+  add("POST", "/gyms/:gymId/campaign-layer/imports/confirm", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymUpdate);
+    const input = parseWith(campaignCsvConfirmSchema, context.body);
+    return context.services.campaignImportService.confirmCsv(gymId, auth.sub, input);
+  });
+
+  add("GET", "/gyms/:gymId/campaign-layer/opportunities", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymUpdate);
+    return context.services.revenueOpportunityService.generate(gymId, {
+      from: optionalDateQuery(context, "from"),
+      to: optionalDateQuery(context, "to")
+    });
+  });
+
+  add("GET", "/gyms/:gymId/campaign-layer/utilization", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymUpdate);
+    return context.services.revenueOpportunityService.utilization(gymId, {
+      from: optionalDateQuery(context, "from"),
+      to: optionalDateQuery(context, "to"),
+      resourceType: optionalStringQuery(context, "resourceType"),
+      serviceCategory: optionalStringQuery(context, "serviceCategory")
+    });
+  });
+
+  add("GET", "/gyms/:gymId/campaign-layer/client-segments", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymUpdate);
+    return context.services.revenueOpportunityService.clientSegments(gymId);
+  });
+
+  add("GET", "/gyms/:gymId/campaign-layer/campaigns", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymUpdate);
+    return context.services.campaignGeneratorService.listCampaigns(gymId);
+  });
+
+  add("POST", "/gyms/:gymId/campaign-layer/campaigns/generate", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymUpdate);
+    const input = parseWith(campaignGenerateSchema, context.body);
+    return context.services.campaignGeneratorService.generateCampaign(gymId, auth.sub, input);
+  });
+
+  add("GET", "/gyms/:gymId/campaign-layer/programs", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymUpdate);
+    return context.services.premiumRecoveryProgramService.listPrograms(gymId);
+  });
+
+  add("GET", "/gyms/:gymId/campaign-layer/programs/suggestions", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymUpdate);
+    return context.services.premiumRecoveryProgramService.suggestPrograms(gymId);
+  });
+
+  add("POST", "/gyms/:gymId/campaign-layer/programs", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymUpdate);
+    const input = parseWith(premiumRecoveryProgramCreateSchema, context.body);
+    return context.services.premiumRecoveryProgramService.createProgram(gymId, auth.sub, input);
+  });
+
+  add("GET", "/gyms/:gymId/weekly-revenue-plan/current", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymUpdate);
+    return context.services.weeklyRevenuePlanService.getOrCreateCurrentPlan(gymId);
+  });
+
+  add("PATCH", "/gyms/:gymId/weekly-revenue-plan/current/actions/:actionId", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymUpdate);
+    const input = parseWith(weeklyRevenuePlanActionUpdateSchema, context.body);
+    return context.services.weeklyRevenuePlanService.updateCurrentAction(
+      gymId,
+      requiredParam(context, "actionId"),
+      input.done
+    );
+  });
+
+  add("GET", "/gyms/:gymId/roi-tracking", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymUpdate);
+    return context.services.roiTrackingService.list(gymId);
+  });
+
+  add("POST", "/gyms/:gymId/roi-tracking", async (context) => {
+    const auth = requireAuth(context);
+    const gymId = requiredParam(context, "gymId");
+    await context.services.tenancyService.ensureGymAccess(auth.sub, gymId);
+    await context.services.roleService.requirePermission(gymId, auth.sub, Permission.GymUpdate);
+    const input = parseWith(roiTrackingEntryCreateSchema, context.body);
+    return context.services.roiTrackingService.create(gymId, auth.sub, input);
   });
 
   add("POST", "/gyms/:gymId/migration-batches", async (context) => {
@@ -2211,6 +2398,23 @@ function requiredParam(context: RequestContext, key: string) {
 
 function parseWith<T extends ZodSchema>(schema: T, body: unknown): z.infer<T> {
   return schema.parse(body);
+}
+
+function optionalDateQuery(context: RequestContext, key: string) {
+  const value = context.query.get(key);
+  if (!value) {
+    return undefined;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw badRequest(`Query parameter "${key}" must be a valid date.`, "invalid_query_date");
+  }
+  return date;
+}
+
+function optionalStringQuery(context: RequestContext, key: string) {
+  const value = context.query.get(key)?.trim();
+  return value || undefined;
 }
 
 async function requireAnyPermission(

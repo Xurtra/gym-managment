@@ -3,6 +3,9 @@ import type {
   AccessDeviceEventInput,
   AccessDeviceHeartbeatInput,
   AccessRuleCreateInput,
+  CampaignCsvConfirmInput,
+  CampaignCsvPreviewInput,
+  CampaignGenerateInput,
   ClassBookingCreateInput,
   ClassSessionResourceAllocationInput,
   CheckInCreateInput,
@@ -41,12 +44,14 @@ import type {
   MigrationMemberCsvPreviewInput,
   PosPurchaseInput,
   PosStripeFinalizeInput,
+  PremiumRecoveryProgramCreateInput,
   StripeConnectOnboardingLinkInput,
   PublicSignupInput,
   RegisterInput,
   ResetPasswordInput,
   ResourceCreateInput,
   ResourceUpdateInput,
+  RoiTrackingEntryCreateInput,
   RoleAssignmentInput,
   SchedulerAvailabilityCreateInput,
   SchedulerCoverageRuleCreateInput,
@@ -65,7 +70,8 @@ import type {
   StaffShiftCreateInput,
   StaffSelfClockInInput,
   StaffSelfClockOutInput,
-  StaffManualBookingInput
+  StaffManualBookingInput,
+  WeeklyRevenuePlanActionUpdateInput
 } from "@gym-platform/validation";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
@@ -363,6 +369,99 @@ export class GymApiClient {
 
   createConsumer(gymId: string, input: ConsumerCreateInput) {
     return this.request("POST", `/gyms/${gymId}/consumers`, input);
+  }
+
+  listCampaignImports(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/campaign-layer/imports`);
+  }
+
+  previewCampaignCsvImport(gymId: string, input: CampaignCsvPreviewInput) {
+    return this.request("POST", `/gyms/${gymId}/campaign-layer/imports/preview`, input);
+  }
+
+  confirmCampaignCsvImport(gymId: string, input: CampaignCsvConfirmInput) {
+    return this.request("POST", `/gyms/${gymId}/campaign-layer/imports/confirm`, input);
+  }
+
+  listRevenueOpportunities(gymId: string, query: { from?: string; to?: string } = {}) {
+    const params = new URLSearchParams();
+    if (query.from) {
+      params.set("from", query.from);
+    }
+    if (query.to) {
+      params.set("to", query.to);
+    }
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    return this.request("GET", `/gyms/${gymId}/campaign-layer/opportunities${suffix}`);
+  }
+
+  listRoomDeviceUtilization(
+    gymId: string,
+    query: { from?: string; to?: string; resourceType?: string; serviceCategory?: string } = {}
+  ) {
+    const params = new URLSearchParams();
+    if (query.from) {
+      params.set("from", query.from);
+    }
+    if (query.to) {
+      params.set("to", query.to);
+    }
+    if (query.resourceType) {
+      params.set("resourceType", query.resourceType);
+    }
+    if (query.serviceCategory) {
+      params.set("serviceCategory", query.serviceCategory);
+    }
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    return this.request("GET", `/gyms/${gymId}/campaign-layer/utilization${suffix}`);
+  }
+
+  listClientSegments(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/campaign-layer/client-segments`);
+  }
+
+  listGeneratedCampaigns(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/campaign-layer/campaigns`);
+  }
+
+  generateCampaign(gymId: string, input: CampaignGenerateInput) {
+    return this.request("POST", `/gyms/${gymId}/campaign-layer/campaigns/generate`, input);
+  }
+
+  listPremiumRecoveryPrograms(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/campaign-layer/programs`);
+  }
+
+  suggestPremiumRecoveryPrograms(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/campaign-layer/programs/suggestions`);
+  }
+
+  createPremiumRecoveryProgram(gymId: string, input: PremiumRecoveryProgramCreateInput) {
+    return this.request("POST", `/gyms/${gymId}/campaign-layer/programs`, input);
+  }
+
+  getWeeklyRevenuePlan(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/weekly-revenue-plan/current`);
+  }
+
+  updateWeeklyRevenuePlanAction(
+    gymId: string,
+    actionId: string,
+    input: WeeklyRevenuePlanActionUpdateInput
+  ) {
+    return this.request(
+      "PATCH",
+      `/gyms/${gymId}/weekly-revenue-plan/current/actions/${actionId}`,
+      input
+    );
+  }
+
+  listRoiTracking(gymId: string) {
+    return this.request("GET", `/gyms/${gymId}/roi-tracking`);
+  }
+
+  createRoiTrackingEntry(gymId: string, input: RoiTrackingEntryCreateInput) {
+    return this.request("POST", `/gyms/${gymId}/roi-tracking`, input);
   }
 
   previewMemberCsvImport(gymId: string, input: MigrationMemberCsvPreviewInput) {

@@ -191,6 +191,40 @@ export const operatingHoursSchema = z.record(
   )
 );
 
+export const studioResourceTypeSchema = z.enum([
+  "sauna",
+  "cold_plunge",
+  "red_light",
+  "compression",
+  "float",
+  "stretch_table",
+  "recovery_room",
+  "other"
+]);
+
+export const studioSetupStepSchema = z.enum([
+  "profile",
+  "rooms_devices",
+  "services",
+  "first_csv",
+  "first_revenue_plan"
+]);
+
+export const studioSettingsSchema = z.object({
+  businessType: trimmed.max(120).optional(),
+  defaultBufferMinutes: z.number().int().min(0).max(240).optional(),
+  averageSessionPriceCents: z.number().int().min(0).max(10_000_000).optional(),
+  softwareMonthlyCostCents: z.number().int().min(0).max(10_000_000).optional(),
+  targetMonthlyRevenueCents: z.number().int().min(0).max(1_000_000_000).optional(),
+  resourceTypesUsed: z.array(studioResourceTypeSchema).optional()
+});
+
+export const studioSetupWizardSchema = z.object({
+  currentStep: studioSetupStepSchema.optional(),
+  completedSteps: z.array(studioSetupStepSchema).optional(),
+  completedAt: z.coerce.date().optional()
+});
+
 export const gymBusinessInfoSchema = z.object({
   legalName: trimmed.max(160).optional(),
   phone: trimmed.max(40).optional(),
@@ -209,6 +243,8 @@ export const gymUpdateSchema = z
     stripeAccountId: trimmed.regex(/^acct_[A-Za-z0-9]+$/).optional(),
     brandColors: brandColorsSchema.optional(),
     businessInfo: gymBusinessInfoSchema.optional(),
+    studioSettings: studioSettingsSchema.optional(),
+    setupWizard: studioSetupWizardSchema.optional(),
     operatingHours: operatingHoursSchema.optional(),
     featureFlags: z.array(z.nativeEnum(FeatureFlag)).optional(),
     onboardingCompletedSteps: z.array(trimmed.min(1).max(80)).optional(),
@@ -492,6 +528,77 @@ export const migrationMemberCsvAiMapSchema = migrationMemberCsvImportSchema;
 export const migrationMembershipPlanCsvAiMapSchema = migrationMembershipPlanCsvImportSchema;
 export const migrationStaffRoleCsvAiMapSchema = migrationStaffRoleCsvImportSchema;
 export const migrationStaffListCsvAiMapSchema = migrationStaffListCsvImportSchema;
+
+export const campaignImportTypeSchema = z.enum([
+  "clients",
+  "bookings",
+  "services",
+  "memberships_packages",
+  "payments",
+  "rooms_devices"
+]);
+
+export const campaignCsvPreviewSchema = z.object({
+  importType: campaignImportTypeSchema,
+  fileName: trimmed.min(1).max(180),
+  contentType: trimmed.max(120).optional(),
+  base64Data: trimmed.min(1).max(14_000_000),
+  delimiter: z.enum(["auto", "comma", "tab"]).default("auto")
+});
+
+export const campaignCsvConfirmSchema = campaignCsvPreviewSchema.extend({
+  mappings: z
+    .array(
+      z.object({
+        sourceColumn: trimmed.min(1).max(180),
+        targetField: trimmed.min(1).max(120)
+      })
+    )
+    .min(1)
+});
+
+export const campaignGeneratorTypeSchema = z.enum([
+  "unused_credit_reminder",
+  "inactive_member_win_back",
+  "first_visit_follow_up",
+  "off_peak_room_fill",
+  "premium_program_launch",
+  "review_request",
+  "membership_upgrade"
+]);
+
+export const campaignGenerateSchema = z.object({
+  campaignType: campaignGeneratorTypeSchema
+});
+
+export const premiumRecoveryProgramCreateSchema = z.object({
+  title: trimmed.min(1).max(140),
+  description: trimmed.min(1).max(1000),
+  targetAudience: trimmed.min(1).max(300),
+  includedServices: z.array(trimmed.min(1).max(120)).default([]),
+  recommendedPriceCents: z.coerce.number().int().min(0).max(1_000_000),
+  capacity: z.coerce.number().int().min(1).max(500),
+  schedule: trimmed.min(1).max(240),
+  durationWeeks: z.coerce.number().int().min(1).max(52),
+  campaignCopy: trimmed.min(1).max(1600),
+  postProgramUpsell: trimmed.min(1).max(600),
+  sourceJson: z.record(z.string(), z.unknown()).optional()
+});
+
+export const weeklyRevenuePlanActionUpdateSchema = z.object({
+  done: z.boolean()
+});
+
+export const roiTrackingEntryCreateSchema = z.object({
+  sourceType: z.enum(["campaign", "weekly_action"]),
+  sourceId: trimmed.min(1).max(160),
+  sourceLabel: trimmed.min(1).max(220),
+  bookingsGenerated: z.coerce.number().int().min(0).max(100000),
+  revenueGeneratedCents: z.coerce.number().int().min(0).max(100_000_000),
+  membershipsSold: z.coerce.number().int().min(0).max(100000),
+  packagesSold: z.coerce.number().int().min(0).max(100000),
+  notes: trimmed.max(1200).optional()
+});
 
 export const crmActivityTypeSchema = z.enum([
   "note",
@@ -912,6 +1019,14 @@ export type MigrationMemberCsvAiMapInput = z.infer<typeof migrationMemberCsvAiMa
 export type MigrationMembershipPlanCsvAiMapInput = z.infer<typeof migrationMembershipPlanCsvAiMapSchema>;
 export type MigrationStaffRoleCsvAiMapInput = z.infer<typeof migrationStaffRoleCsvAiMapSchema>;
 export type MigrationStaffListCsvAiMapInput = z.infer<typeof migrationStaffListCsvAiMapSchema>;
+export type CampaignImportType = z.infer<typeof campaignImportTypeSchema>;
+export type CampaignCsvPreviewInput = z.infer<typeof campaignCsvPreviewSchema>;
+export type CampaignCsvConfirmInput = z.infer<typeof campaignCsvConfirmSchema>;
+export type CampaignGeneratorType = z.infer<typeof campaignGeneratorTypeSchema>;
+export type CampaignGenerateInput = z.infer<typeof campaignGenerateSchema>;
+export type PremiumRecoveryProgramCreateInput = z.infer<typeof premiumRecoveryProgramCreateSchema>;
+export type WeeklyRevenuePlanActionUpdateInput = z.infer<typeof weeklyRevenuePlanActionUpdateSchema>;
+export type RoiTrackingEntryCreateInput = z.infer<typeof roiTrackingEntryCreateSchema>;
 export type CrmActivityCreateInput = z.input<typeof crmActivityCreateSchema>;
 export type PosPurchaseInput = z.infer<typeof posPurchaseSchema>;
 export type PosStripeFinalizeInput = z.infer<typeof posStripeFinalizeSchema>;

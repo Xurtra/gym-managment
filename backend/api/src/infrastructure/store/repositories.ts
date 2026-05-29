@@ -2,6 +2,9 @@ import type {
   AccessDevice,
   AccessEvent,
   AccessRule,
+  CampaignImportBatch,
+  CampaignImportRecord,
+  GeneratedCampaign,
   Gym,
   GymUser,
   ClassBooking,
@@ -23,10 +26,12 @@ import type {
   MigrationStagedMember,
   MigrationValidationError,
   NotificationEvent,
+  PremiumRecoveryProgram,
   PurposeToken,
   ReservableResource,
   RefreshToken,
   ResourceAllocation,
+  RoiTrackingEntry,
   Role,
   SchedulerAvailability,
   SchedulerCoverageRule,
@@ -37,7 +42,8 @@ import type {
   StaffInvite,
   StaffShift,
   StaffTimeEntry,
-  User
+  User,
+  WeeklyRevenuePlan
 } from "./entities.js";
 
 export type RepositoryResult<T> = Promise<T>;
@@ -249,6 +255,34 @@ export interface MigrationAuditLogRepository {
   listMigrationAuditLogsForBatch(batchId: string): RepositoryResult<MigrationAuditLog[]>;
 }
 
+export interface CampaignImportRepository {
+  createBatch(batch: CampaignImportBatch): RepositoryResult<CampaignImportBatch>;
+  createRecords(records: CampaignImportRecord[]): RepositoryResult<CampaignImportRecord[]>;
+  listBatchesForGym(gymId: string): RepositoryResult<CampaignImportBatch[]>;
+  listRecordsForBatch(batchId: string): RepositoryResult<CampaignImportRecord[]>;
+}
+
+export interface GeneratedCampaignRepository {
+  createCampaign(campaign: GeneratedCampaign): RepositoryResult<GeneratedCampaign>;
+  listCampaignsForGym(gymId: string): RepositoryResult<GeneratedCampaign[]>;
+}
+
+export interface PremiumRecoveryProgramRepository {
+  createProgram(program: PremiumRecoveryProgram): RepositoryResult<PremiumRecoveryProgram>;
+  listProgramsForGym(gymId: string): RepositoryResult<PremiumRecoveryProgram[]>;
+}
+
+export interface WeeklyRevenuePlanRepository {
+  createPlan(plan: WeeklyRevenuePlan): RepositoryResult<WeeklyRevenuePlan>;
+  getPlanForWeek(gymId: string, weekStartDate: Date): RepositoryResult<WeeklyRevenuePlan | undefined>;
+  updatePlan(plan: WeeklyRevenuePlan): RepositoryResult<WeeklyRevenuePlan>;
+}
+
+export interface RoiTrackingRepository {
+  createEntry(entry: RoiTrackingEntry): RepositoryResult<RoiTrackingEntry>;
+  listEntriesForGym(gymId: string): RepositoryResult<RoiTrackingEntry[]>;
+}
+
 export interface ClassRepository {
   createClassType(classType: ClassType): RepositoryResult<ClassType>;
   getClassType(classTypeId: string): RepositoryResult<ClassType | undefined>;
@@ -353,6 +387,11 @@ export interface Repositories {
   migrationStagedMembers: MigrationStagedMemberRepository;
   migrationValidationErrors: MigrationValidationErrorRepository;
   migrationAuditLogs: MigrationAuditLogRepository;
+  campaignImports: CampaignImportRepository;
+  generatedCampaigns: GeneratedCampaignRepository;
+  premiumRecoveryPrograms: PremiumRecoveryProgramRepository;
+  weeklyRevenuePlans: WeeklyRevenuePlanRepository;
+  roiTracking: RoiTrackingRepository;
   classes: ClassRepository;
   bookings: BookingRepository;
   reservationResources: ReservationResourceRepository;

@@ -84,6 +84,97 @@ const MEMBER_DESK_STORAGE_KEY = "gym-platform-member-desk";
 const ROLE_PERMISSION_OPTIONS = Object.values(Permission).filter(
   (permission) => permission !== Permission.PlatformAdmin
 );
+const CAMPAIGN_IMPORT_TYPES = [
+  { value: "clients", label: "Clients" },
+  { value: "bookings", label: "Bookings" },
+  { value: "services", label: "Services" },
+  { value: "memberships_packages", label: "Memberships/packages" },
+  { value: "payments", label: "Payments" },
+  { value: "rooms_devices", label: "Rooms/devices" }
+] as const;
+const CAMPAIGN_LAYER_PAGES = [
+  { key: "dashboard", label: "Dashboard", path: "" },
+  { key: "imports", label: "Imports", path: "imports" },
+  { key: "opportunities", label: "Opportunities", path: "opportunities" },
+  { key: "utilization", label: "Utilization", path: "utilization" },
+  { key: "clients", label: "Clients", path: "clients" },
+  { key: "campaigns", label: "Campaigns", path: "campaigns" },
+  { key: "programs", label: "Programs", path: "programs" },
+  { key: "settings", label: "Settings", path: "settings" }
+] as const;
+const CAMPAIGN_GENERATOR_TYPES = [
+  { value: "unused_credit_reminder", label: "Unused credit reminder" },
+  { value: "inactive_member_win_back", label: "Inactive member win-back" },
+  { value: "first_visit_follow_up", label: "First visit follow-up" },
+  { value: "off_peak_room_fill", label: "Off-peak room fill" },
+  { value: "premium_program_launch", label: "Premium program launch" },
+  { value: "review_request", label: "Review request" },
+  { value: "membership_upgrade", label: "Membership upgrade" }
+] as const;
+const CAMPAIGN_IMPORT_EXPECTED_FIELDS: Record<CampaignImportType, CampaignImportExpectedField[]> = {
+  clients: [
+    { field: "full_name", label: "Full name", description: "Client/member full name.", required: true },
+    { field: "first_name", label: "First name", description: "First name when split out." },
+    { field: "last_name", label: "Last name", description: "Last name when split out." },
+    { field: "email", label: "Email", description: "Primary email for matching and outreach." },
+    { field: "phone", label: "Phone", description: "Primary phone number." },
+    { field: "status", label: "Status", description: "Lead, customer, member, active, inactive, etc." },
+    { field: "membership_name", label: "Membership name", description: "Current plan/package label." },
+    { field: "source", label: "Source", description: "Lead or acquisition source." },
+    { field: "notes", label: "Notes", description: "Internal notes." },
+    { field: "tags", label: "Tags", description: "Comma separated tags." }
+  ],
+  bookings: [
+    { field: "client_email", label: "Client email", description: "Email of the booked client." },
+    { field: "client_name", label: "Client name", description: "Name of the booked client." },
+    { field: "service_name", label: "Service name", description: "Class, appointment, or session.", required: true },
+    { field: "booking_date", label: "Booking date", description: "Date of the booking.", required: true },
+    { field: "start_time", label: "Start time", description: "Start time or datetime." },
+    { field: "end_time", label: "End time", description: "End time or datetime." },
+    { field: "status", label: "Status", description: "Booked, cancelled, attended, no-show." },
+    { field: "room_name", label: "Room", description: "Room or resource name." },
+    { field: "staff_name", label: "Staff", description: "Trainer, instructor, or coach." },
+    { field: "notes", label: "Notes", description: "Booking notes." }
+  ],
+  services: [
+    { field: "service_name", label: "Service name", description: "Name of the service.", required: true },
+    { field: "description", label: "Description", description: "Service description." },
+    { field: "price", label: "Price", description: "Service price." },
+    { field: "duration_minutes", label: "Duration minutes", description: "Default duration." },
+    { field: "capacity", label: "Capacity", description: "Bookable capacity." },
+    { field: "category", label: "Category", description: "Class, training, retail, lesson, etc." },
+    { field: "active", label: "Active", description: "Whether it is active." }
+  ],
+  memberships_packages: [
+    { field: "package_name", label: "Membership/package name", description: "Plan, pack, or package name.", required: true },
+    { field: "plan_type", label: "Plan type", description: "Monthly, annual, class pack, trial, etc." },
+    { field: "price", label: "Price", description: "Plan/package price." },
+    { field: "billing_frequency", label: "Billing frequency", description: "Monthly, annual, one-time, package." },
+    { field: "sessions_included", label: "Sessions included", description: "Visits, sessions, credits, or classes." },
+    { field: "contract_length", label: "Contract length", description: "Commitment or term." },
+    { field: "active", label: "Active", description: "Whether it is active." },
+    { field: "notes", label: "Notes", description: "Restrictions or internal notes." }
+  ],
+  payments: [
+    { field: "client_email", label: "Client email", description: "Email used to match payer." },
+    { field: "client_name", label: "Client name", description: "Payer name." },
+    { field: "amount", label: "Amount", description: "Payment amount.", required: true },
+    { field: "payment_date", label: "Payment date", description: "Collected or attempted date." },
+    { field: "payment_method", label: "Payment method", description: "Card, cash, ACH, comp, etc." },
+    { field: "status", label: "Status", description: "Paid, failed, refunded, pending." },
+    { field: "reference", label: "Reference", description: "Receipt, invoice, or transaction id." },
+    { field: "description", label: "Description", description: "What the payment was for." }
+  ],
+  rooms_devices: [
+    { field: "name", label: "Name", description: "Room, lane, device, or station name.", required: true },
+    { field: "resource_type", label: "Resource type", description: "Room, device, court, door, kiosk, etc." },
+    { field: "location", label: "Location", description: "Facility or area." },
+    { field: "capacity", label: "Capacity", description: "How many people can use it." },
+    { field: "active", label: "Active", description: "Whether it is active." },
+    { field: "bookable", label: "Bookable", description: "Whether clients can reserve it." },
+    { field: "notes", label: "Notes", description: "Internal setup notes." }
+  ]
+};
 const STAFF_ROLE_PRESETS = [
   {
     key: "manager",
@@ -377,6 +468,69 @@ const MIGRATION_UPLOAD_ACCEPT = ".csv,.tsv,.xlsx,.xls,.json,.txt,.pdf";
 const MIGRATION_UPLOAD_MAX_FILES = 5;
 const MIGRATION_UPLOAD_MAX_BYTES = 2 * 1024 * 1024;
 
+const STUDIO_RESOURCE_TYPES = [
+  { value: "sauna", label: "Sauna" },
+  { value: "cold_plunge", label: "Cold plunge" },
+  { value: "red_light", label: "Red light" },
+  { value: "compression", label: "Compression" },
+  { value: "float", label: "Float" },
+  { value: "stretch_table", label: "Stretch table" },
+  { value: "recovery_room", label: "Recovery room" },
+  { value: "other", label: "Other" }
+] as const;
+
+const STUDIO_BUSINESS_TYPES = [
+  "Recovery studio",
+  "Gym",
+  "Boutique fitness",
+  "Personal training",
+  "Wellness studio",
+  "Martial arts",
+  "Swim school",
+  "Other"
+] as const;
+
+const STUDIO_SETUP_STEPS = [
+  {
+    key: "profile",
+    label: "Create studio profile",
+    description: "Name, business type, hours, buffer time, and revenue assumptions."
+  },
+  {
+    key: "rooms_devices",
+    label: "Add rooms/devices",
+    description: "Create the rooms, recovery devices, or equipment that can be booked."
+  },
+  {
+    key: "services",
+    label: "Add services",
+    description: "Add services, memberships, packages, or recovery programs."
+  },
+  {
+    key: "first_csv",
+    label: "Upload first CSV",
+    description: "Bring in clients, bookings, services, payments, or room/device data."
+  },
+  {
+    key: "first_revenue_plan",
+    label: "Generate first revenue plan",
+    description: "Create a weekly action plan from the data you have available."
+  }
+] as const;
+
+const STUDIO_DAYS = [
+  { key: "mon", label: "Mon" },
+  { key: "tue", label: "Tue" },
+  { key: "wed", label: "Wed" },
+  { key: "thu", label: "Thu" },
+  { key: "fri", label: "Fri" },
+  { key: "sat", label: "Sat" },
+  { key: "sun", label: "Sun" }
+] as const;
+
+type StudioResourceType = (typeof STUDIO_RESOURCE_TYPES)[number]["value"];
+type StudioSetupStep = (typeof STUDIO_SETUP_STEPS)[number]["key"];
+
 interface SessionTokens {
   accessToken: string;
   refreshToken: string;
@@ -397,10 +551,24 @@ interface GymRecord {
   timezone: string;
   locale: string;
   featureFlags: string[];
+  operatingHours?: Record<string, Array<{ opensAt: string; closesAt: string }>>;
   logoUrl?: string;
   stripeAccountId?: string;
   brandColors?: { primary: string; secondary?: string; accent?: string };
   businessInfo?: { email?: string; phone?: string; website?: string };
+  studioSettings?: {
+    businessType?: string;
+    defaultBufferMinutes?: number;
+    averageSessionPriceCents?: number;
+    softwareMonthlyCostCents?: number;
+    targetMonthlyRevenueCents?: number;
+    resourceTypesUsed?: StudioResourceType[];
+  };
+  setupWizard?: {
+    currentStep?: StudioSetupStep;
+    completedSteps?: StudioSetupStep[];
+    completedAt?: string;
+  };
   migrationChecklist?: {
     currentSoftware?: string;
     notes?: string;
@@ -775,6 +943,391 @@ interface MigrationMemberCsvAiMappingResponse {
   warnings: string[];
   notes: string[];
   preview: MigrationMemberCsvPreviewResponse;
+}
+
+type CampaignImportType = (typeof CAMPAIGN_IMPORT_TYPES)[number]["value"];
+type CampaignLayerPageKey = (typeof CAMPAIGN_LAYER_PAGES)[number]["key"];
+type GeneratedCampaignType = (typeof CAMPAIGN_GENERATOR_TYPES)[number]["value"];
+
+interface CampaignImportExpectedField {
+  field: string;
+  label: string;
+  description: string;
+  required?: boolean;
+}
+
+interface CampaignCsvUpload {
+  importType: CampaignImportType;
+  fileName: string;
+  contentType?: string;
+  base64Data: string;
+  delimiter: "auto" | "comma" | "tab";
+}
+
+interface CampaignCsvMappingSuggestion {
+  sourceColumn: string;
+  targetField: string;
+  confidence: number;
+  sampleValues: string[];
+}
+
+interface CampaignCsvPreviewResponse {
+  importType: CampaignImportType;
+  fileName: string;
+  delimiter: "comma" | "tab";
+  headers: string[];
+  rowCount: number;
+  sampleRows: Record<string, string>[];
+  expectedFields: CampaignImportExpectedField[];
+  targetFields: string[];
+  suggestedMappings: CampaignCsvMappingSuggestion[];
+}
+
+interface CampaignImportBatchRecord {
+  id: string;
+  gymId: string;
+  importType: CampaignImportType;
+  originalFilename: string;
+  rowCount: number;
+  importedCount: number;
+  skippedCount: number;
+  errorCount: number;
+  mappingsJson: Record<string, string>;
+  sampleRowsJson: Record<string, string>[];
+  summaryJson: Record<string, unknown>;
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface CampaignImportConfirmResponse {
+  batch: CampaignImportBatchRecord;
+  summary: {
+    importType: CampaignImportType;
+    rowsImported: number;
+    rowsSkipped: number;
+    rowsWithWarnings: number;
+    rowsWithErrors: number;
+    totalRows: number;
+  };
+}
+
+interface GeneratedCampaignRecord {
+  id: string;
+  gymId: string;
+  campaignType: GeneratedCampaignType;
+  name: string;
+  targetSegment: string;
+  smsMessage: string;
+  emailSubject: string;
+  emailBody: string;
+  recommendedSendTime: string;
+  expectedGoal: string;
+  estimatedRevenueCents: number;
+  status: "draft" | "ready" | "queued" | "sent" | "archived";
+  deliveryJson: Record<string, unknown>;
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface GeneratedCampaignsResponse {
+  campaigns: GeneratedCampaignRecord[];
+}
+
+interface GeneratedCampaignResponse {
+  campaign: GeneratedCampaignRecord;
+}
+
+interface PremiumRecoveryProgramInput {
+  title: string;
+  description: string;
+  targetAudience: string;
+  includedServices: string[];
+  recommendedPriceCents: number;
+  capacity: number;
+  schedule: string;
+  durationWeeks: number;
+  campaignCopy: string;
+  postProgramUpsell: string;
+  sourceJson?: Record<string, unknown>;
+}
+
+interface PremiumRecoveryProgramRecord extends PremiumRecoveryProgramInput {
+  id: string;
+  gymId: string;
+  status: "draft" | "active" | "archived";
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface PremiumRecoveryProgramSuggestion extends PremiumRecoveryProgramInput {
+  reason: string;
+}
+
+interface PremiumRecoveryProgramsResponse {
+  programs: PremiumRecoveryProgramRecord[];
+}
+
+interface PremiumRecoveryProgramSuggestionsResponse {
+  suggestions: PremiumRecoveryProgramSuggestion[];
+  services: Array<{ name: string; category: string; priceCents: number }>;
+}
+
+interface PremiumRecoveryProgramResponse {
+  program: PremiumRecoveryProgramRecord;
+}
+
+interface WeeklyRevenuePlanClientRecord {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  reason: string;
+}
+
+interface WeeklyRevenuePlanResourceRecord {
+  id: string;
+  name: string;
+  type: string;
+  weakestTimeBlock: string;
+  utilizationPercentage: number;
+}
+
+interface WeeklyRevenuePlanCampaignRecord {
+  name: string;
+  targetSegment: string;
+  smsMessage: string;
+  emailSubject: string;
+  emailBody: string;
+}
+
+interface WeeklyRevenuePlanProgramIdeaRecord {
+  title: string;
+  description: string;
+  schedule: string;
+  recommendedPriceCents: number;
+}
+
+interface WeeklyRevenuePlanActionRecord {
+  id: string;
+  title: string;
+  description: string;
+  estimatedRevenueCents: number;
+  ownerNote: string;
+  campaign?: WeeklyRevenuePlanCampaignRecord;
+  clients: WeeklyRevenuePlanClientRecord[];
+  resources: WeeklyRevenuePlanResourceRecord[];
+  premiumProgramIdea?: WeeklyRevenuePlanProgramIdeaRecord;
+  done: boolean;
+  completedAt?: string;
+}
+
+interface WeeklyRevenuePlanRecord {
+  id: string;
+  gymId: string;
+  weekStartDate: string;
+  summary: string;
+  revenueLeaks: string[];
+  totalEstimatedRevenueCents: number;
+  actions: WeeklyRevenuePlanActionRecord[];
+  sourceJson: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface WeeklyRevenuePlanResponse {
+  plan: WeeklyRevenuePlanRecord;
+}
+
+interface RoiTrackingEntryRecord {
+  id: string;
+  gymId: string;
+  sourceType: "campaign" | "weekly_action";
+  sourceId: string;
+  sourceLabel: string;
+  bookingsGenerated: number;
+  revenueGeneratedCents: number;
+  membershipsSold: number;
+  packagesSold: number;
+  notes?: string;
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface RoiTrackingSummary {
+  totalRevenueGeneratedCents: number;
+  revenueGeneratedThisMonthCents: number;
+  topCampaignByRevenue: {
+    sourceId: string;
+    sourceLabel: string;
+    revenueGeneratedCents: number;
+  } | null;
+  monthlySoftwareCostCents: number;
+  estimatedRoiPercent: number;
+  bookingsGenerated: number;
+  membershipsSold: number;
+  packagesSold: number;
+}
+
+interface RoiTrackingResponse {
+  entries: RoiTrackingEntryRecord[];
+  summary: RoiTrackingSummary;
+}
+
+interface RoiTrackingCreateResponse {
+  entry: RoiTrackingEntryRecord;
+  summary: RoiTrackingSummary;
+}
+
+interface CampaignRevenueAction {
+  rank: number;
+  category: string;
+  action: string;
+  detail: string;
+  audience: number;
+  impactCents: number;
+}
+
+type RevenueOpportunityType =
+  | "UNDERUSED_RESOURCE"
+  | "UNUSED_CREDITS"
+  | "INACTIVE_MEMBER"
+  | "FIRST_VISIT_NOT_CONVERTED"
+  | "HIGH_USAGE_UPGRADE"
+  | "UNDERUSED_SERVICE"
+  | "PREMIUM_PROGRAM_OPPORTUNITY";
+
+interface RevenueOpportunityRecord {
+  id: string;
+  gymId: string;
+  type: RevenueOpportunityType;
+  title: string;
+  description: string;
+  priority: "low" | "medium" | "high";
+  estimatedRevenue: number;
+  estimatedRevenueCents: number;
+  recommendedAction: string;
+  evidence: Record<string, unknown>;
+  createdAt: string;
+}
+
+interface RevenueOpportunityResponse {
+  generatedAt: string;
+  window: {
+    from: string;
+    to: string;
+  };
+  opportunities: RevenueOpportunityRecord[];
+  summary: {
+    total: number;
+    high: number;
+    medium: number;
+    low: number;
+    estimatedRevenueCents: number;
+    byType: Record<RevenueOpportunityType, number>;
+  };
+}
+
+interface RoomDeviceUtilizationRecord {
+  id: string;
+  name: string;
+  type: string;
+  bookedHoursThisWeek: number;
+  availableHoursThisWeek: number;
+  utilizationPercentage: number;
+  estimatedRevenue: number;
+  estimatedRevenueCents: number;
+  estimatedMissedRevenue: number;
+  estimatedMissedRevenueCents: number;
+  busiestDay: string;
+  weakestDay: string;
+  weakestTimeBlock: string;
+  bookingCount: number;
+  serviceCategories: string[];
+}
+
+interface RoomDeviceUtilizationResponse {
+  generatedAt: string;
+  window: {
+    from: string;
+    to: string;
+  };
+  resources: RoomDeviceUtilizationRecord[];
+  summary: {
+    bookedHours: number;
+    availableHours: number;
+    utilizationPercentage: number;
+    estimatedRevenueCents: number;
+    estimatedMissedRevenueCents: number;
+    resourceCount: number;
+  };
+  filters: {
+    resourceTypes: string[];
+    serviceCategories: string[];
+  };
+}
+
+type CampaignClientSegmentKey =
+  | "inactive_members"
+  | "unused_credit_members"
+  | "first_time_visitors"
+  | "high_value_clients"
+  | "upsell_candidates"
+  | "review_candidates";
+
+interface CampaignClientSegmentRow {
+  id: string;
+  clientName: string;
+  email?: string;
+  phone?: string;
+  lastVisitDate?: string;
+  totalSpend: number;
+  totalSpendCents: number;
+  membershipStatus: string;
+  recommendedAction: string;
+  evidence: Record<string, unknown>;
+}
+
+interface CampaignClientSegment {
+  key: CampaignClientSegmentKey;
+  label: string;
+  description: string;
+  count: number;
+  clients: CampaignClientSegmentRow[];
+}
+
+interface CampaignClientSegmentsResponse {
+  generatedAt: string;
+  averageClientSpend: number;
+  averageClientSpendCents: number;
+  segments: CampaignClientSegment[];
+  summary: {
+    totalClients: number;
+    totalSegmentMatches: number;
+  };
+}
+
+interface CampaignResourceUtilization {
+  id: string;
+  name: string;
+  resourceType?: string;
+  utilizationPercent: number;
+  useCount: number;
+}
+
+interface CampaignLayerMetrics {
+  estimatedMissedRevenueCents: number;
+  averagePlanValueCents: number;
+  activeMembers: MemberRecord[];
+  inactiveMembers: MemberRecord[];
+  unusedCreditMembers: MemberRecord[];
+  firstTimeVisitorsNotConverted: MemberRecord[];
+  resources: CampaignResourceUtilization[];
+  underusedResources: CampaignResourceUtilization[];
+  actions: CampaignRevenueAction[];
 }
 
 type MigrationFileType =
@@ -1175,6 +1728,27 @@ interface AppState {
   migrationStagedMemberFilter: "all" | "ready" | "warnings" | "critical";
   selectedMigrationBatchId: string;
   migrationAssistantStep: "upload" | "detect" | "map" | "stage";
+  campaignImportType: CampaignImportType;
+  campaignImportUpload?: CampaignCsvUpload;
+  campaignImportPreview?: CampaignCsvPreviewResponse;
+  campaignImportSummary?: CampaignImportConfirmResponse["summary"];
+  campaignImports: CampaignImportBatchRecord[];
+  generatedCampaigns: GeneratedCampaignRecord[];
+  campaignGeneratorType: GeneratedCampaignType;
+  premiumRecoveryPrograms: PremiumRecoveryProgramRecord[];
+  premiumRecoveryProgramSuggestions: PremiumRecoveryProgramSuggestion[];
+  weeklyRevenuePlan?: WeeklyRevenuePlanRecord;
+  roiTrackingEntries: RoiTrackingEntryRecord[];
+  roiTrackingSummary?: RoiTrackingSummary;
+  revenueOpportunities: RevenueOpportunityRecord[];
+  roomDeviceUtilization?: RoomDeviceUtilizationResponse;
+  campaignClientSegments?: CampaignClientSegmentsResponse;
+  selectedCampaignClientSegment: CampaignClientSegmentKey;
+  campaignUtilizationFrom: string;
+  campaignUtilizationTo: string;
+  campaignUtilizationResourceType: string;
+  campaignUtilizationServiceCategory: string;
+  campaignLayerPage: CampaignLayerPageKey;
   roles: RoleRecord[];
   selectedRoleId: string;
   staffShifts: StaffShiftRecord[];
@@ -1219,6 +1793,9 @@ interface AppState {
     | "contracts"
     | "member_portal"
     | "migration"
+    | "campaign_layer"
+    | "weekly_plan"
+    | "roi_tracking"
     | "marketing"
     | "reports"
     | "settings"
@@ -1269,6 +1846,8 @@ if (!app) {
   throw new Error("App root not found.");
 }
 
+const initialCampaignUtilizationRange = campaignDefaultUtilizationRange();
+
 const state: AppState = {
   view: initialRoute.view,
   apiHealthy: null,
@@ -1318,6 +1897,27 @@ const state: AppState = {
   migrationStagedMemberFilter: "all",
   selectedMigrationBatchId: "",
   migrationAssistantStep: "upload",
+  campaignImportType: "clients",
+  campaignImportUpload: undefined,
+  campaignImportPreview: undefined,
+  campaignImportSummary: undefined,
+  campaignImports: [],
+  generatedCampaigns: [],
+  campaignGeneratorType: "unused_credit_reminder",
+  premiumRecoveryPrograms: [],
+  premiumRecoveryProgramSuggestions: [],
+  weeklyRevenuePlan: undefined,
+  roiTrackingEntries: [],
+  roiTrackingSummary: undefined,
+  revenueOpportunities: [],
+  roomDeviceUtilization: undefined,
+  campaignClientSegments: undefined,
+  selectedCampaignClientSegment: "inactive_members",
+  campaignUtilizationFrom: initialCampaignUtilizationRange.from,
+  campaignUtilizationTo: initialCampaignUtilizationRange.to,
+  campaignUtilizationResourceType: "",
+  campaignUtilizationServiceCategory: "",
+  campaignLayerPage: initialRoute.campaignLayerPage ?? "dashboard",
   roles: [],
   selectedRoleId: "",
   staffShifts: [],
@@ -1621,6 +2221,67 @@ async function refreshDashboard(options: { silent?: boolean; renderAfter?: boole
         state.migrationValidationErrors = {};
         state.selectedMigrationBatchId = "";
       }
+      const campaignImports = (await loadPermittedDashboardData(
+        canManageMigration,
+        () => client.listCampaignImports(state.gym!.id) as Promise<{ imports?: CampaignImportBatchRecord[] }>,
+        { imports: [] }
+      )) as { imports?: CampaignImportBatchRecord[] };
+      state.campaignImports = campaignImports.imports ?? [];
+      const revenueOpportunities = (await loadPermittedDashboardData(
+        canManageMigration,
+        () => client.listRevenueOpportunities(state.gym!.id) as Promise<RevenueOpportunityResponse>,
+        { opportunities: [] }
+      )) as Partial<RevenueOpportunityResponse>;
+      state.revenueOpportunities = revenueOpportunities.opportunities ?? [];
+      const roomDeviceUtilization = (await loadPermittedDashboardData(
+        canManageMigration,
+        () =>
+          client.listRoomDeviceUtilization(state.gym!.id, {
+            from: state.campaignUtilizationFrom,
+            to: state.campaignUtilizationTo,
+            resourceType: state.campaignUtilizationResourceType,
+            serviceCategory: state.campaignUtilizationServiceCategory
+          }) as Promise<RoomDeviceUtilizationResponse>,
+        undefined
+      )) as RoomDeviceUtilizationResponse | undefined;
+      state.roomDeviceUtilization = roomDeviceUtilization;
+      const campaignClientSegments = (await loadPermittedDashboardData(
+        canManageMigration,
+        () => client.listClientSegments(state.gym!.id) as Promise<CampaignClientSegmentsResponse>,
+        undefined
+      )) as CampaignClientSegmentsResponse | undefined;
+      state.campaignClientSegments = campaignClientSegments;
+      const generatedCampaigns = (await loadPermittedDashboardData(
+        canManageMigration,
+        () => client.listGeneratedCampaigns(state.gym!.id) as Promise<GeneratedCampaignsResponse>,
+        { campaigns: [] }
+      )) as GeneratedCampaignsResponse;
+      state.generatedCampaigns = generatedCampaigns.campaigns ?? [];
+      const premiumRecoveryPrograms = (await loadPermittedDashboardData(
+        canManageMigration,
+        () => client.listPremiumRecoveryPrograms(state.gym!.id) as Promise<PremiumRecoveryProgramsResponse>,
+        { programs: [] }
+      )) as PremiumRecoveryProgramsResponse;
+      state.premiumRecoveryPrograms = premiumRecoveryPrograms.programs ?? [];
+      const premiumRecoverySuggestions = (await loadPermittedDashboardData(
+        canManageMigration,
+        () => client.suggestPremiumRecoveryPrograms(state.gym!.id) as Promise<PremiumRecoveryProgramSuggestionsResponse>,
+        { suggestions: [], services: [] }
+      )) as PremiumRecoveryProgramSuggestionsResponse;
+      state.premiumRecoveryProgramSuggestions = premiumRecoverySuggestions.suggestions ?? [];
+      const weeklyRevenuePlan = (await loadPermittedDashboardData(
+        canManageMigration,
+        () => client.getWeeklyRevenuePlan(state.gym!.id) as Promise<WeeklyRevenuePlanResponse>,
+        undefined
+      )) as WeeklyRevenuePlanResponse | undefined;
+      state.weeklyRevenuePlan = weeklyRevenuePlan?.plan;
+      const roiTracking = (await loadPermittedDashboardData(
+        canManageMigration,
+        () => client.listRoiTracking(state.gym!.id) as Promise<RoiTrackingResponse>,
+        undefined
+      )) as RoiTrackingResponse | undefined;
+      state.roiTrackingEntries = roiTracking?.entries ?? [];
+      state.roiTrackingSummary = roiTracking?.summary;
       try {
         state.posStripeConfig = (await client.getPosStripeConfig(state.gym.id)) as {
           enabled: boolean;
@@ -2161,6 +2822,15 @@ function renderDashboard() {
     case 'migration':
       content = renderMigrationAssistantView();
       break;
+    case 'campaign_layer':
+      content = renderCampaignLayerView();
+      break;
+    case 'weekly_plan':
+      content = renderWeeklyPlanView();
+      break;
+    case 'roi_tracking':
+      content = renderRoiTrackingView();
+      break;
     case 'marketing':
       content = renderMarketingView();
       break;
@@ -2225,6 +2895,9 @@ function renderDashboard() {
             ${dashboardTab("contracts", "Forms")}
             ${dashboardTab("member_portal", "Portal")}
             ${dashboardTab("migration", "Migration")}
+            ${dashboardTab("campaign_layer", "Campaign Layer")}
+            ${dashboardTab("weekly_plan", "Weekly Plan")}
+            ${dashboardTab("roi_tracking", "ROI")}
             ${dashboardTab("marketing", "Marketing")}
             ${dashboardTab("reports", "Reporting")}
             ${dashboardTab("settings", "Settings")}
@@ -5036,6 +5709,278 @@ function renderMemberPortalView() {
   `;
 }
 
+function renderWeeklyPlanView() {
+  const plan = state.weeklyRevenuePlan;
+  if (!plan) {
+    return `
+      <section class="club-panel club-page weekly-plan-page">
+        <div class="card-head">
+          <div>
+            <p class="eyebrow">Weekly Plan</p>
+            <h2>Weekly revenue action plan</h2>
+          </div>
+        </div>
+        <div class="empty-state">
+          <h3>No weekly plan ready yet</h3>
+          <p>Import campaign data or refresh the dashboard so the system can generate this week's plan.</p>
+        </div>
+      </section>
+    `;
+  }
+  const campaignAction = plan.actions.find((action) => action.campaign);
+  const clients = weeklyPlanClients(plan);
+  const resources = weeklyPlanResources(plan);
+  return `
+    <section class="club-panel club-page weekly-plan-page">
+      <div class="weekly-plan-hero">
+        <div>
+          <p class="eyebrow">Weekly Plan</p>
+          <h2>Weekly revenue action plan</h2>
+          <p>${escapeHtml(plan.summary)}</p>
+        </div>
+        <div class="weekly-plan-total">
+          <span>Estimated opportunity</span>
+          <strong>${escapeHtml(formatCurrency(plan.totalEstimatedRevenueCents))}</strong>
+          <small>Week of ${escapeHtml(formatWeekDate(plan.weekStartDate))}</small>
+        </div>
+      </div>
+      <div class="weekly-plan-grid">
+        <section class="migration-files-panel weekly-plan-leaks">
+          <div class="card-head">
+            <div>
+              <h3>Revenue leaks to watch</h3>
+              <p class="muted">Plain-English things costing the gym money this week.</p>
+            </div>
+          </div>
+          <ul>
+            ${plan.revenueLeaks.map((leak) => `<li>${escapeHtml(leak)}</li>`).join("")}
+          </ul>
+        </section>
+        <section class="migration-files-panel">
+          <div class="card-head">
+            <div>
+              <h3>Campaign to run</h3>
+              <p class="muted">Copy this into your SMS/email tool for now.</p>
+            </div>
+            ${campaignAction ? `<button type="button" class="ghost-button" data-weekly-copy-action="${escapeAttribute(campaignAction.id)}">Copy text</button>` : ""}
+          </div>
+          ${campaignAction?.campaign
+            ? renderWeeklyCampaignCopy(campaignAction.campaign)
+            : `<div class="empty-state"><h3>No campaign selected</h3><p>Generate a plan after importing clients and bookings.</p></div>`}
+        </section>
+      </div>
+      <section class="migration-files-panel">
+        <div class="card-head">
+          <div>
+            <h3>Top 3 actions</h3>
+            <p class="muted">Do these first. Keep the week simple.</p>
+          </div>
+          <span>${plan.actions.filter((action) => action.done).length} of ${plan.actions.length} done</span>
+        </div>
+        <div class="weekly-action-list">
+          ${plan.actions.map(renderWeeklyActionCard).join("")}
+        </div>
+      </section>
+      <div class="weekly-plan-grid">
+        <section class="migration-files-panel">
+          <div class="card-head">
+            <div>
+              <h3>Clients to contact</h3>
+              <p class="muted">The warmest people to message first.</p>
+            </div>
+            <span>${clients.length} clients</span>
+          </div>
+          ${clients.length ? `
+            <div class="weekly-client-list">
+              ${clients.map((client) => `
+                <article>
+                  <strong>${escapeHtml(client.name)}</strong>
+                  <span>${escapeHtml(client.reason)}</span>
+                  <small>${escapeHtml([client.email, client.phone].filter(Boolean).join(" - ") || "No contact info")}</small>
+                </article>
+              `).join("")}
+            </div>
+          ` : `<div class="empty-state"><h3>No client list yet</h3><p>Import clients, bookings, and memberships to fill this in.</p></div>`}
+        </section>
+        <section class="migration-files-panel">
+          <div class="card-head">
+            <div>
+              <h3>Resources/devices to fix</h3>
+              <p class="muted">The clearest schedule gaps to address.</p>
+            </div>
+            <span>${resources.length} related</span>
+          </div>
+          ${resources.length ? `
+            <div class="weekly-resource-list">
+              ${resources.map((resource) => `
+                <article>
+                  <strong>${escapeHtml(resource.name)}</strong>
+                  <span>${escapeHtml(resource.type)} - ${Math.round(resource.utilizationPercentage)}% utilized</span>
+                  <small>${escapeHtml(resource.weakestTimeBlock)}</small>
+                </article>
+              `).join("")}
+            </div>
+          ` : `<div class="empty-state"><h3>No underused resource yet</h3><p>Import rooms/devices and bookings to find weak windows.</p></div>`}
+        </section>
+      </div>
+    </section>
+  `;
+}
+
+function renderWeeklyActionCard(action: WeeklyRevenuePlanActionRecord) {
+  return `
+    <article class="weekly-action-card ${action.done ? "done" : ""}">
+      <div class="card-head">
+        <div>
+          <h4>${escapeHtml(action.title)}</h4>
+          <p class="muted">${escapeHtml(action.description)}</p>
+        </div>
+        <button type="button" class="${action.done ? "ghost-button" : ""}" data-weekly-action-id="${escapeAttribute(action.id)}" data-weekly-action-done="${action.done ? "false" : "true"}">
+          ${action.done ? "Undo" : "Mark done"}
+        </button>
+      </div>
+      <div class="campaign-draft-meta weekly-action-meta">
+        <span><strong>Opportunity</strong>${escapeHtml(formatCurrency(action.estimatedRevenueCents))}</span>
+        <span><strong>Clients</strong>${action.clients.length}</span>
+        <span><strong>Resources</strong>${action.resources.length}</span>
+      </div>
+      <p>${escapeHtml(action.ownerNote)}</p>
+      ${action.premiumProgramIdea ? `
+        <div class="weekly-program-idea">
+          <strong>${escapeHtml(action.premiumProgramIdea.title)}</strong>
+          <span>${escapeHtml(action.premiumProgramIdea.schedule)} - ${escapeHtml(formatCurrency(action.premiumProgramIdea.recommendedPriceCents))}</span>
+          <p>${escapeHtml(action.premiumProgramIdea.description)}</p>
+        </div>
+      ` : ""}
+    </article>
+  `;
+}
+
+function renderWeeklyCampaignCopy(campaign: WeeklyRevenuePlanCampaignRecord) {
+  return `
+    <div class="campaign-message-box">
+      <strong>${escapeHtml(campaign.name)}</strong>
+      <span class="muted">${escapeHtml(campaign.targetSegment)}</span>
+      <p><strong>SMS:</strong> ${escapeHtml(campaign.smsMessage)}</p>
+      <p><strong>Email subject:</strong> ${escapeHtml(campaign.emailSubject)}</p>
+      <pre>${escapeHtml(campaign.emailBody)}</pre>
+    </div>
+  `;
+}
+
+function renderRoiTrackingView() {
+  const summary = state.roiTrackingSummary ?? emptyRoiSummary();
+  const sourceOptions = roiSourceOptions();
+  const topCampaign = summary.topCampaignByRevenue;
+  return `
+    <section class="club-panel club-page roi-page">
+      <div class="card-head">
+        <div>
+          <p class="eyebrow">ROI</p>
+          <h2>ROI tracking</h2>
+          <p class="muted">Manually log results from campaigns and weekly actions so owners can see what the app is helping produce.</p>
+        </div>
+        <span>${state.roiTrackingEntries.length} entries</span>
+      </div>
+      <div class="stat-grid compact">
+        <article class="mini-card"><span>Total revenue generated by app</span><strong>${escapeHtml(formatCurrency(summary.totalRevenueGeneratedCents))}</strong></article>
+        <article class="mini-card"><span>Revenue this month</span><strong>${escapeHtml(formatCurrency(summary.revenueGeneratedThisMonthCents))}</strong></article>
+        <article class="mini-card"><span>Top campaign</span><strong>${escapeHtml(topCampaign ? topCampaign.sourceLabel : "None yet")}</strong><p class="muted">${escapeHtml(topCampaign ? formatCurrency(topCampaign.revenueGeneratedCents) : "Log campaign revenue to fill this in.")}</p></article>
+        <article class="mini-card"><span>Estimated ROI</span><strong>${summary.estimatedRoiPercent}%</strong><p class="muted">Compared to ${escapeHtml(formatCurrency(summary.monthlySoftwareCostCents))}/mo software cost.</p></article>
+      </div>
+      <div class="roi-grid">
+        <section class="migration-files-panel">
+          <div class="card-head">
+            <div>
+              <h3>Log a result</h3>
+              <p class="muted">Pick a campaign or weekly action and enter what happened.</p>
+            </div>
+          </div>
+          <form id="roi-tracking-form" class="roi-form">
+            <label class="field roi-form-span">
+              <span>Campaign or weekly action</span>
+              <select name="sourceKey" ${sourceOptions.length ? "" : "disabled"}>
+                ${sourceOptions.length
+                  ? sourceOptions.map((option) => `<option value="${escapeAttribute(option.key)}">${escapeHtml(option.label)}</option>`).join("")
+                  : `<option>No campaigns or weekly actions loaded</option>`}
+              </select>
+            </label>
+            ${renderInput("bookingsGenerated", "Bookings generated", "number", "0")}
+            ${renderInput("revenueGenerated", "Revenue generated", "number", "0")}
+            ${renderInput("membershipsSold", "Memberships sold", "number", "0")}
+            ${renderInput("packagesSold", "Packages sold", "number", "0")}
+            <label class="field roi-form-span">
+              <span>Notes</span>
+              <textarea name="notes" placeholder="Example: 3 people booked from the SMS and one upgraded at the desk."></textarea>
+            </label>
+            <div class="roi-form-actions roi-form-span">
+              <button type="submit" ${sourceOptions.length ? "" : "disabled"}>Save ROI entry</button>
+            </div>
+          </form>
+        </section>
+        <section class="migration-files-panel">
+          <div class="card-head">
+            <div>
+              <h3>Outcome totals</h3>
+              <p class="muted">Manual results entered so far.</p>
+            </div>
+          </div>
+          <div class="campaign-draft-meta roi-mini-metrics">
+            <span><strong>Bookings</strong>${summary.bookingsGenerated}</span>
+            <span><strong>Memberships</strong>${summary.membershipsSold}</span>
+            <span><strong>Packages</strong>${summary.packagesSold}</span>
+          </div>
+          <div class="weekly-program-idea">
+            <strong>ROI estimate</strong>
+            <span>${escapeHtml(formatCurrency(summary.revenueGeneratedThisMonthCents))} this month - ${escapeHtml(formatCurrency(summary.monthlySoftwareCostCents))} software cost</span>
+            <p>${summary.estimatedRoiPercent >= 0
+              ? `Estimated return is ${summary.estimatedRoiPercent}% above monthly software cost.`
+              : `Revenue has not covered the monthly software cost yet.`}</p>
+          </div>
+        </section>
+      </div>
+      <section class="migration-files-panel">
+        <div class="card-head">
+          <div>
+            <h3>ROI entries</h3>
+            <p class="muted">The latest manual campaign and action outcomes.</p>
+          </div>
+        </div>
+        ${state.roiTrackingEntries.length ? `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Source</th>
+                  <th>Revenue</th>
+                  <th>Bookings</th>
+                  <th>Memberships</th>
+                  <th>Packages</th>
+                  <th>Notes</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${state.roiTrackingEntries.map((entry) => `
+                  <tr>
+                    <td>${escapeHtml(entry.sourceLabel)}<br /><small class="muted">${entry.sourceType === "campaign" ? "Campaign" : "Weekly action"}</small></td>
+                    <td>${escapeHtml(formatCurrency(entry.revenueGeneratedCents))}</td>
+                    <td>${entry.bookingsGenerated}</td>
+                    <td>${entry.membershipsSold}</td>
+                    <td>${entry.packagesSold}</td>
+                    <td>${escapeHtml(entry.notes || "")}</td>
+                    <td>${escapeHtml(formatDateLabel(entry.createdAt))}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        ` : `<div class="empty-state"><h3>No ROI entries yet</h3><p>Log the result of a campaign or weekly action after it produces bookings, sales, or revenue.</p></div>`}
+      </section>
+    </section>
+  `;
+}
+
 function renderMarketingView() {
   const publicLayout = buildPublicSiteLayout("/");
   const publicFeatureFlags = state.publicGym?.featureFlags ?? state.gym?.featureFlags ?? [];
@@ -5092,6 +6037,1459 @@ function renderMarketingView() {
         `).join("")}
       </div>
     </section>
+  `;
+}
+
+function renderCampaignLayerView() {
+  if (!hasPermission(Permission.GymUpdate)) {
+    return `
+      <section class="club-panel club-page">
+        <div class="empty-state">
+          <h3>Campaign layer access needed</h3>
+          <p>Only gym owners or admins can view campaign revenue tools.</p>
+        </div>
+      </section>
+    `;
+  }
+  const metrics = campaignLayerMetrics();
+  return `
+    <section class="club-panel club-page campaign-layer-page">
+      <div class="card-head">
+        <div>
+          <p class="eyebrow">Campaign Layer</p>
+          <h2>${escapeHtml(campaignLayerPageLabel(state.campaignLayerPage))}</h2>
+          <p class="club-copy">Find missed revenue, underused capacity, and clients who need the next best action.</p>
+        </div>
+        <span>${escapeHtml(campaignLayerPageLabel(state.campaignLayerPage))}</span>
+      </div>
+      ${renderCampaignLayerNav()}
+      <div class="campaign-layer-scroll">
+        ${renderCampaignLayerContent(metrics)}
+      </div>
+    </section>
+  `;
+}
+
+function renderCampaignLayerNav() {
+  return `
+    <nav class="campaign-layer-nav" aria-label="Campaign layer sections">
+      ${CAMPAIGN_LAYER_PAGES.map((page) => `
+        <a
+          href="${campaignLayerPageToHash(page.key)}"
+          class="module-nav-button ${state.campaignLayerPage === page.key ? "active" : ""}"
+        >
+          ${escapeHtml(page.label)}
+        </a>
+      `).join("")}
+    </nav>
+  `;
+}
+
+function renderCampaignLayerContent(metrics: CampaignLayerMetrics) {
+  switch (state.campaignLayerPage) {
+    case "imports":
+      return renderCampaignImportsPage();
+    case "opportunities":
+      return renderCampaignOpportunitiesPage(metrics);
+    case "utilization":
+      return renderCampaignUtilizationPage(metrics);
+    case "clients":
+      return renderCampaignClientsPage(metrics);
+    case "campaigns":
+      return renderCampaignCampaignsPage(metrics);
+    case "programs":
+      return renderCampaignProgramsPage(metrics);
+    case "settings":
+      return renderCampaignSettingsPage(metrics);
+    case "dashboard":
+    default:
+      return renderCampaignDashboardHome(metrics);
+  }
+}
+
+function renderCampaignDashboardHome(metrics: CampaignLayerMetrics) {
+  return `
+    <div class="campaign-kpi-grid">
+      <article class="mini-card campaign-kpi-card accent">
+        <span>Estimated missed revenue this month</span>
+        <strong>${formatCurrency(metrics.estimatedMissedRevenueCents)}</strong>
+        <p class="muted">Calculated from inactive clients, low-usage members, unconverted visitors, and idle capacity.</p>
+      </article>
+      <article class="mini-card">
+        <span>Underused rooms/devices</span>
+        <strong>${metrics.underusedResources.length}</strong>
+        <p class="muted">${metrics.resources.length ? "No activity this month." : "Import rooms/devices to measure this."}</p>
+      </article>
+      <article class="mini-card">
+        <span>Inactive members</span>
+        <strong>${metrics.inactiveMembers.length}</strong>
+        <p class="muted">Cancelled, expired, frozen, past due, archived, or inactive records.</p>
+      </article>
+      <article class="mini-card">
+        <span>Unused credit members</span>
+        <strong>${metrics.unusedCreditMembers.length}</strong>
+        <p class="muted">Active members with no recent check-in signal.</p>
+      </article>
+      <article class="mini-card">
+        <span>First-time visitors not converted</span>
+        <strong>${metrics.firstTimeVisitorsNotConverted.length}</strong>
+        <p class="muted">Leads and trials that should be followed up.</p>
+      </article>
+    </div>
+
+    <div class="campaign-dashboard-grid">
+      <section class="migration-files-panel">
+        <div class="card-head">
+          <div>
+            <h3>Top 5 recommended revenue actions</h3>
+            <p class="muted">Sorted by estimated impact for this month.</p>
+          </div>
+          <span>${metrics.actions.length} actions</span>
+        </div>
+        ${renderCampaignActionsTable(metrics.actions)}
+      </section>
+
+      <section class="migration-files-panel campaign-chart-card">
+        <div class="card-head">
+          <div>
+            <h3>Opportunity mix</h3>
+            <p class="muted">Where the campaign layer sees revenue leakage.</p>
+          </div>
+        </div>
+        ${renderCampaignOpportunityChart(metrics)}
+      </section>
+    </div>
+  `;
+}
+
+function renderCampaignImportsPage() {
+  const preview = state.campaignImportPreview;
+  const selectedType = preview?.importType ?? state.campaignImportType;
+  const expectedFields = preview?.expectedFields ?? CAMPAIGN_IMPORT_EXPECTED_FIELDS[selectedType];
+  const targetFields = preview?.targetFields ?? ["ignore", ...expectedFields.map((field) => field.field)];
+  return `
+    <div class="campaign-page-stack">
+      <div class="card-head">
+        <div>
+          <h3>Import operational CSVs</h3>
+          <p class="club-copy">Import operational CSVs into a clean campaign data layer, even when you only have part of the old system export.</p>
+        </div>
+        <span>${state.campaignImports.length} imports</span>
+      </div>
+      <div class="stat-grid compact">
+        <article class="mini-card">
+          <span>Audience segments</span>
+          <strong>${state.members.length}</strong>
+          <p class="muted">Use members, customers, and leads as campaign audiences.</p>
+        </article>
+        <article class="mini-card">
+          <span>Leads</span>
+          <strong>${state.members.filter((member) => member.status === MemberStatus.Lead).length}</strong>
+          <p class="muted">Future follow-up and tour booking campaigns can start here.</p>
+        </article>
+        <article class="mini-card">
+          <span>Offers</span>
+          <strong>${state.publicPlans.length}</strong>
+          <p class="muted">Connect campaigns to public plans, trials, and packages.</p>
+        </article>
+        <article class="mini-card">
+          <span>Status</span>
+          <strong>${preview ? "Mapping" : "Ready"}</strong>
+          <p class="muted">Upload one CSV at a time. Partial imports are supported.</p>
+        </article>
+      </div>
+      <div class="migration-assistant-grid">
+        <form id="campaign-csv-preview-form" class="form-card migration-upload-card">
+          <div class="card-head">
+            <div>
+              <h3>CSV import</h3>
+              <p class="muted">Choose a data type, upload a CSV, then map columns before saving.</p>
+            </div>
+            <span>Upload</span>
+          </div>
+          <label class="field">
+            <span>Import type</span>
+            <select name="importType" data-campaign-import-type>
+              ${CAMPAIGN_IMPORT_TYPES.map(
+                (type) =>
+                  `<option value="${type.value}" ${type.value === selectedType ? "selected" : ""}>${type.label}</option>`
+              ).join("")}
+            </select>
+          </label>
+          <label class="migration-dropzone">
+            <span>Choose CSV file</span>
+            <input name="campaignCsvFile" type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values" />
+          </label>
+          <label class="field">
+            <span>Delimiter</span>
+            <select name="delimiter">
+              <option value="auto">Auto detect</option>
+              <option value="comma">Comma</option>
+              <option value="tab">Tab</option>
+            </select>
+          </label>
+          <button type="submit" class="save-button">Preview CSV</button>
+        </form>
+
+        <div class="migration-files-panel">
+          <div class="card-head">
+            <div>
+              <h3>Expected fields</h3>
+              <p class="muted">${escapeHtml(campaignImportTypeLabel(selectedType))} can be imported with any subset of these columns.</p>
+            </div>
+            <span>${expectedFields.length} fields</span>
+          </div>
+          <div class="campaign-field-grid">
+            ${expectedFields.map((field) => `
+              <article class="mini-card">
+                <span>${escapeHtml(field.required ? "Recommended" : "Optional")}</span>
+                <strong>${escapeHtml(field.label)}</strong>
+                <p class="muted">${escapeHtml(field.description)}</p>
+              </article>
+            `).join("")}
+          </div>
+        </div>
+      </div>
+
+      ${preview ? renderCampaignImportPreview(preview, targetFields) : ""}
+      ${state.campaignImportSummary ? renderCampaignImportSummary(state.campaignImportSummary) : ""}
+      ${renderCampaignImportHistory()}
+    </div>
+  `;
+}
+
+function renderCampaignOpportunitiesPage(metrics: CampaignLayerMetrics) {
+  return `
+    <div class="campaign-page-stack">
+      <section class="migration-files-panel">
+        <div class="card-head">
+          <div>
+            <h3>Revenue opportunities</h3>
+            <p class="muted">Prioritized actions the campaign layer can eventually automate.</p>
+          </div>
+          <span>${formatCurrency(metrics.estimatedMissedRevenueCents)} potential</span>
+        </div>
+        ${renderCampaignActionsTable(metrics.actions)}
+      </section>
+      <div class="stat-grid compact">
+        ${metrics.actions.map((action) => `
+          <article class="mini-card">
+            <span>${escapeHtml(action.category)}</span>
+            <strong>${formatCurrency(action.impactCents)}</strong>
+            <p class="muted">${escapeHtml(action.detail)}</p>
+          </article>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderCampaignUtilizationPage(metrics: CampaignLayerMetrics) {
+  const utilization = state.roomDeviceUtilization;
+  const rows = utilization?.resources ?? fallbackRoomDeviceUtilization(metrics);
+  const summary = utilization?.summary ?? summarizeFallbackUtilization(rows);
+  const resourceTypes = utilization?.filters.resourceTypes ?? uniqueStrings(rows.map((row) => row.type));
+  const serviceCategories = utilization?.filters.serviceCategories ?? uniqueStrings(rows.flatMap((row) => row.serviceCategories));
+  const topRows = rows.slice(0, 8);
+  return `
+    <div class="campaign-page-stack">
+      <form id="campaign-utilization-filter-form" class="migration-files-panel campaign-utilization-filters" data-campaign-utilization-form>
+        <div class="card-head">
+          <div>
+            <h3>Room and device utilization</h3>
+            <p class="muted">Filter resource performance by date range, type, and service category.</p>
+          </div>
+          <span>${rows.length} resources</span>
+        </div>
+        <div class="campaign-filter-grid">
+          <label class="field">
+            <span>Date from</span>
+            <input name="from" type="date" value="${escapeAttribute(state.campaignUtilizationFrom)}" />
+          </label>
+          <label class="field">
+            <span>Date to</span>
+            <input name="to" type="date" value="${escapeAttribute(state.campaignUtilizationTo)}" />
+          </label>
+          <label class="field">
+            <span>Resource type</span>
+            <select name="resourceType">
+              <option value="">All resource types</option>
+              ${resourceTypes.map((type) => `
+                <option value="${escapeAttribute(type)}" ${type === state.campaignUtilizationResourceType ? "selected" : ""}>${escapeHtml(type)}</option>
+              `).join("")}
+            </select>
+          </label>
+          <label class="field">
+            <span>Service category</span>
+            <select name="serviceCategory">
+              <option value="">All service categories</option>
+              ${serviceCategories.map((category) => `
+                <option value="${escapeAttribute(category)}" ${category === state.campaignUtilizationServiceCategory ? "selected" : ""}>${escapeHtml(category)}</option>
+              `).join("")}
+            </select>
+          </label>
+          <button type="submit" class="save-button">Apply filters</button>
+        </div>
+      </form>
+
+      <div class="stat-grid compact">
+        <article class="mini-card">
+          <span>Booked hours</span>
+          <strong>${formatHours(summary.bookedHours)}</strong>
+          <p class="muted">Detected bookings in the selected window.</p>
+        </article>
+        <article class="mini-card">
+          <span>Available hours</span>
+          <strong>${formatHours(summary.availableHours)}</strong>
+          <p class="muted">Estimated bookable capacity for matching resources.</p>
+        </article>
+        <article class="mini-card">
+          <span>Utilization</span>
+          <strong>${summary.utilizationPercentage}%</strong>
+          <p class="muted">Booked hours divided by available hours.</p>
+        </article>
+        <article class="mini-card">
+          <span>Estimated revenue</span>
+          <strong>${formatCurrency(summary.estimatedRevenueCents)}</strong>
+          <p class="muted">Revenue tied to detected bookings.</p>
+        </article>
+        <article class="mini-card">
+          <span>Missed revenue</span>
+          <strong>${formatCurrency(summary.estimatedMissedRevenueCents)}</strong>
+          <p class="muted">Gap to a ${Math.round(45)}% utilization target.</p>
+        </article>
+      </div>
+
+      <div class="campaign-dashboard-grid">
+        <section class="migration-files-panel campaign-chart-card">
+          <div class="card-head">
+            <div>
+              <h3>Utilization bar chart</h3>
+              <p class="muted">Lowest utilization appears first so off-peak opportunities are easy to spot.</p>
+            </div>
+            <span>${summary.utilizationPercentage}% average</span>
+          </div>
+          ${topRows.length
+            ? `
+              <div class="campaign-utilization-list">
+                ${topRows.map((resource) => `
+                  <div class="campaign-utilization-row">
+                    <div>
+                      <strong>${escapeHtml(resource.name)}</strong>
+                      <span>${escapeHtml(resource.type)}</span>
+                    </div>
+                    <div class="campaign-meter"><span style="width: ${Math.max(3, Math.min(100, resource.utilizationPercentage))}%"></span></div>
+                    <small>${resource.utilizationPercentage}%</small>
+                  </div>
+                `).join("")}
+              </div>
+            `
+            : `<div class="empty-state"><h3>No utilization data</h3><p>Import rooms/devices and bookings, or create resources and reservations.</p></div>`}
+        </section>
+
+        <section class="migration-files-panel">
+          <div class="card-head">
+            <h3>Weakest windows</h3>
+            <span>${rows.filter((row) => row.utilizationPercentage < 25).length} underused</span>
+          </div>
+          ${rows.length
+            ? rows.slice(0, 6).map((resource) => `
+              <article class="campaign-action-card">
+                <strong>${escapeHtml(resource.name)}</strong>
+                <span>${escapeHtml(resource.weakestDay)} · ${escapeHtml(resource.weakestTimeBlock)}</span>
+              </article>
+            `).join("")
+            : `<div class="empty-state"><h3>No weak windows yet</h3><p>Once bookings are loaded, this will show the clearest off-peak gaps.</p></div>`}
+        </section>
+      </div>
+
+      <section class="migration-files-panel">
+        <div class="card-head">
+          <div>
+            <h3>Room/device table</h3>
+            <p class="muted">Includes booked hours, available hours, revenue estimates, and suggested action entry points.</p>
+          </div>
+          <span>${rows.length} shown</span>
+        </div>
+        ${rows.length
+          ? `
+            <div class="table-wrap campaign-utilization-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Booked</th>
+                    <th>Available</th>
+                    <th>Util.</th>
+                    <th>Revenue</th>
+                    <th>Missed</th>
+                    <th>Busiest</th>
+                    <th>Weakest</th>
+                    <th>Weakest time</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rows.map((resource) => `
+                    <tr>
+                      <td><strong>${escapeHtml(resource.name)}</strong></td>
+                      <td>${escapeHtml(resource.type)}</td>
+                      <td>${formatHours(resource.bookedHoursThisWeek)}</td>
+                      <td>${formatHours(resource.availableHoursThisWeek)}</td>
+                      <td>${resource.utilizationPercentage}%</td>
+                      <td>${formatCurrency(resource.estimatedRevenueCents)}</td>
+                      <td>${formatCurrency(resource.estimatedMissedRevenueCents)}</td>
+                      <td>${escapeHtml(resource.busiestDay)}</td>
+                      <td>${escapeHtml(resource.weakestDay)}</td>
+                      <td>${escapeHtml(resource.weakestTimeBlock)}</td>
+                      <td>
+                        <div class="campaign-table-actions">
+                          <button type="button" class="ghost-button" data-utilization-action="campaign" data-resource-name="${escapeAttribute(resource.name)}">Generate off-peak campaign</button>
+                          <button type="button" class="ghost-button" data-utilization-action="program" data-resource-name="${escapeAttribute(resource.name)}">Suggest premium program</button>
+                          <button type="button" class="ghost-button" data-utilization-action="bookings" data-resource-name="${escapeAttribute(resource.name)}">View bookings</button>
+                        </div>
+                      </td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            </div>
+          `
+          : `<div class="empty-state"><h3>No rooms or devices match</h3><p>Change the filters or import rooms/devices and bookings in Campaign Layer Imports.</p></div>`}
+      </section>
+    </div>
+  `;
+}
+
+function fallbackRoomDeviceUtilization(metrics: CampaignLayerMetrics): RoomDeviceUtilizationRecord[] {
+  return metrics.resources.map((resource) => ({
+    id: resource.id,
+    name: resource.name,
+    type: resource.resourceType ?? "Resource",
+    bookedHoursThisWeek: resource.useCount,
+    availableHoursThisWeek: 40,
+    utilizationPercentage: resource.utilizationPercent,
+    estimatedRevenue: 0,
+    estimatedRevenueCents: 0,
+    estimatedMissedRevenue: Math.max(0, 18 - resource.useCount) * 35,
+    estimatedMissedRevenueCents: Math.max(0, 18 - resource.useCount) * 3500,
+    busiestDay: resource.useCount > 0 ? "Loaded from reservations" : "No bookings yet",
+    weakestDay: "Needs booking import",
+    weakestTimeBlock: "Needs booking times",
+    bookingCount: resource.useCount,
+    serviceCategories: []
+  }));
+}
+
+function summarizeFallbackUtilization(rows: RoomDeviceUtilizationRecord[]): RoomDeviceUtilizationResponse["summary"] {
+  const bookedHours = rows.reduce((total, row) => total + row.bookedHoursThisWeek, 0);
+  const availableHours = rows.reduce((total, row) => total + row.availableHoursThisWeek, 0);
+  return {
+    bookedHours,
+    availableHours,
+    utilizationPercentage: availableHours > 0 ? Math.round((bookedHours / availableHours) * 1000) / 10 : 0,
+    estimatedRevenueCents: rows.reduce((total, row) => total + row.estimatedRevenueCents, 0),
+    estimatedMissedRevenueCents: rows.reduce((total, row) => total + row.estimatedMissedRevenueCents, 0),
+    resourceCount: rows.length
+  };
+}
+
+function uniqueStrings(values: string[]) {
+  return [...new Set(values.filter(Boolean))].sort((left, right) => left.localeCompare(right));
+}
+
+function formatHours(value: number) {
+  return `${Math.round(value * 10) / 10}h`;
+}
+
+function renderCampaignClientsPage(metrics: CampaignLayerMetrics) {
+  const segmentation = state.campaignClientSegments ?? fallbackCampaignClientSegments(metrics);
+  const selectedSegment =
+    segmentation.segments.find((segment) => segment.key === state.selectedCampaignClientSegment) ??
+    segmentation.segments[0];
+  const rows = selectedSegment?.clients ?? [];
+  return `
+    <div class="campaign-page-stack">
+      <div class="stat-grid compact">
+        <article class="mini-card">
+          <span>Total clients</span>
+          <strong>${segmentation.summary.totalClients}</strong>
+          <p class="muted">Loaded from app records and campaign imports.</p>
+        </article>
+        <article class="mini-card">
+          <span>Segment matches</span>
+          <strong>${segmentation.summary.totalSegmentMatches}</strong>
+          <p class="muted">Clients can appear in more than one segment.</p>
+        </article>
+        <article class="mini-card">
+          <span>Average spend</span>
+          <strong>${formatCurrency(segmentation.averageClientSpendCents)}</strong>
+          <p class="muted">Used to detect high-value clients.</p>
+        </article>
+        ${segmentation.segments.slice(0, 2).map((segment) => `
+          <article class="mini-card">
+            <span>${escapeHtml(segment.label)}</span>
+            <strong>${segment.count}</strong>
+            <p class="muted">${escapeHtml(segment.description)}</p>
+          </article>
+        `).join("")}
+      </div>
+
+      <section class="migration-files-panel">
+        <div class="card-head">
+          <div>
+            <h3>Client segments</h3>
+            <p class="muted">Use tabs to pick the audience, then send the matching recommended action.</p>
+          </div>
+          <span>${segmentation.segments.length} segments</span>
+        </div>
+        <div class="campaign-segment-tabs">
+          ${segmentation.segments.map((segment) => `
+            <button
+              type="button"
+              class="tab-btn ${segment.key === selectedSegment?.key ? "active" : ""}"
+              data-campaign-client-segment="${escapeAttribute(segment.key)}"
+            >
+              ${escapeHtml(segment.label)}
+              <span class="consumer-tab-count">${segment.count}</span>
+            </button>
+          `).join("")}
+        </div>
+        ${selectedSegment ? `
+          <div class="campaign-segment-head">
+            <div>
+              <h4>${escapeHtml(selectedSegment.label)}</h4>
+              <p class="muted">${escapeHtml(selectedSegment.description)}</p>
+            </div>
+            <span>${selectedSegment.count} clients</span>
+          </div>
+        ` : ""}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Last visit</th>
+                <th>Total spend</th>
+                <th>Membership status</th>
+                <th>Recommended action</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.length
+                ? rows.map((row) => `
+                  <tr>
+                    <td><strong>${escapeHtml(row.clientName)}</strong></td>
+                    <td>${escapeHtml(row.email ?? "No email")}</td>
+                    <td>${escapeHtml(row.phone ?? "No phone")}</td>
+                    <td>${escapeHtml(formatClientSegmentDate(row.lastVisitDate))}</td>
+                    <td>${formatCurrency(row.totalSpendCents)}</td>
+                    <td>${escapeHtml(formatHeaderLabel(row.membershipStatus))}</td>
+                    <td>${escapeHtml(row.recommendedAction)}</td>
+                  </tr>
+                `).join("")
+                : `<tr><td colspan="7">No clients currently match this segment.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function fallbackCampaignClientSegments(metrics: CampaignLayerMetrics): CampaignClientSegmentsResponse {
+  const now = new Date().toISOString();
+  const inactiveRows = metrics.inactiveMembers.map((member) => fallbackSegmentRow(member, "Send a reactivation message with a class invite."));
+  const unusedCreditRows = metrics.unusedCreditMembers.map((member) => fallbackSegmentRow(member, "Send a use-your-credits reminder."));
+  const firstVisitRows = metrics.firstTimeVisitorsNotConverted.map((member) => fallbackSegmentRow(member, "Send a first-visit follow-up."));
+  const segments: CampaignClientSegment[] = [
+    {
+      key: "inactive_members",
+      label: "Inactive Members",
+      description: "Active membershipStatus but lastVisitDate older than 21 days.",
+      count: inactiveRows.length,
+      clients: inactiveRows
+    },
+    {
+      key: "unused_credit_members",
+      label: "Unused Credit Members",
+      description: "Active members with remainingCredits > 0 and no recent booking.",
+      count: unusedCreditRows.length,
+      clients: unusedCreditRows
+    },
+    {
+      key: "first_time_visitors",
+      label: "First-Time Visitors",
+      description: "Clients with one completed booking and no membership.",
+      count: firstVisitRows.length,
+      clients: firstVisitRows
+    },
+    {
+      key: "high_value_clients",
+      label: "High-Value Clients",
+      description: "Clients with totalSpend above studio average by at least 50%.",
+      count: 0,
+      clients: []
+    },
+    {
+      key: "upsell_candidates",
+      label: "Upsell Candidates",
+      description: "Clients who booked the same service 3+ times in the last 60 days but have no membership.",
+      count: 0,
+      clients: []
+    },
+    {
+      key: "review_candidates",
+      label: "Review Candidates",
+      description: "Clients with 5+ completed visits in the last 90 days.",
+      count: 0,
+      clients: []
+    }
+  ];
+  return {
+    generatedAt: now,
+    averageClientSpend: 0,
+    averageClientSpendCents: 0,
+    segments,
+    summary: {
+      totalClients: state.members.length,
+      totalSegmentMatches: segments.reduce((total, segment) => total + segment.count, 0)
+    }
+  };
+}
+
+function fallbackSegmentRow(member: MemberRecord, recommendedAction: string): CampaignClientSegmentRow {
+  return {
+    id: member.id,
+    clientName: `${member.firstName} ${member.lastName}`.trim() || "Client",
+    email: member.email,
+    phone: member.phone,
+    lastVisitDate: member.updatedAt,
+    totalSpend: 0,
+    totalSpendCents: 0,
+    membershipStatus: member.status,
+    recommendedAction,
+    evidence: {}
+  };
+}
+
+function formatClientSegmentDate(value: string | undefined) {
+  if (!value) {
+    return "No visit recorded";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+}
+
+function renderCampaignCampaignsPage(_metrics: CampaignLayerMetrics) {
+  const campaigns = state.generatedCampaigns;
+  return `
+    <section class="migration-files-panel campaign-generator-panel">
+      <div class="card-head">
+        <div>
+          <h3>Campaign generator</h3>
+          <p class="muted">Generate draft SMS and email copy from the current revenue segments. Nothing sends yet.</p>
+        </div>
+        <span>${campaigns.length} saved</span>
+      </div>
+      <form id="campaign-generator-form" class="campaign-generator-form">
+        <label>
+          Campaign type
+          <select name="campaignType">
+            ${CAMPAIGN_GENERATOR_TYPES.map((type) => `
+              <option value="${type.value}" ${state.campaignGeneratorType === type.value ? "selected" : ""}>
+                ${escapeHtml(type.label)}
+              </option>
+            `).join("")}
+          </select>
+        </label>
+        <button type="submit">Generate campaign</button>
+      </form>
+      <div class="campaign-readiness-list">
+        <span class="ready">SMS: draft only, Twilio-ready</span>
+        <span class="ready">Email: draft only, SendGrid-ready</span>
+        <span>Saved campaigns can be copied from this page</span>
+      </div>
+    </section>
+    <section class="migration-files-panel">
+      <div class="card-head">
+        <div>
+          <h3>Saved campaign drafts</h3>
+          <p class="muted">Copy the generated content now; delivery status is stored for future send integrations.</p>
+        </div>
+        <span>${campaigns.length} draft${campaigns.length === 1 ? "" : "s"}</span>
+      </div>
+      ${campaigns.length === 0 ? `
+        <div class="empty-state">
+          <strong>No campaigns generated yet</strong>
+          <p>Choose a campaign type above to create your first saved draft.</p>
+        </div>
+      ` : `
+        <div class="generated-campaign-list">
+          ${campaigns.map((campaign) => renderGeneratedCampaignCard(campaign)).join("")}
+        </div>
+      `}
+    </section>
+  `;
+}
+
+function renderGeneratedCampaignCard(campaign: GeneratedCampaignRecord) {
+  return `
+    <article class="generated-campaign-card">
+      <div class="card-head">
+        <div>
+          <h4>${escapeHtml(campaign.name)}</h4>
+          <p class="muted">${escapeHtml(campaignGeneratorTypeLabel(campaign.campaignType))} - ${escapeHtml(campaign.targetSegment)}</p>
+        </div>
+        <span class="status-pill">${escapeHtml(campaign.status)}</span>
+      </div>
+      <div class="campaign-draft-meta">
+        <span><strong>Send time</strong>${escapeHtml(formatDateLabel(campaign.recommendedSendTime))}</span>
+        <span><strong>Goal</strong>${escapeHtml(campaign.expectedGoal)}</span>
+        <span><strong>Est. revenue</strong>${escapeHtml(formatCurrency(campaign.estimatedRevenueCents))}</span>
+      </div>
+      <div class="campaign-copy-grid">
+        <div class="campaign-message-box">
+          <div class="message-box-head">
+            <strong>SMS</strong>
+            <button type="button" class="ghost-button" data-campaign-copy="${escapeHtml(campaign.id)}" data-copy-type="sms">Copy SMS</button>
+          </div>
+          <p>${escapeHtml(campaign.smsMessage)}</p>
+        </div>
+        <div class="campaign-message-box">
+          <div class="message-box-head">
+            <strong>Email</strong>
+            <button type="button" class="ghost-button" data-campaign-copy="${escapeHtml(campaign.id)}" data-copy-type="email">Copy email</button>
+          </div>
+          <p><strong>Subject:</strong> ${escapeHtml(campaign.emailSubject)}</p>
+          <pre>${escapeHtml(campaign.emailBody)}</pre>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderCampaignProgramsPage(metrics: CampaignLayerMetrics) {
+  const importedProgramCount = state.campaignImports
+    .filter((batch) => batch.importType === "services" || batch.importType === "memberships_packages")
+    .reduce((total, batch) => total + batch.importedCount, 0);
+  const programCards = [
+    { label: "Saved programs", count: state.premiumRecoveryPrograms.length, description: "Premium recovery programs saved to the database." },
+    { label: "Generated suggestions", count: state.premiumRecoveryProgramSuggestions.length, description: "Ideas based on underused rooms/devices." },
+    { label: "Imported services/packages", count: importedProgramCount, description: "Rows saved in the campaign import layer." },
+    { label: "Underused resources", count: metrics.underusedResources.length, description: "Rooms/devices that can anchor a premium offer." }
+  ];
+  return `
+    <div class="stat-grid compact">
+      ${programCards.map((card) => `
+        <article class="mini-card">
+          <span>${escapeHtml(card.label)}</span>
+          <strong>${card.count}</strong>
+          <p class="muted">${escapeHtml(card.description)}</p>
+        </article>
+      `).join("")}
+    </div>
+    <div class="campaign-dashboard-grid">
+      <section class="migration-files-panel">
+        <div class="card-head">
+          <div>
+            <h3>Premium recovery program builder</h3>
+            <p class="muted">Create a sellable recovery program from services, rooms, devices, and an underused schedule window.</p>
+          </div>
+        </div>
+        <form id="premium-program-builder-form" class="premium-program-form">
+          ${renderInput("title", "Program title", "text", "Sunday Nervous System Reset")}
+          ${renderInput("targetAudience", "Target audience", "text", "High-stress members and recovery-focused clients")}
+          <label class="field">
+            <span>Description</span>
+            <textarea name="description">A guided recovery session that turns unused room time into a premium reset experience.</textarea>
+          </label>
+          <label class="field">
+            <span>Included services</span>
+            <input name="includedServices" type="text" value="Sauna, breathwork, recovery coaching" />
+          </label>
+          ${renderInput("recommendedPrice", "Recommended price", "number", "49")}
+          ${renderInput("capacity", "Capacity", "number", "8")}
+          ${renderInput("schedule", "Schedule", "text", "Sunday Evening")}
+          ${renderInput("durationWeeks", "Duration in weeks", "number", "1")}
+          <label class="field premium-program-span">
+            <span>Campaign copy</span>
+            <textarea name="campaignCopy">Reset before Monday with a guided recovery session designed to help your nervous system settle.</textarea>
+          </label>
+          <label class="field premium-program-span">
+            <span>Post-program upsell</span>
+            <textarea name="postProgramUpsell">Offer a monthly recovery membership, sauna add-on, or recovery room pack.</textarea>
+          </label>
+          <div class="premium-program-actions premium-program-span">
+            <button type="submit">Save program</button>
+          </div>
+        </form>
+      </section>
+      <section class="migration-files-panel">
+        <div class="card-head">
+          <div>
+            <h3>Suggested programs</h3>
+            <p class="muted">Generated from weak utilization windows and matching services.</p>
+          </div>
+          <span>${state.premiumRecoveryProgramSuggestions.length} ideas</span>
+        </div>
+        <div class="premium-program-list">
+          ${state.premiumRecoveryProgramSuggestions.length
+            ? state.premiumRecoveryProgramSuggestions.map((program, index) => renderPremiumProgramSuggestion(program, index)).join("")
+            : `<div class="empty-state"><h3>No suggestions ready</h3><p>Import services and room/device data, or create a program manually.</p></div>`}
+        </div>
+      </section>
+    </div>
+    <section class="migration-files-panel">
+      <div class="card-head">
+        <div>
+          <h3>Saved premium programs</h3>
+          <p class="muted">Draft recovery offers ready to connect to campaigns, bookings, and checkout later.</p>
+        </div>
+        <span>${state.premiumRecoveryPrograms.length} saved</span>
+      </div>
+      <div class="premium-program-list">
+        ${state.premiumRecoveryPrograms.length
+          ? state.premiumRecoveryPrograms.map(renderPremiumProgramCard).join("")
+          : `<div class="empty-state"><h3>No programs saved yet</h3><p>Save a suggestion or create a custom recovery program above.</p></div>`}
+      </div>
+    </section>
+  `;
+}
+
+function renderPremiumProgramSuggestion(program: PremiumRecoveryProgramSuggestion, index: number) {
+  return `
+    <article class="premium-program-card">
+      <div class="card-head">
+        <div>
+          <h4>${escapeHtml(program.title)}</h4>
+          <p class="muted">${escapeHtml(program.reason)}</p>
+        </div>
+        <button type="button" class="ghost-button" data-save-program-suggestion="${index}">Save</button>
+      </div>
+      ${renderPremiumProgramDetails(program)}
+    </article>
+  `;
+}
+
+function renderPremiumProgramCard(program: PremiumRecoveryProgramRecord) {
+  return `
+    <article class="premium-program-card">
+      <div class="card-head">
+        <div>
+          <h4>${escapeHtml(program.title)}</h4>
+          <p class="muted">${escapeHtml(program.description)}</p>
+        </div>
+        <span class="status-pill">${escapeHtml(program.status)}</span>
+      </div>
+      ${renderPremiumProgramDetails(program)}
+    </article>
+  `;
+}
+
+function renderPremiumProgramDetails(program: PremiumRecoveryProgramInput) {
+  return `
+    <div class="campaign-draft-meta premium-program-meta">
+      <span><strong>Audience</strong>${escapeHtml(program.targetAudience)}</span>
+      <span><strong>Schedule</strong>${escapeHtml(program.schedule)}</span>
+      <span><strong>Price</strong>${escapeHtml(formatCurrency(program.recommendedPriceCents))}</span>
+      <span><strong>Capacity</strong>${program.capacity}</span>
+      <span><strong>Duration</strong>${program.durationWeeks} week${program.durationWeeks === 1 ? "" : "s"}</span>
+      <span><strong>Services</strong>${escapeHtml(program.includedServices.join(", ") || "Not set")}</span>
+    </div>
+    <div class="campaign-copy-grid">
+      <div class="campaign-message-box">
+        <strong>Campaign copy</strong>
+        <p>${escapeHtml(program.campaignCopy)}</p>
+      </div>
+      <div class="campaign-message-box">
+        <strong>Post-program upsell</strong>
+        <p>${escapeHtml(program.postProgramUpsell)}</p>
+      </div>
+    </div>
+  `;
+}
+
+function renderCampaignSettingsPage(metrics: CampaignLayerMetrics) {
+  const settings = studioSettings();
+  const resourceLabels = (settings.resourceTypesUsed ?? [])
+    .map((type) => STUDIO_RESOURCE_TYPES.find((resource) => resource.value === type)?.label ?? type)
+    .join(", ");
+  return `
+    <div class="campaign-dashboard-grid">
+      <section class="form-card">
+        <div class="card-head">
+          <div>
+            <h3>Revenue assumptions</h3>
+            <p class="muted">These are pulled from Settings so the campaign layer and ROI use the same studio assumptions.</p>
+          </div>
+        </div>
+        ${renderInput("averageSessionValue", "Average session price", "text", formatCurrency(settings.averageSessionPriceCents ?? metrics.averagePlanValueCents), true)}
+        ${renderInput("softwareMonthlyCost", "Software monthly cost", "text", formatCurrency(settings.softwareMonthlyCostCents ?? 29900), true)}
+        ${renderInput("targetMonthlyRevenue", "Target monthly revenue", "text", formatCurrency(settings.targetMonthlyRevenueCents ?? 0), true)}
+        <div class="settings-placeholder">
+          <strong>Resources</strong>
+          <p>${escapeHtml(resourceLabels || "No resource types selected yet.")}</p>
+          <a class="ghost-button" href="#/dashboard/settings/setup">Edit studio settings</a>
+        </div>
+      </section>
+      <section class="migration-files-panel">
+        <div class="card-head">
+          <h3>Data readiness</h3>
+          <span>${state.campaignImports.length} imports</span>
+        </div>
+        <div class="campaign-readiness-list">
+          ${CAMPAIGN_IMPORT_TYPES.map((type) => {
+            const imported = state.campaignImports.some((batch) => batch.importType === type.value);
+            return `<span class="${imported ? "ready" : ""}">${escapeHtml(type.label)} ${imported ? "ready" : "not imported"}</span>`;
+          }).join("")}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function renderCampaignImportPreview(preview: CampaignCsvPreviewResponse, targetFields: string[]) {
+  const headers = preview.headers;
+  return `
+    <form id="campaign-csv-confirm-form" class="migration-files-panel migration-mapping-panel">
+      <div class="card-head">
+        <div>
+          <h3>Map columns</h3>
+          <p class="muted">${escapeHtml(preview.fileName)} - ${preview.rowCount} rows detected. Preview shows the first ${Math.min(preview.sampleRows.length, 10)} rows.</p>
+        </div>
+        <span>${escapeHtml(campaignImportTypeLabel(preview.importType))}</span>
+      </div>
+      <details class="migration-sample-details" open>
+        <summary>Preview rows</summary>
+        <div class="migration-sample-table">
+          <table>
+            <thead>
+              <tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr>
+            </thead>
+            <tbody>
+              ${preview.sampleRows.map((row) => `
+                <tr>${headers.map((header) => `<td>${escapeHtml(row[header] ?? "")}</td>`).join("")}</tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      </details>
+      <div class="migration-column-table">
+        <table>
+          <thead>
+            <tr>
+              <th>CSV column</th>
+              <th>Map to</th>
+              <th>Confidence</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${preview.suggestedMappings.map((mapping) => `
+              <tr>
+                <td>
+                  <strong>${escapeHtml(mapping.sourceColumn)}</strong>
+                  ${mapping.sampleValues.length
+                    ? `<small>${mapping.sampleValues.map((value) => `<span class="migration-sample-chip">${escapeHtml(value)}</span>`).join("")}</small>`
+                    : `<small class="muted">No sample values</small>`}
+                </td>
+                <td>
+                  <select data-campaign-mapping data-source-column="${escapeAttribute(mapping.sourceColumn)}">
+                    ${renderCampaignTargetOptions(targetFields, mapping.targetField, preview.expectedFields)}
+                  </select>
+                </td>
+                <td>${Math.round(mapping.confidence * 100)}%</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+      <div class="migration-mapping-actions">
+        <button type="submit" class="save-button">Confirm import</button>
+      </div>
+    </form>
+  `;
+}
+
+function renderCampaignTargetOptions(
+  targetFields: string[],
+  selected: string,
+  expectedFields: CampaignImportExpectedField[]
+) {
+  return targetFields.map((field) => {
+    const label = field === "ignore"
+      ? "Ignore this column"
+      : expectedFields.find((expected) => expected.field === field)?.label ?? formatHeaderLabel(field);
+    return `<option value="${escapeAttribute(field)}" ${field === selected ? "selected" : ""}>${escapeHtml(label)}</option>`;
+  }).join("");
+}
+
+function renderCampaignImportSummary(summary: CampaignImportConfirmResponse["summary"]) {
+  return `
+    <div class="migration-files-panel">
+      <div class="card-head">
+        <div>
+          <h3>Import summary</h3>
+          <p class="muted">${escapeHtml(campaignImportTypeLabel(summary.importType))} saved to the campaign import ledger.</p>
+        </div>
+        <span>${summary.totalRows} rows</span>
+      </div>
+      <div class="stat-grid compact">
+        <article class="mini-card"><span>Imported</span><strong>${summary.rowsImported}</strong></article>
+        <article class="mini-card"><span>Skipped</span><strong>${summary.rowsSkipped}</strong></article>
+        <article class="mini-card"><span>Warnings</span><strong>${summary.rowsWithWarnings}</strong></article>
+        <article class="mini-card"><span>Errors</span><strong>${summary.rowsWithErrors}</strong></article>
+      </div>
+    </div>
+  `;
+}
+
+function renderCampaignImportHistory() {
+  const imports = state.campaignImports.slice(0, 8);
+  return `
+    <div class="migration-files-panel">
+      <div class="card-head">
+        <div>
+          <h3>Uploaded imports</h3>
+          <p class="muted">Saved CSV imports stay separate by type, so clients and bookings can arrive before everything else.</p>
+        </div>
+        <span>${state.campaignImports.length} total</span>
+      </div>
+      ${imports.length
+        ? `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>File</th>
+                  <th>Type</th>
+                  <th>Rows imported</th>
+                  <th>Skipped</th>
+                  <th>Errors</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${imports.map((batch) => `
+                  <tr>
+                    <td>${escapeHtml(batch.originalFilename)}</td>
+                    <td>${escapeHtml(campaignImportTypeLabel(batch.importType))}</td>
+                    <td>${batch.importedCount} / ${batch.rowCount}</td>
+                    <td>${batch.skippedCount}</td>
+                    <td>${batch.errorCount}</td>
+                    <td>${escapeHtml(formatDateLabel(batch.createdAt))}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        `
+        : `<div class="empty-state"><h3>No CSV imports yet</h3><p>Upload clients, bookings, services, memberships/packages, payments, or rooms/devices to start building the campaign layer.</p></div>`}
+    </div>
+  `;
+}
+
+function campaignImportTypeLabel(type: CampaignImportType) {
+  return CAMPAIGN_IMPORT_TYPES.find((item) => item.value === type)?.label ?? formatHeaderLabel(type);
+}
+
+function campaignImportTypeFromValue(value: string | undefined): CampaignImportType {
+  return CAMPAIGN_IMPORT_TYPES.some((item) => item.value === value)
+    ? (value as CampaignImportType)
+    : "clients";
+}
+
+function campaignGeneratorTypeLabel(type: GeneratedCampaignType) {
+  return CAMPAIGN_GENERATOR_TYPES.find((item) => item.value === type)?.label ?? formatHeaderLabel(type);
+}
+
+function campaignGeneratorTypeFromValue(value: string | undefined): GeneratedCampaignType {
+  return CAMPAIGN_GENERATOR_TYPES.some((item) => item.value === value)
+    ? (value as GeneratedCampaignType)
+    : "unused_credit_reminder";
+}
+
+function campaignCopyText(campaign: GeneratedCampaignRecord, copyType: "sms" | "email") {
+  if (copyType === "sms") {
+    return campaign.smsMessage;
+  }
+  return `Subject: ${campaign.emailSubject}\n\n${campaign.emailBody}`;
+}
+
+function weeklyCampaignCopyText(campaign: WeeklyRevenuePlanCampaignRecord) {
+  return [
+    `Campaign: ${campaign.name}`,
+    `Target: ${campaign.targetSegment}`,
+    "",
+    `SMS: ${campaign.smsMessage}`,
+    "",
+    `Email subject: ${campaign.emailSubject}`,
+    "",
+    campaign.emailBody
+  ].join("\n");
+}
+
+function weeklyPlanClients(plan: WeeklyRevenuePlanRecord) {
+  const byKey = new Map<string, WeeklyRevenuePlanClientRecord>();
+  for (const action of plan.actions) {
+    for (const client of action.clients) {
+      const key = client.email || client.phone || client.id || client.name;
+      if (!byKey.has(key)) {
+        byKey.set(key, client);
+      }
+    }
+  }
+  return [...byKey.values()];
+}
+
+function weeklyPlanResources(plan: WeeklyRevenuePlanRecord) {
+  const byKey = new Map<string, WeeklyRevenuePlanResourceRecord>();
+  for (const action of plan.actions) {
+    for (const resource of action.resources) {
+      const key = resource.id || resource.name;
+      if (!byKey.has(key)) {
+        byKey.set(key, resource);
+      }
+    }
+  }
+  return [...byKey.values()];
+}
+
+function formatWeekDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+}
+
+function emptyRoiSummary(): RoiTrackingSummary {
+  return {
+    totalRevenueGeneratedCents: 0,
+    revenueGeneratedThisMonthCents: 0,
+    topCampaignByRevenue: null,
+    monthlySoftwareCostCents: 29900,
+    estimatedRoiPercent: -100,
+    bookingsGenerated: 0,
+    membershipsSold: 0,
+    packagesSold: 0
+  };
+}
+
+function roiSourceOptions() {
+  const campaigns = state.generatedCampaigns.map((campaign) => ({
+    key: `campaign:${campaign.id}`,
+    sourceType: "campaign" as const,
+    sourceId: campaign.id,
+    sourceLabel: campaign.name,
+    label: `Campaign - ${campaign.name}`
+  }));
+  const weeklyActions = (state.weeklyRevenuePlan?.actions ?? []).map((action) => ({
+    key: `weekly_action:${action.id}`,
+    sourceType: "weekly_action" as const,
+    sourceId: action.id,
+    sourceLabel: action.title,
+    label: `Weekly action - ${action.title}`
+  }));
+  return [...campaigns, ...weeklyActions];
+}
+
+function roiInputFromForm(form: HTMLFormElement) {
+  const formData = new FormData(form);
+  const selectedKey = String(formData.get("sourceKey") ?? "");
+  const source = roiSourceOptions().find((option) => option.key === selectedKey);
+  if (!source) {
+    throw new Error("Choose a campaign or weekly action before saving ROI.");
+  }
+  return {
+    sourceType: source.sourceType,
+    sourceId: source.sourceId,
+    sourceLabel: source.sourceLabel,
+    bookingsGenerated: integerFromForm(formData, "bookingsGenerated", 0),
+    revenueGeneratedCents: dollarsToCents(stringFromForm(formData, "revenueGenerated")),
+    membershipsSold: integerFromForm(formData, "membershipsSold", 0),
+    packagesSold: integerFromForm(formData, "packagesSold", 0),
+    notes: stringFromForm(formData, "notes")
+  };
+}
+
+function premiumRecoveryProgramInputFromForm(form: HTMLFormElement): PremiumRecoveryProgramInput {
+  const formData = new FormData(form);
+  return {
+    title: stringFromForm(formData, "title"),
+    description: stringFromForm(formData, "description"),
+    targetAudience: stringFromForm(formData, "targetAudience"),
+    includedServices: splitCommaList(stringFromForm(formData, "includedServices")),
+    recommendedPriceCents: dollarsToCents(stringFromForm(formData, "recommendedPrice")),
+    capacity: integerFromForm(formData, "capacity", 8),
+    schedule: stringFromForm(formData, "schedule"),
+    durationWeeks: integerFromForm(formData, "durationWeeks", 1),
+    campaignCopy: stringFromForm(formData, "campaignCopy"),
+    postProgramUpsell: stringFromForm(formData, "postProgramUpsell"),
+    sourceJson: { source: "manual" }
+  };
+}
+
+function stringFromForm(formData: FormData, key: string) {
+  return String(formData.get(key) ?? "").trim();
+}
+
+function splitCommaList(value: string) {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function dollarsToCents(value: string) {
+  const amount = Number(value.replace(/[$,\s]/g, ""));
+  return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100)) : 0;
+}
+
+function integerFromForm(formData: FormData, key: string, fallback: number) {
+  const value = Number.parseInt(String(formData.get(key) ?? ""), 10);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+async function copyText(text: string) {
+  if (navigator.clipboard) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Fall back for browsers that expose Clipboard but block it in the current context.
+    }
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "true");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
+}
+
+function campaignLayerPageLabel(page: CampaignLayerPageKey) {
+  return CAMPAIGN_LAYER_PAGES.find((item) => item.key === page)?.label ?? "Dashboard";
+}
+
+function campaignLayerMetrics(): CampaignLayerMetrics {
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const recentCutoff = new Date(now);
+  recentCutoff.setDate(recentCutoff.getDate() - 30);
+  const averagePlanValueCents = averageMembershipPlanValueCents();
+  const inactiveMembers = state.members.filter((member) => isInactiveCampaignMember(member));
+  const activeMembers = state.members.filter((member) => !isInactiveCampaignMember(member));
+  const recentCheckInMemberIds = new Set(
+    state.checkInHistory
+      .filter((checkIn) => new Date(checkIn.checkedInAt).getTime() >= recentCutoff.getTime())
+      .map((checkIn) => checkIn.memberId)
+      .filter(Boolean)
+  );
+  const unusedCreditMembers = activeMembers.filter(
+    (member) => member.status === MemberStatus.Active && !recentCheckInMemberIds.has(member.id)
+  );
+  const firstTimeVisitorsNotConverted = state.members.filter(
+    (member) =>
+      member.status === MemberStatus.Lead ||
+      member.status === MemberStatus.Trial ||
+      (member.isLead === true && member.isMember !== true)
+  );
+  const resourceUseCounts = new Map<string, number>();
+  state.facilityReservations.forEach((reservation) => {
+    if (reservation.status !== "cancelled" && new Date(reservation.startsAt).getTime() >= monthStart.getTime()) {
+      resourceUseCounts.set(reservation.resourceId, (resourceUseCounts.get(reservation.resourceId) ?? 0) + 1);
+    }
+  });
+  state.classResourceAllocations.forEach((allocation) => {
+    if (new Date(allocation.startsAt).getTime() >= monthStart.getTime()) {
+      resourceUseCounts.set(allocation.resourceId, (resourceUseCounts.get(allocation.resourceId) ?? 0) + 1);
+    }
+  });
+  const resources = state.resources
+    .filter((resource) => resource.status !== "archived")
+    .map((resource) => {
+      const useCount = resourceUseCounts.get(resource.id) ?? 0;
+      return {
+        id: resource.id,
+        name: resource.name,
+        resourceType: resource.resourceType,
+        utilizationPercent: Math.min(100, Math.round(useCount * 20)),
+        useCount
+      };
+    });
+  const underusedResources = resources.filter((resource) => resource.useCount === 0);
+  const rawActions = [
+    {
+      category: "Win back inactive members",
+      action: "Send a reactivation offer",
+      detail: "Cancelled, expired, frozen, past-due, or archived members are the fastest recovery audience.",
+      audience: inactiveMembers.length,
+      impactCents: inactiveMembers.length * averagePlanValueCents
+    },
+    {
+      category: "Unused credits",
+      action: "Prompt members to book",
+      detail: "Active members without recent check-ins need a credit-use or class-booking reminder.",
+      audience: unusedCreditMembers.length,
+      impactCents: unusedCreditMembers.length * 3500
+    },
+    {
+      category: "First visit follow-up",
+      action: "Ask visitors to convert",
+      detail: "Leads and trials should get a tour, intro offer, or membership follow-up.",
+      audience: firstTimeVisitorsNotConverted.length,
+      impactCents: firstTimeVisitorsNotConverted.length * 4900
+    },
+    {
+      category: "Idle rooms/devices",
+      action: "Promote open capacity",
+      detail: "Underused rooms and devices can be turned into bookable offers or staff-led sessions.",
+      audience: underusedResources.length,
+      impactCents: underusedResources.length * 12000
+    },
+    {
+      category: "Data completion",
+      action: "Import missing files",
+      detail: "More complete clients, bookings, services, payments, and resources data improves recommendations.",
+      audience: Math.max(0, CAMPAIGN_IMPORT_TYPES.length - uniqueCampaignImportTypeCount()),
+      impactCents: Math.max(0, CAMPAIGN_IMPORT_TYPES.length - uniqueCampaignImportTypeCount()) * 7500
+    }
+  ];
+  const backendActions = state.revenueOpportunities.map((opportunity, index) => ({
+    rank: index + 1,
+    category: campaignOpportunityTypeLabel(opportunity.type),
+    action: opportunity.title,
+    detail: `${opportunity.description} ${opportunity.recommendedAction}`,
+    audience: campaignOpportunityAudience(opportunity),
+    impactCents: opportunity.estimatedRevenueCents
+  }));
+  const actions = (backendActions.length ? backendActions : rawActions)
+    .sort((left, right) => right.impactCents - left.impactCents)
+    .slice(0, 5)
+    .map((action, index) => ({ ...action, rank: index + 1 }));
+  return {
+    estimatedMissedRevenueCents: actions.reduce((total, action) => total + action.impactCents, 0),
+    averagePlanValueCents,
+    activeMembers,
+    inactiveMembers,
+    unusedCreditMembers,
+    firstTimeVisitorsNotConverted,
+    resources,
+    underusedResources,
+    actions
+  };
+}
+
+function isInactiveCampaignMember(member: MemberRecord) {
+  return (
+    member.status === MemberStatus.Cancelled ||
+    member.status === MemberStatus.Expired ||
+    member.status === MemberStatus.Frozen ||
+    member.status === MemberStatus.PastDue ||
+    member.status === MemberStatus.Archived ||
+    member.recordStatus === "inactive" ||
+    member.recordStatus === "archived"
+  );
+}
+
+function campaignOpportunityTypeLabel(type: RevenueOpportunityType) {
+  const labels: Record<RevenueOpportunityType, string> = {
+    UNDERUSED_RESOURCE: "Underused resource",
+    UNUSED_CREDITS: "Unused credits",
+    INACTIVE_MEMBER: "Inactive member",
+    FIRST_VISIT_NOT_CONVERTED: "First visit follow-up",
+    HIGH_USAGE_UPGRADE: "Upgrade candidate",
+    UNDERUSED_SERVICE: "Underused service",
+    PREMIUM_PROGRAM_OPPORTUNITY: "Premium program"
+  };
+  return labels[type];
+}
+
+function campaignOpportunityAudience(opportunity: RevenueOpportunityRecord) {
+  const evidence = opportunity.evidence ?? {};
+  if (typeof evidence.audience === "number") {
+    return evidence.audience;
+  }
+  if (typeof evidence.remainingCredits === "number") {
+    return evidence.remainingCredits;
+  }
+  if (typeof evidence.completedBookings === "number") {
+    return evidence.completedBookings;
+  }
+  return 1;
+}
+
+function averageMembershipPlanValueCents() {
+  const pricedPlans = state.plans.filter((plan) => plan.priceCents > 0);
+  if (pricedPlans.length === 0) {
+    return 9900;
+  }
+  return Math.round(
+    pricedPlans.reduce((total, plan) => total + plan.priceCents, 0) / pricedPlans.length
+  );
+}
+
+function uniqueCampaignImportTypeCount() {
+  return new Set(state.campaignImports.map((batch) => batch.importType)).size;
+}
+
+function renderCampaignActionsTable(actions: CampaignRevenueAction[]) {
+  return `
+    <div class="table-wrap">
+      <table class="campaign-action-table">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Action</th>
+            <th>Audience</th>
+            <th>Est. impact</th>
+            <th>Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${actions.map((action) => `
+            <tr>
+              <td>${action.rank}</td>
+              <td><strong>${escapeHtml(action.action)}</strong><br /><small>${escapeHtml(action.category)}</small></td>
+              <td>${action.audience}</td>
+              <td>${formatCurrency(action.impactCents)}</td>
+              <td>${escapeHtml(action.detail)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderCampaignOpportunityChart(metrics: CampaignLayerMetrics) {
+  const values = [
+    { label: "Inactive", value: metrics.inactiveMembers.length },
+    { label: "Unused credits", value: metrics.unusedCreditMembers.length },
+    { label: "Visitors", value: metrics.firstTimeVisitorsNotConverted.length },
+    { label: "Idle resources", value: metrics.underusedResources.length }
+  ];
+  const max = Math.max(1, ...values.map((entry) => entry.value));
+  return `
+    <div class="campaign-chart-bars">
+      ${values.map((entry) => `
+        <div class="campaign-chart-row">
+          <span>${escapeHtml(entry.label)}</span>
+          <div class="campaign-meter"><span style="width: ${Math.max(4, Math.round((entry.value / max) * 100))}%"></span></div>
+          <strong>${entry.value}</strong>
+        </div>
+      `).join("")}
+    </div>
   `;
 }
 
@@ -6340,6 +8738,19 @@ function toDateInputValue(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function campaignDefaultUtilizationRange() {
+  const from = new Date();
+  from.setHours(0, 0, 0, 0);
+  const day = from.getDay();
+  from.setDate(from.getDate() + (day === 0 ? -6 : 1 - day));
+  const to = new Date(from);
+  to.setDate(to.getDate() + 7);
+  return {
+    from: toDateInputValue(from),
+    to: toDateInputValue(to)
+  };
+}
+
 function toMonthKey(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -6389,6 +8800,170 @@ function downloadTextFile(filename: string, contents: string, type: string) {
   URL.revokeObjectURL(url);
 }
 
+function studioSettings() {
+  return state.gym?.studioSettings ?? {};
+}
+
+function studioSetupWizard() {
+  return state.gym?.setupWizard ?? { currentStep: "profile" as StudioSetupStep, completedSteps: [] };
+}
+
+function studioSetupCompletedSteps() {
+  return new Set(studioSetupWizard().completedSteps ?? []);
+}
+
+function nextStudioSetupStep(completedSteps: Set<StudioSetupStep>): StudioSetupStep | undefined {
+  return STUDIO_SETUP_STEPS.find((step) => !completedSteps.has(step.key))?.key;
+}
+
+function centsToDollarsInput(cents?: number) {
+  return typeof cents === "number" ? (cents / 100).toFixed(2) : "";
+}
+
+function studioOperatingHours() {
+  return state.gym?.operatingHours ?? {};
+}
+
+function renderStudioSetupWizard() {
+  const completed = studioSetupCompletedSteps();
+  const completedCount = completed.size;
+  const totalCount = STUDIO_SETUP_STEPS.length;
+  return `
+    <div class="club-panel studio-setup-wizard">
+      <div class="card-head">
+        <div>
+          <h3>Setup wizard</h3>
+          <p class="club-copy">A simple path from empty account to first usable revenue plan.</p>
+        </div>
+        <span>${completedCount} of ${totalCount} complete</span>
+      </div>
+      <div class="studio-setup-progress" aria-label="Setup progress">
+        <span style="width: ${Math.round((completedCount / totalCount) * 100)}%"></span>
+      </div>
+      <div class="studio-setup-steps">
+        ${STUDIO_SETUP_STEPS.map((step, index) => renderStudioSetupStep(step, index, completed.has(step.key))).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderStudioSetupStep(
+  step: (typeof STUDIO_SETUP_STEPS)[number],
+  index: number,
+  complete: boolean
+) {
+  const action = setupStepAction(step.key);
+  return `
+    <article class="studio-setup-step${complete ? " complete" : ""}">
+      <div class="studio-setup-number">${complete ? "OK" : index + 1}</div>
+      <div>
+        <strong>${escapeHtml(step.label)}</strong>
+        <p>${escapeHtml(step.description)}</p>
+      </div>
+      <div class="studio-setup-actions">
+        ${action}
+        <button type="button" class="ghost-button" data-studio-setup-complete="${step.key}" ${complete ? "disabled" : ""}>
+          ${complete ? "Done" : "Mark done"}
+        </button>
+      </div>
+    </article>
+  `;
+}
+
+function setupStepAction(step: StudioSetupStep) {
+  switch (step) {
+    case "rooms_devices":
+      return `<button type="button" class="ghost-button" data-dashboard-view="locations">Open resources</button>`;
+    case "services":
+      return `<a class="ghost-button" href="#/dashboard/campaign-layer/imports">Import services</a>`;
+    case "first_csv":
+      return `<a class="ghost-button" href="#/dashboard/campaign-layer/imports">Upload CSV</a>`;
+    case "first_revenue_plan":
+      return `<button type="button" class="ghost-button" data-dashboard-view="weekly_plan">Open weekly plan</button>`;
+    case "profile":
+    default:
+      return `<button type="button" class="ghost-button" data-studio-profile-focus>Profile settings</button>`;
+  }
+}
+
+function renderStudioSettingsForm() {
+  const gym = state.gym;
+  const settings = studioSettings();
+  const canEdit = hasPermission(Permission.GymUpdate);
+  return `
+    <form id="studio-settings-form" class="form-card studio-settings-form">
+      <div class="card-head">
+        <div>
+          <h3>Studio profile and revenue settings</h3>
+          <p class="club-copy">These values power setup, utilization estimates, ROI, and future campaign recommendations.</p>
+        </div>
+        <span>${canEdit ? "Editable" : "Read only"}</span>
+      </div>
+      <div class="two-up stacked-mobile">
+        ${renderInput("studioName", "Studio name", "text", gym?.name ?? "", !canEdit)}
+        <label class="field">
+          <span>Business type</span>
+          <select name="businessType" ${canEdit ? "" : "disabled"}>
+            ${STUDIO_BUSINESS_TYPES.map((type) => `
+              <option value="${escapeAttribute(type)}" ${settings.businessType === type ? "selected" : ""}>${escapeHtml(type)}</option>
+            `).join("")}
+          </select>
+        </label>
+      </div>
+      <div class="two-up stacked-mobile">
+        ${renderInput("timezone", "Timezone", "text", gym?.timezone ?? "America/New_York", !canEdit)}
+        ${renderInput("defaultBufferMinutes", "Default buffer time (minutes)", "number", String(settings.defaultBufferMinutes ?? 15), !canEdit)}
+      </div>
+      <div class="three-up stacked-mobile">
+        ${renderInput("averageSessionPrice", "Average session price", "number", centsToDollarsInput(settings.averageSessionPriceCents), !canEdit)}
+        ${renderInput("softwareMonthlyCost", "Software monthly cost", "number", centsToDollarsInput(settings.softwareMonthlyCostCents), !canEdit)}
+        ${renderInput("targetMonthlyRevenue", "Target monthly revenue", "number", centsToDollarsInput(settings.targetMonthlyRevenueCents), !canEdit)}
+      </div>
+      ${renderOperatingHoursEditor(canEdit)}
+      <div class="studio-resource-picker">
+        <span class="club-note-label">Resource types used</span>
+        <div class="studio-resource-grid">
+          ${STUDIO_RESOURCE_TYPES.map((resource) => {
+            const checked = (settings.resourceTypesUsed ?? []).includes(resource.value);
+            return `
+              <label class="permission-chip${checked ? " active" : ""}">
+                <input type="checkbox" name="resourceTypesUsed" value="${resource.value}" ${checked ? "checked" : ""} ${canEdit ? "" : "disabled"} />
+                <span>${escapeHtml(resource.label)}</span>
+              </label>
+            `;
+          }).join("")}
+        </div>
+      </div>
+      <button type="submit" class="save-button" ${canEdit ? "" : "disabled"}>Save studio settings</button>
+    </form>
+  `;
+}
+
+function renderOperatingHoursEditor(canEdit: boolean) {
+  const hours = studioOperatingHours();
+  return `
+    <fieldset class="studio-hours-fieldset">
+      <legend>Operating hours by day</legend>
+      <div class="studio-hours-grid">
+        ${STUDIO_DAYS.map((day) => {
+          const firstRange = hours[day.key]?.[0];
+          const isOpen = Boolean(firstRange);
+          return `
+            <div class="studio-hours-row">
+              <label class="studio-hours-open">
+                <input type="checkbox" name="open_${day.key}" value="true" ${isOpen ? "checked" : ""} ${canEdit ? "" : "disabled"} />
+                <span>${day.label}</span>
+              </label>
+              <input name="opensAt_${day.key}" type="time" value="${escapeAttribute(firstRange?.opensAt ?? "09:00")}" ${canEdit ? "" : "disabled"} />
+              <input name="closesAt_${day.key}" type="time" value="${escapeAttribute(firstRange?.closesAt ?? "17:00")}" ${canEdit ? "" : "disabled"} />
+            </div>
+          `;
+        }).join("")}
+      </div>
+    </fieldset>
+  `;
+}
+
 function renderSettingsView() {
   const activeLocations = state.locations.filter((location) => !location.archivedAt);
   const content = renderSettingsSectionContent(activeLocations);
@@ -6435,6 +9010,8 @@ function renderSettingsSectionContent(activeLocations: LocationRecord[]) {
             <article class="mini-card"><span>Slug</span><strong>${escapeHtml(state.gym?.slug ?? "n/a")}</strong></article>
             <article class="mini-card"><span>Timezone</span><strong>${escapeHtml(state.gym?.timezone ?? "America/New_York")}</strong></article>
             <article class="mini-card"><span>Locations</span><strong>${state.locations.length}</strong></article>
+            <article class="mini-card"><span>Business type</span><strong>${escapeHtml(studioSettings().businessType ?? "Not set")}</strong></article>
+            <article class="mini-card"><span>Target revenue</span><strong>${formatCurrency(studioSettings().targetMonthlyRevenueCents ?? 0)}</strong></article>
           </div>
         </div>
       `;
@@ -6649,6 +9226,8 @@ function renderSettingsSectionContent(activeLocations: LocationRecord[]) {
     default:
       return `
         <div class="settings-grid settings-grid-wide">
+          ${renderStudioSetupWizard()}
+          ${renderStudioSettingsForm()}
           <div class="club-panel">
             <h3>Appearance</h3>
             <p class="club-copy">Choose whether the dashboard should use a light or dark presentation.</p>
@@ -7943,6 +10522,7 @@ function renderNewGymSignupDashboard(bannerMarkup: string) {
         <p class="club-copy">Start a workspace and capture what needs to move from the old gym system.</p>
       </div>
       <div class="head-actions">
+        <button type="submit" form="register-form" class="save-button">Create gym</button>
         <a href="?#/dashboard" class="ghost-button route-link">Back to login</a>
         <a href="?admin=1#/dashboard" class="ghost-button route-link">Admin login</a>
       </div>
@@ -8351,6 +10931,48 @@ function bindEvents() {
     state.selectedLocationId = locationId;
     render();
   });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-studio-profile-focus]").forEach((button) => {
+    button.addEventListener("click", () => {
+      button.closest(".settings-content")?.querySelector("#studio-settings-form")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-studio-setup-complete]").forEach((button) => {
+    button.addEventListener("click", () => {
+      void (async () => {
+        if (!state.gym) {
+          return;
+        }
+        if (!hasPermission(Permission.GymUpdate)) {
+          throw new Error("Gym update permission is required to update setup progress.");
+        }
+        const step = button.dataset.studioSetupComplete as StudioSetupStep | undefined;
+        if (!step) {
+          return;
+        }
+        const completedSteps = studioSetupCompletedSteps();
+        completedSteps.add(step);
+        const currentStep = nextStudioSetupStep(completedSteps);
+        const updatedGym = (await client.updateGym(state.gym.id, {
+          setupWizard: {
+            currentStep: currentStep ?? step,
+            completedSteps: [...completedSteps],
+            ...(completedSteps.size === STUDIO_SETUP_STEPS.length ? { completedAt: new Date().toISOString() } : {})
+          }
+        })) as GymRecord;
+        state.gym = updatedGym;
+        setBanner("success", "Setup progress updated.");
+        render();
+      })().catch((error) => {
+        setBanner("error", describeError(error));
+        render();
+      });
+    });
   });
 
   app.querySelectorAll<HTMLSelectElement>("[data-class-session-select]").forEach((select) => {
@@ -9436,6 +12058,19 @@ function bindEvents() {
     await refreshDashboard({ silent: true });
   });
 
+  bindForm("studio-settings-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    if (!hasPermission(Permission.GymUpdate)) {
+      throw new Error("Gym update permission is required to save studio settings.");
+    }
+    const updatedGym = (await client.updateGym(state.gym.id, studioSettingsUpdateFromForm(form))) as GymRecord;
+    state.gym = updatedGym;
+    setBanner("success", "Studio setup settings saved.");
+    render();
+  });
+
   bindForm("create-plan-form", async (form) => {
     if (!state.gym) {
       return;
@@ -9837,6 +12472,211 @@ function bindEvents() {
           : "Consumer created."
     );
     void refreshDashboard({ silent: true });
+  });
+
+  const campaignImportTypeSelect = app.querySelector<HTMLSelectElement>("[data-campaign-import-type]");
+  campaignImportTypeSelect?.addEventListener("change", () => {
+    const nextType = campaignImportTypeFromValue(campaignImportTypeSelect.value);
+    state.campaignImportType = nextType;
+    state.campaignImportUpload = undefined;
+    state.campaignImportPreview = undefined;
+    state.campaignImportSummary = undefined;
+    render();
+  });
+
+  bindForm("campaign-csv-preview-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const upload = await campaignCsvUploadFromForm(form);
+    state.campaignImportType = upload.importType;
+    const preview = (await client.previewCampaignCsvImport(state.gym.id, upload)) as CampaignCsvPreviewResponse;
+    state.campaignImportUpload = upload;
+    state.campaignImportPreview = preview;
+    state.campaignImportSummary = undefined;
+    setBanner("success", "CSV preview ready. Review the suggested column mappings.");
+    render();
+  });
+
+  bindForm("campaign-csv-confirm-form", async () => {
+    if (!state.gym || !state.campaignImportUpload || !state.campaignImportPreview) {
+      throw new Error("Preview a campaign CSV before confirming the import.");
+    }
+    const mappings = Array.from(app.querySelectorAll<HTMLSelectElement>("[data-campaign-mapping]")).map((select) => ({
+      sourceColumn: select.dataset.sourceColumn ?? "",
+      targetField: select.value
+    }));
+    const response = (await client.confirmCampaignCsvImport(state.gym.id, {
+      ...state.campaignImportUpload,
+      importType: state.campaignImportPreview.importType,
+      mappings
+    })) as CampaignImportConfirmResponse;
+    state.campaignImportSummary = response.summary;
+    state.campaignImports = [
+      response.batch,
+      ...state.campaignImports.filter((batch) => batch.id !== response.batch.id)
+    ];
+    setBanner("success", `${response.summary.rowsImported} rows imported into the campaign layer.`);
+    render();
+  });
+
+  bindForm("campaign-utilization-filter-form", async (form) => {
+    const formData = new FormData(form);
+    state.campaignUtilizationFrom = String(formData.get("from") ?? state.campaignUtilizationFrom);
+    state.campaignUtilizationTo = String(formData.get("to") ?? state.campaignUtilizationTo);
+    state.campaignUtilizationResourceType = String(formData.get("resourceType") ?? "");
+    state.campaignUtilizationServiceCategory = String(formData.get("serviceCategory") ?? "");
+    await refreshDashboard({ silent: true });
+    setBanner("success", "Room and device utilization refreshed.");
+    render();
+  });
+
+  bindForm("campaign-generator-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const formData = new FormData(form);
+    const campaignType = campaignGeneratorTypeFromValue(String(formData.get("campaignType") ?? ""));
+    state.campaignGeneratorType = campaignType;
+    const response = (await client.generateCampaign(state.gym.id, {
+      campaignType
+    })) as GeneratedCampaignResponse;
+    state.generatedCampaigns = [
+      response.campaign,
+      ...state.generatedCampaigns.filter((campaign) => campaign.id !== response.campaign.id)
+    ];
+    setBanner("success", `${response.campaign.name} campaign generated and saved as a draft.`);
+    render();
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-campaign-copy]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const campaign = state.generatedCampaigns.find((item) => item.id === button.dataset.campaignCopy);
+      const copyType = button.dataset.copyType === "email" ? "email" : "sms";
+      if (!campaign) {
+        return;
+      }
+      await copyText(campaignCopyText(campaign, copyType));
+      setBanner("success", `${copyType === "email" ? "Email" : "SMS"} copy placed on clipboard.`);
+      render();
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-weekly-copy-action]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const action = state.weeklyRevenuePlan?.actions.find((item) => item.id === button.dataset.weeklyCopyAction);
+      if (!action?.campaign) {
+        return;
+      }
+      await copyText(weeklyCampaignCopyText(action.campaign));
+      setBanner("success", "Weekly campaign text placed on clipboard.");
+      render();
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-weekly-action-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!state.gym) {
+        return;
+      }
+      const actionId = button.dataset.weeklyActionId;
+      if (!actionId) {
+        return;
+      }
+      const response = (await client.updateWeeklyRevenuePlanAction(state.gym.id, actionId, {
+        done: button.dataset.weeklyActionDone === "true"
+      })) as WeeklyRevenuePlanResponse;
+      state.weeklyRevenuePlan = response.plan;
+      setBanner("success", "Weekly action updated.");
+      render();
+    });
+  });
+
+  bindForm("roi-tracking-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const response = (await client.createRoiTrackingEntry(
+      state.gym.id,
+      roiInputFromForm(form)
+    )) as RoiTrackingCreateResponse;
+    state.roiTrackingEntries = [
+      response.entry,
+      ...state.roiTrackingEntries.filter((entry) => entry.id !== response.entry.id)
+    ];
+    state.roiTrackingSummary = response.summary;
+    setBanner("success", "ROI result saved.");
+    render();
+  });
+
+  bindForm("premium-program-builder-form", async (form) => {
+    if (!state.gym) {
+      return;
+    }
+    const response = (await client.createPremiumRecoveryProgram(
+      state.gym.id,
+      premiumRecoveryProgramInputFromForm(form)
+    )) as PremiumRecoveryProgramResponse;
+    state.premiumRecoveryPrograms = [
+      response.program,
+      ...state.premiumRecoveryPrograms.filter((program) => program.id !== response.program.id)
+    ];
+    setBanner("success", `${response.program.title} saved as a premium recovery program.`);
+    render();
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-save-program-suggestion]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!state.gym) {
+        return;
+      }
+      const index = Number(button.dataset.saveProgramSuggestion ?? "-1");
+      const suggestion = state.premiumRecoveryProgramSuggestions[index];
+      if (!suggestion) {
+        return;
+      }
+      const response = (await client.createPremiumRecoveryProgram(
+        state.gym.id,
+        suggestion
+      )) as PremiumRecoveryProgramResponse;
+      state.premiumRecoveryPrograms = [
+        response.program,
+        ...state.premiumRecoveryPrograms.filter((program) => program.id !== response.program.id)
+      ];
+      setBanner("success", `${response.program.title} saved.`);
+      render();
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-campaign-client-segment]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const segment = button.dataset.campaignClientSegment as CampaignClientSegmentKey | undefined;
+      if (!segment) {
+        return;
+      }
+      state.selectedCampaignClientSegment = segment;
+      render();
+    });
+  });
+
+  app.querySelectorAll<HTMLButtonElement>("[data-utilization-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const resourceName = button.dataset.resourceName ?? "this resource";
+      const action = button.dataset.utilizationAction;
+      if (action === "bookings") {
+        setBanner("info", `Showing bookings so you can inspect demand around ${resourceName}.`);
+        navigateDashboardView("bookings", { preserveContext: true });
+        return;
+      }
+      if (action === "program") {
+        state.campaignLayerPage = "programs";
+        setBanner("info", `Premium program ideas are ready for ${resourceName}.`);
+        navigateDashboardView("campaign_layer", { preserveContext: true });
+        return;
+      }
+      setBanner("success", `Off-peak campaign idea generated for ${resourceName}.`);
+      render();
+    });
   });
 
   bindForm("migration-create-batch-form", async () => {
@@ -10648,6 +13488,30 @@ async function memberCsvUploadFromForm(form: HTMLFormElement): Promise<Migration
   };
 }
 
+async function campaignCsvUploadFromForm(form: HTMLFormElement): Promise<CampaignCsvUpload> {
+  const fileInput = form.querySelector<HTMLInputElement>('input[name="campaignCsvFile"]');
+  const file = fileInput?.files?.[0];
+  if (!file) {
+    throw new Error("Choose a CSV file to preview.");
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error("Campaign imports must be 10 MB or smaller.");
+  }
+  if (!isCsvLikeMigrationFile(file.name, file.type)) {
+    throw new Error("Campaign imports read CSV or TSV files. Export spreadsheets to CSV first.");
+  }
+  const data = formData(form);
+  const importType = campaignImportTypeFromValue(data.importType);
+  const delimiter = data.delimiter === "comma" || data.delimiter === "tab" ? data.delimiter : "auto";
+  return {
+    importType,
+    fileName: file.name || `${importType}.csv`,
+    contentType: file.type || migrationContentTypeFromName(file.name),
+    base64Data: arrayBufferToBase64(await file.arrayBuffer()),
+    delimiter
+  };
+}
+
 async function migrationUploadPayloadFromFile(file: File) {
   const lowerName = file.name.toLowerCase();
   if (!lowerName.endsWith(".csv") && !lowerName.endsWith(".xlsx")) {
@@ -11447,6 +14311,21 @@ function clearDashboardState() {
   state.migrationStagedMemberFilter = "all";
   state.selectedMigrationBatchId = "";
   state.migrationAssistantStep = "upload";
+  state.campaignImportType = "clients";
+  state.campaignImportUpload = undefined;
+  state.campaignImportPreview = undefined;
+  state.campaignImportSummary = undefined;
+  state.campaignImports = [];
+  state.revenueOpportunities = [];
+  state.roomDeviceUtilization = undefined;
+  state.campaignClientSegments = undefined;
+  state.selectedCampaignClientSegment = "inactive_members";
+  const utilizationRange = campaignDefaultUtilizationRange();
+  state.campaignUtilizationFrom = utilizationRange.from;
+  state.campaignUtilizationTo = utilizationRange.to;
+  state.campaignUtilizationResourceType = "";
+  state.campaignUtilizationServiceCategory = "";
+  state.campaignLayerPage = "dashboard";
   state.posStripeConfig = undefined;
   state.posTerminalConnectionState = "not_connected";
   state.posTerminalPaymentState = "not_ready";
@@ -11466,6 +14345,7 @@ function readRoute(): {
   dashboardView: AppState["dashboardView"];
   checkInRailExpanded: boolean;
   settingsSection?: SettingsSectionKey;
+  campaignLayerPage?: CampaignLayerPageKey;
   consumerSegment?: ConsumerSegmentFilter;
 } {
   const segments = getHashSegments();
@@ -11491,6 +14371,9 @@ function syncRouteFromHash() {
     state.checkInRailExpanded = route.checkInRailExpanded;
     if (route.dashboardView === "settings") {
       state.settingsSection = route.settingsSection ?? "setup";
+    }
+    if (route.dashboardView === "campaign_layer") {
+      state.campaignLayerPage = route.campaignLayerPage ?? "dashboard";
     }
     if (route.consumerSegment) {
       state.consumerSegment = route.consumerSegment;
@@ -11587,6 +14470,28 @@ function parseDashboardRoute(segments: string[]) {
     case "migration":
     case "migration-assistant":
       return { dashboardView: "migration" as const, checkInRailExpanded: false };
+    case "campaign-layer":
+      return {
+        dashboardView: "campaign_layer" as const,
+        campaignLayerPage: parseCampaignLayerPageRoute(subsection),
+        checkInRailExpanded: false
+      };
+    case "imports":
+    case "opportunities":
+    case "utilization":
+    case "clients":
+    case "campaigns":
+    case "programs":
+      return {
+        dashboardView: "campaign_layer" as const,
+        campaignLayerPage: parseCampaignLayerPageRoute(section),
+        checkInRailExpanded: false
+      };
+    case "weekly-plan":
+      return { dashboardView: "weekly_plan" as const, checkInRailExpanded: false };
+    case "roi":
+    case "roi-tracking":
+      return { dashboardView: "roi_tracking" as const, checkInRailExpanded: false };
     case "marketing":
       return { dashboardView: "marketing" as const, checkInRailExpanded: false };
     case "reporting":
@@ -11605,6 +14510,25 @@ function parseDashboardRoute(segments: string[]) {
 
 function dashboardContentView(view: AppState["dashboardView"]) {
   return view === "check_in" ? "home" : view;
+}
+
+function parseCampaignLayerPageRoute(section?: string): CampaignLayerPageKey {
+  switch (section) {
+    case "imports":
+    case "opportunities":
+    case "utilization":
+    case "clients":
+    case "campaigns":
+    case "programs":
+    case "settings":
+      return section;
+    case "dashboard":
+    case undefined:
+    case "":
+      return "dashboard";
+    default:
+      return "dashboard";
+  }
 }
 
 function parseSettingsSectionRoute(section?: string): SettingsSectionKey | undefined {
@@ -11710,6 +14634,12 @@ function dashboardViewToHash(view: AppState["dashboardView"]) {
       return "#/dashboard/member-portal";
     case "migration":
       return "#/dashboard/migration";
+    case "campaign_layer":
+      return campaignLayerPageToHash(state.campaignLayerPage);
+    case "weekly_plan":
+      return "#/dashboard/weekly-plan";
+    case "roi_tracking":
+      return "#/dashboard/roi";
     case "marketing":
       return "#/dashboard/marketing";
     case "reports":
@@ -11719,6 +14649,11 @@ function dashboardViewToHash(view: AppState["dashboardView"]) {
     default:
       return "#/dashboard/home";
   }
+}
+
+function campaignLayerPageToHash(page: CampaignLayerPageKey) {
+  const route = CAMPAIGN_LAYER_PAGES.find((candidate) => candidate.key === page)?.path ?? "";
+  return route ? `#/dashboard/campaign-layer/${route}` : "#/dashboard/campaign-layer";
 }
 
 function settingsSectionToRoute(section: SettingsSectionKey) {
@@ -11909,6 +14844,53 @@ async function registerInputFromForm(form: HTMLFormElement, options: { requireGy
   return input;
 }
 
+function studioSettingsUpdateFromForm(form: HTMLFormElement) {
+  const data = formData(form);
+  const completedSteps = studioSetupCompletedSteps();
+  completedSteps.add("profile");
+  const currentStep = nextStudioSetupStep(completedSteps);
+  return {
+    name: data.studioName?.trim() || state.gym?.name || "Gym",
+    timezone: data.timezone?.trim() || state.gym?.timezone || "America/New_York",
+    operatingHours: operatingHoursFromStudioForm(form),
+    studioSettings: {
+      businessType: data.businessType?.trim() || undefined,
+      defaultBufferMinutes: safeInteger(data.defaultBufferMinutes, 15),
+      averageSessionPriceCents: dollarsToCents(data.averageSessionPrice || "0"),
+      softwareMonthlyCostCents: dollarsToCents(data.softwareMonthlyCost || "0"),
+      targetMonthlyRevenueCents: dollarsToCents(data.targetMonthlyRevenue || "0"),
+      resourceTypesUsed: Array.from(form.querySelectorAll<HTMLInputElement>('input[name="resourceTypesUsed"]:checked'))
+        .map((input) => input.value)
+        .filter((value): value is StudioResourceType =>
+          STUDIO_RESOURCE_TYPES.some((resource) => resource.value === value)
+        )
+    },
+    setupWizard: {
+      currentStep: currentStep ?? "first_revenue_plan",
+      completedSteps: [...completedSteps],
+      ...(completedSteps.size === STUDIO_SETUP_STEPS.length ? { completedAt: new Date().toISOString() } : {})
+    }
+  };
+}
+
+function operatingHoursFromStudioForm(form: HTMLFormElement) {
+  const hours: Record<string, Array<{ opensAt: string; closesAt: string }>> = {};
+  for (const day of STUDIO_DAYS) {
+    const open = form.querySelector<HTMLInputElement>(`input[name="open_${day.key}"]`)?.checked === true;
+    if (!open) {
+      hours[day.key] = [];
+      continue;
+    }
+    const opensAt = form.querySelector<HTMLInputElement>(`input[name="opensAt_${day.key}"]`)?.value || "09:00";
+    const closesAt = form.querySelector<HTMLInputElement>(`input[name="closesAt_${day.key}"]`)?.value || "17:00";
+    if (opensAt >= closesAt) {
+      throw new Error(`${day.label} closing time must be after opening time.`);
+    }
+    hours[day.key] = [{ opensAt, closesAt }];
+  }
+  return hours;
+}
+
 async function migrationChecklistFromForm(form: HTMLFormElement) {
   const selectedItems = new Set(Array.from(form.querySelectorAll<HTMLInputElement>('input[name="migrationItems"]:checked'))
     .map((input) => input.value)
@@ -12082,10 +15064,6 @@ function buildCheckInDebug(
     message: "Something went wrong while checking in.",
     details
   };
-}
-
-function dollarsToCents(value: string) {
-  return Math.round(Number(value || "0") * 100);
 }
 
 function safeInteger(value: string, fallback: number) {

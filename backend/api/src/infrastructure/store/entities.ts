@@ -60,6 +60,8 @@ export interface Gym {
   brandColors?: BrandColors;
   businessInfo?: GymBusinessInfo;
   migrationChecklist?: GymMigrationChecklist;
+  studioSettings?: StudioSettings;
+  setupWizard?: StudioSetupWizard;
   operatingHours: OperatingHours;
   featureFlags: FeatureFlag[];
   onboardingCompletedSteps: string[];
@@ -290,6 +292,176 @@ export interface MigrationAuditLog {
   createdAt: Date;
 }
 
+export type CampaignImportType =
+  | "clients"
+  | "bookings"
+  | "services"
+  | "memberships_packages"
+  | "payments"
+  | "rooms_devices";
+
+export type CampaignImportValidationStatus = "ready" | "warning" | "critical" | "skipped";
+
+export interface CampaignImportBatch {
+  id: string;
+  gymId: string;
+  importType: CampaignImportType;
+  originalFilename: string;
+  rowCount: number;
+  importedCount: number;
+  skippedCount: number;
+  errorCount: number;
+  mappingsJson: Record<string, string>;
+  sampleRowsJson: Record<string, string>[];
+  summaryJson: Record<string, unknown>;
+  createdByUserId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CampaignImportRecord {
+  id: string;
+  campaignImportBatchId: string;
+  gymId: string;
+  importType: CampaignImportType;
+  sourceRowNumber: number;
+  sourceRowJson: Record<string, string>;
+  normalizedJson: Record<string, unknown>;
+  validationStatus: CampaignImportValidationStatus;
+  errorsJson: string[];
+  importedEntityType?: string;
+  importedEntityId?: string;
+  createdAt: Date;
+}
+
+export type CampaignGeneratorType =
+  | "unused_credit_reminder"
+  | "inactive_member_win_back"
+  | "first_visit_follow_up"
+  | "off_peak_room_fill"
+  | "premium_program_launch"
+  | "review_request"
+  | "membership_upgrade";
+
+export type CampaignGeneratorStatus = "draft" | "ready" | "queued" | "sent" | "archived";
+
+export interface GeneratedCampaign {
+  id: string;
+  gymId: string;
+  campaignType: CampaignGeneratorType;
+  name: string;
+  targetSegment: string;
+  smsMessage: string;
+  emailSubject: string;
+  emailBody: string;
+  recommendedSendTime: Date;
+  expectedGoal: string;
+  estimatedRevenueCents: number;
+  status: CampaignGeneratorStatus;
+  deliveryJson: Record<string, unknown>;
+  createdByUserId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type PremiumRecoveryProgramStatus = "draft" | "active" | "archived";
+
+export interface PremiumRecoveryProgram {
+  id: string;
+  gymId: string;
+  title: string;
+  description: string;
+  targetAudience: string;
+  includedServices: string[];
+  recommendedPriceCents: number;
+  capacity: number;
+  schedule: string;
+  durationWeeks: number;
+  campaignCopy: string;
+  postProgramUpsell: string;
+  sourceJson: Record<string, unknown>;
+  status: PremiumRecoveryProgramStatus;
+  createdByUserId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface WeeklyRevenuePlanClient {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  reason: string;
+}
+
+export interface WeeklyRevenuePlanResource {
+  id: string;
+  name: string;
+  type: string;
+  weakestTimeBlock: string;
+  utilizationPercentage: number;
+}
+
+export interface WeeklyRevenuePlanCampaign {
+  name: string;
+  targetSegment: string;
+  smsMessage: string;
+  emailSubject: string;
+  emailBody: string;
+}
+
+export interface WeeklyRevenuePlanProgramIdea {
+  title: string;
+  description: string;
+  schedule: string;
+  recommendedPriceCents: number;
+}
+
+export interface WeeklyRevenuePlanAction {
+  id: string;
+  title: string;
+  description: string;
+  estimatedRevenueCents: number;
+  ownerNote: string;
+  campaign?: WeeklyRevenuePlanCampaign;
+  clients: WeeklyRevenuePlanClient[];
+  resources: WeeklyRevenuePlanResource[];
+  premiumProgramIdea?: WeeklyRevenuePlanProgramIdea;
+  done: boolean;
+  completedAt?: Date;
+}
+
+export interface WeeklyRevenuePlan {
+  id: string;
+  gymId: string;
+  weekStartDate: Date;
+  summary: string;
+  revenueLeaks: string[];
+  totalEstimatedRevenueCents: number;
+  actions: WeeklyRevenuePlanAction[];
+  sourceJson: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type RoiTrackingSourceType = "campaign" | "weekly_action";
+
+export interface RoiTrackingEntry {
+  id: string;
+  gymId: string;
+  sourceType: RoiTrackingSourceType;
+  sourceId: string;
+  sourceLabel: string;
+  bookingsGenerated: number;
+  revenueGeneratedCents: number;
+  membershipsSold: number;
+  packagesSold: number;
+  notes?: string;
+  createdByUserId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export type GymMigrationChecklistItem =
   | "memberList"
   | "activeMemberships"
@@ -313,6 +485,33 @@ export type GymMigrationSourceType =
   | "manual_entry"
   | "old_system_report"
   | "not_available";
+
+export type StudioResourceType =
+  | "sauna"
+  | "cold_plunge"
+  | "red_light"
+  | "compression"
+  | "float"
+  | "stretch_table"
+  | "recovery_room"
+  | "other";
+
+export type StudioSetupStep = "profile" | "rooms_devices" | "services" | "first_csv" | "first_revenue_plan";
+
+export interface StudioSettings {
+  businessType?: string;
+  defaultBufferMinutes?: number;
+  averageSessionPriceCents?: number;
+  softwareMonthlyCostCents?: number;
+  targetMonthlyRevenueCents?: number;
+  resourceTypesUsed?: StudioResourceType[];
+}
+
+export interface StudioSetupWizard {
+  currentStep?: StudioSetupStep;
+  completedSteps?: StudioSetupStep[];
+  completedAt?: Date;
+}
 
 export interface BrandColors {
   primary: string;
@@ -859,6 +1058,12 @@ export interface StoreSnapshot {
   migrationPlanMappings: MigrationPlanMapping[];
   migrationValidationErrors: MigrationValidationError[];
   migrationAuditLogs: MigrationAuditLog[];
+  campaignImportBatches: CampaignImportBatch[];
+  campaignImportRecords: CampaignImportRecord[];
+  generatedCampaigns: GeneratedCampaign[];
+  premiumRecoveryPrograms: PremiumRecoveryProgram[];
+  weeklyRevenuePlans: WeeklyRevenuePlan[];
+  roiTrackingEntries: RoiTrackingEntry[];
   classTypes: ClassType[];
   classSessions: ClassSession[];
   classBookings: ClassBooking[];
